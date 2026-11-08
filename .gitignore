@@ -12,6 +12,8 @@ src-tauri/gen/
 .rogue-wallet.vault
 *.log
 .DS_Store
+nodes-local/
+**/nodes-local/
 
 # Local agent instructions
 AGENTS.md

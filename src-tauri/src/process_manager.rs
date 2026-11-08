@@ -73,9 +73,28 @@ fn resolve_datadir(raw_path: &str) -> PathBuf {
     if p.is_absolute() {
         return p.to_path_buf();
     }
-    // If cwd is rogue-desktop-client, parent has nodes-local or rogue-core-chain
+    // 1. If cwd is src-tauri (tauri dev mode) -> workspace root is ../..
+    if Path::new("../../rogue-core-chain").exists() {
+        let target = Path::new("../..").join(p);
+        if let Ok(abs) = target.canonicalize() {
+            return abs;
+        }
+        return target;
+    }
+    // 2. If cwd is rogue-desktop-client -> workspace root is ..
     if Path::new("../rogue-core-chain").exists() {
-        return Path::new("..").join(p);
+        let target = Path::new("..").join(p);
+        if let Ok(abs) = target.canonicalize() {
+            return abs;
+        }
+        return target;
+    }
+    // 3. If cwd is workspace root
+    if Path::new("rogue-core-chain").exists() {
+        if let Ok(abs) = p.canonicalize() {
+            return abs;
+        }
+        return p.to_path_buf();
     }
     p.to_path_buf()
 }
