@@ -21,6 +21,10 @@ export const api = {
     return safeInvoke("stop_node");
   },
 
+  exitApp: async (): Promise<void> => {
+    return safeInvoke("exit_app");
+  },
+
   getNodeStatus: async (): Promise<NodeStatus> => {
     try {
       return await safeInvoke<NodeStatus>("get_node_status");
