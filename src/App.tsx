@@ -13,7 +13,7 @@ import { api } from "./services/api";
 import { Loader2, ShieldAlert } from "lucide-react";
 
 const DEFAULT_HTTP_PORT = 38849;
-const DEFAULT_WS_PORT = 38850;
+const DEFAULT_WS_PORT = 0; // Disabled by default to avoid port collision with local nodes
 const DEFAULT_P2P_PORT = 38890;
 const DEFAULT_DATADIR = "./nodes-local/node-desktop";
 const DEFAULT_BOOTNODES =
@@ -61,6 +61,7 @@ export const App: React.FC = () => {
   });
 
   const [nodeStatus, setNodeStatus] = useState<NodeStatus>({ running: false, pid: null });
+  const [rpcConnected, setRpcConnected] = useState<boolean>(false);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>({
     isSyncing: false,
     startingBlock: 0,
@@ -80,21 +81,35 @@ export const App: React.FC = () => {
   const [isShuttingDown, setIsShuttingDown] = useState<boolean>(false);
 
   const lastActivityRef = useRef<number>(Date.now());
+  const autoStartInitiated = useRef<boolean>(false);
 
-  // Listen to Tauri log events
+  // Listen to Tauri log events (clean async unlisten to avoid duplicates)
   useEffect(() => {
-    let unlistenNode: (() => void) | undefined;
-    let unlistenStratum: (() => void) | undefined;
+    let isCancelled = false;
+    let cleanups: (() => void)[] = [];
 
     async function setupListeners() {
       try {
         const { listen } = await import("@tauri-apps/api/event");
-        unlistenNode = await listen<string>("node-log", (event) => {
+        if (isCancelled) return;
+
+        const unlistenNode = await listen<string>("node-log", (event) => {
           setLogs((prev) => [...prev.slice(-300), `[Geth] ${event.payload}`]);
         });
-        unlistenStratum = await listen<string>("stratum-log", (event) => {
+        if (isCancelled) {
+          unlistenNode();
+        } else {
+          cleanups.push(unlistenNode);
+        }
+
+        const unlistenStratum = await listen<string>("stratum-log", (event) => {
           setLogs((prev) => [...prev.slice(-300), `[Stratum] ${event.payload}`]);
         });
+        if (isCancelled) {
+          unlistenStratum();
+        } else {
+          cleanups.push(unlistenStratum);
+        }
       } catch (err) {
         // Outside of Tauri context or mocking
       }
@@ -102,8 +117,8 @@ export const App: React.FC = () => {
 
     setupListeners();
     return () => {
-      if (unlistenNode) unlistenNode();
-      if (unlistenStratum) unlistenStratum();
+      isCancelled = true;
+      cleanups.forEach((c) => c());
     };
   }, []);
 
@@ -182,8 +197,11 @@ export const App: React.FC = () => {
         const bal = await api.getBalance(rpcUrl, unlockedAddress);
         setBalance(bal);
       }
+
+      setRpcConnected(true);
     } catch {
-      // Node may be offline or starting up
+      // Node may be offline, starting up, or RPC endpoint not responding
+      setRpcConnected(false);
     }
   };
 
@@ -204,14 +222,14 @@ export const App: React.FC = () => {
     refreshMetrics();
     refreshBlocks();
 
-    const pollIntervalMs = syncStatus.isSyncing || peerCount === 0 ? 2000 : 4000;
+    const pollIntervalMs = syncStatus.isSyncing || peerCount === 0 || !rpcConnected ? 2000 : 4000;
     const interval = setInterval(() => {
       refreshMetrics();
       refreshBlocks();
     }, pollIntervalMs);
 
     return () => clearInterval(interval);
-  }, [rpcUrl, unlockedAddress, syncStatus.isSyncing, peerCount]);
+  }, [rpcUrl, unlockedAddress, syncStatus.isSyncing, peerCount, rpcConnected]);
 
   const handleStartNode = async (mine: boolean = false, threads: number = 2, coinbase?: string) => {
     try {
@@ -252,8 +270,11 @@ export const App: React.FC = () => {
     }
   };
 
-  // Auto-start node upon application mount with retry backoff
+  // Auto-start node upon application mount with retry backoff (guarded against strict mode)
   useEffect(() => {
+    if (autoStartInitiated.current) return;
+    autoStartInitiated.current = true;
+
     let attempts = 0;
     let isCancelled = false;
 
@@ -345,6 +366,7 @@ export const App: React.FC = () => {
       <Navbar
         nodeStatus={nodeStatus}
         syncStatus={syncStatus}
+        rpcConnected={rpcConnected}
         peerCount={peerCount}
         currentBlock={currentBlock}
         unlockedAddress={unlockedAddress}
@@ -364,6 +386,7 @@ export const App: React.FC = () => {
               peerCount={peerCount}
               nodeStatus={nodeStatus}
               syncStatus={syncStatus}
+              rpcConnected={rpcConnected}
               recentBlocks={recentBlocks}
               onNavigate={(tab) => setCurrentTab(tab)}
               onRetryPeers={handleRetryPeers}

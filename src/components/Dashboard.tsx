@@ -19,6 +19,7 @@ interface DashboardProps {
   peerCount: number;
   nodeStatus: NodeStatus;
   syncStatus: SyncStatus;
+  rpcConnected: boolean;
   recentBlocks: Block[];
   onNavigate: (tab: "wallet" | "mining" | "explorer" | "settings") => void;
   onRetryPeers?: () => void;
@@ -31,6 +32,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
   peerCount,
   nodeStatus,
   syncStatus,
+  rpcConnected,
   recentBlocks,
   onNavigate,
   onRetryPeers,
@@ -59,7 +61,21 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   Nodo Inactivo
                 </span>
                 <p className="text-[11px] text-zinc-500 truncate">
-                  Configúralo o inícialo desde Settings.
+                  Inícialo manualmente desde Settings.
+                </p>
+              </div>
+            </div>
+          ) : !rpcConnected ? (
+            <div className="flex items-center space-x-3 py-1">
+              <div className="w-8 h-8 rounded-full bg-cyan-950/60 border border-cyan-800/50 flex items-center justify-center shrink-0">
+                <RefreshCw className="w-4 h-4 text-cyan-400 animate-spin" />
+              </div>
+              <div className="min-w-0">
+                <span className="text-xs font-semibold text-cyan-300 uppercase tracking-wider block">
+                  Conectando con Nodo RPC...
+                </span>
+                <p className="text-[11px] text-zinc-400 truncate">
+                  Estableciendo comunicación JSON-RPC local.
                 </p>
               </div>
             </div>
@@ -201,7 +217,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
             <Users className="w-5 h-5 text-purple-400" />
           </div>
           <div className="mt-3 text-2xl font-black text-white font-mono">{peerCount}</div>
-          <div className="mt-2 text-xs text-zinc-500">Port :38888 (DevP2P)</div>
+          <div className="mt-2 text-xs text-zinc-500">Port :38890 (DevP2P)</div>
         </div>
       </div>
 
