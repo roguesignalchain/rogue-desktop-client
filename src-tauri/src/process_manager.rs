@@ -167,9 +167,9 @@ pub async fn start_stratum(app: AppHandle, listen_port: u16, rpc_url: String) ->
 
     let stratum_bin = resolve_binary("rogue-stratum")?;
     let mut cmd = Command::new(&stratum_bin);
-    cmd.arg("-listen")
-        .arg(format!("0.0.0.0:{}", listen_port))
-        .arg("-node")
+    cmd.arg("-stratum.port")
+        .arg(listen_port.to_string())
+        .arg("-node.rpc")
         .arg(rpc_url)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
