@@ -1,9 +1,11 @@
 import React from "react";
-import { Activity, ShieldCheck, ShieldAlert, Cpu, Radio } from "lucide-react";
-import { NodeStatus } from "../types";
+import { Activity, ShieldCheck, ShieldAlert, Radio, RefreshCw, CheckCircle2 } from "lucide-react";
+import { NodeStatus, SyncStatus } from "../types";
 
 interface NavbarProps {
   nodeStatus: NodeStatus;
+  syncStatus: SyncStatus;
+  peerCount: number;
   currentBlock: number;
   unlockedAddress: string | null;
   onOpenWalletModal: () => void;
@@ -12,6 +14,8 @@ interface NavbarProps {
 
 export const Navbar: React.FC<NavbarProps> = ({
   nodeStatus,
+  syncStatus,
+  peerCount,
   currentBlock,
   unlockedAddress,
   onOpenWalletModal,
@@ -33,15 +37,30 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
       </div>
 
-      {/* Node status & Block tracker */}
-      <div className="flex items-center space-x-6">
-        <div className="flex items-center space-x-2 text-xs font-mono">
-          <Cpu className={`w-4 h-4 ${nodeStatus.running ? "text-emerald-400" : "text-zinc-600"}`} />
-          <span className="text-zinc-400">Node:</span>
-          <span className={nodeStatus.running ? "text-emerald-400 font-semibold" : "text-zinc-500"}>
-            {nodeStatus.running ? `Running (PID: ${nodeStatus.pid})` : "Stopped"}
-          </span>
-        </div>
+      {/* Dynamic Sync Status & Block tracker */}
+      <div className="flex items-center space-x-5">
+        {/* Dynamic Network / Sync Badge */}
+        {!nodeStatus.running ? (
+          <div className="flex items-center space-x-1.5 px-2.5 py-1 bg-red-950/30 border border-red-900/40 rounded-full text-xs font-mono text-red-400">
+            <span className="w-2 h-2 rounded-full bg-red-500" />
+            <span>Node Offline</span>
+          </div>
+        ) : peerCount === 0 ? (
+          <div className="flex items-center space-x-1.5 px-2.5 py-1 bg-amber-950/30 border border-amber-900/40 rounded-full text-xs font-mono text-amber-300">
+            <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+            <span>Connecting...</span>
+          </div>
+        ) : syncStatus.isSyncing ? (
+          <div className="flex items-center space-x-1.5 px-2.5 py-1 bg-cyan-950/30 border border-cyan-800/40 rounded-full text-xs font-mono text-cyan-300">
+            <RefreshCw className="w-3 h-3 text-cyan-400 animate-spin" />
+            <span>Syncing {syncStatus.progressPercentage}%</span>
+          </div>
+        ) : (
+          <div className="flex items-center space-x-1.5 px-2.5 py-1 bg-emerald-950/40 border border-emerald-800/50 rounded-full text-xs font-mono text-emerald-300">
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Synced</span>
+          </div>
+        )}
 
         <div className="flex items-center space-x-2 text-xs font-mono">
           <Activity className="w-4 h-4 text-cyan-400" />
@@ -68,14 +87,13 @@ export const Navbar: React.FC<NavbarProps> = ({
         ) : (
           <button
             onClick={onOpenWalletModal}
-            className="flex items-center space-x-1.5 px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white rounded text-xs font-medium shadow-md shadow-rose-900/30 transition"
+            className="flex items-center space-x-1.5 px-3 py-1 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700/60 rounded text-xs text-zinc-300 transition"
           >
-            <ShieldAlert className="w-4 h-4" />
-            <span>Unlock / Create Wallet</span>
+            <ShieldAlert className="w-4 h-4 text-amber-400" />
+            <span>Unlock Wallet</span>
           </button>
         )}
       </div>
     </header>
   );
 };
-

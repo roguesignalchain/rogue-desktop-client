@@ -1,4 +1,4 @@
-import { Block, NodeStatus, Account, NodeLaunchConfig } from "../types";
+import { Block, NodeStatus, Account, NodeLaunchConfig, SyncStatus } from "../types";
 
 // Safe invoke wrapper for Tauri v2
 async function safeInvoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
@@ -27,6 +27,10 @@ export const api = {
     } catch {
       return { running: false, pid: null };
     }
+  },
+
+  cleanChaindata: async (datadir?: string): Promise<string> => {
+    return safeInvoke("clean_chaindata", { datadir });
   },
 
   // Stratum bridge management
@@ -162,6 +166,55 @@ export const api = {
       return parseInt(hex, 16);
     } catch {
       return 0;
+    }
+  },
+
+  getSyncStatus: async (rpcUrl: string): Promise<SyncStatus> => {
+    try {
+      const res = await api.callRpc<unknown>(rpcUrl, "eth_syncing");
+      if (res && typeof res === "object") {
+        const raw = res as Record<string, string>;
+        const startingBlock = raw.startingBlock ? parseInt(raw.startingBlock, 16) : 0;
+        const currentBlock = raw.currentBlock ? parseInt(raw.currentBlock, 16) : 0;
+        const highestBlock = raw.highestBlock ? parseInt(raw.highestBlock, 16) : 0;
+        const total = highestBlock - startingBlock;
+        const progressed = currentBlock - startingBlock;
+        const progressPercentage =
+          total > 0 ? Math.min(100, Math.max(0, Math.round((progressed / total) * 100))) : 0;
+
+        return {
+          isSyncing: true,
+          startingBlock,
+          currentBlock,
+          highestBlock,
+          progressPercentage,
+        };
+      }
+
+      // eth_syncing is false
+      return {
+        isSyncing: false,
+        startingBlock: 0,
+        currentBlock: 0,
+        highestBlock: 0,
+        progressPercentage: 100,
+      };
+    } catch {
+      return {
+        isSyncing: false,
+        startingBlock: 0,
+        currentBlock: 0,
+        highestBlock: 0,
+        progressPercentage: 0,
+      };
+    }
+  },
+
+  addPeer: async (rpcUrl: string, enode: string): Promise<boolean> => {
+    try {
+      return await api.callRpc<boolean>(rpcUrl, "admin_addPeer", [enode]);
+    } catch {
+      return false;
     }
   },
 };

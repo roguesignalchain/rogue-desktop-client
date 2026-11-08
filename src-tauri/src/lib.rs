@@ -13,6 +13,7 @@ pub fn run() {
             process_manager::start_node,
             process_manager::stop_node,
             process_manager::get_node_status,
+            process_manager::clean_chaindata,
             process_manager::start_stratum,
             process_manager::stop_stratum,
             wallet::generate_mnemonic,
