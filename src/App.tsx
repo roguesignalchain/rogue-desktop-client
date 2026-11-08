@@ -11,10 +11,43 @@ import { WalletModal } from "./components/WalletModal";
 import { Block, NodeStatus } from "./types";
 import { api } from "./services/api";
 
+const DEFAULT_HTTP_PORT = 38849;
+const DEFAULT_WS_PORT = 38850;
+const DEFAULT_P2P_PORT = 38890;
+const DEFAULT_DATADIR = "./nodes-local/node-desktop";
+const DEFAULT_BOOTNODES =
+  "enode://3bfcd978ea35fc817c5573b03e7b76cb7367720d4ff7a1fdb7ddcb83ec2ad6cba997029305678d49e1dbfccc83a20ecea0d4920a483a8e4d86ebe212b06bcefc@127.0.0.1:38888";
+
 export const App: React.FC = () => {
   const [currentTab, setCurrentTab] = useState<TabType>("dashboard");
-  const [rpcUrl, setRpcUrl] = useState<string>("http://127.0.0.1:38845");
-  const [autoLockMinutes, setAutoLockMinutes] = useState<number>(15);
+  const [rpcUrl, setRpcUrl] = useState<string>(() => {
+    return localStorage.getItem("rogue_rpc_url") || `http://127.0.0.1:${DEFAULT_HTTP_PORT}`;
+  });
+  const [autoLockMinutes, setAutoLockMinutes] = useState<number>(() => {
+    const saved = localStorage.getItem("rogue_auto_lock");
+    return saved ? parseInt(saved, 10) : 15;
+  });
+
+  // Dedicated Desktop Node configuration
+  const [nodeHttpPort, setNodeHttpPort] = useState<number>(() => {
+    const saved = localStorage.getItem("rogue_node_http_port");
+    return saved ? parseInt(saved, 10) : DEFAULT_HTTP_PORT;
+  });
+  const [nodeWsPort, setNodeWsPort] = useState<number>(() => {
+    const saved = localStorage.getItem("rogue_node_ws_port");
+    return saved ? parseInt(saved, 10) : DEFAULT_WS_PORT;
+  });
+  const [nodeP2pPort, setNodeP2pPort] = useState<number>(() => {
+    const saved = localStorage.getItem("rogue_node_p2p_port");
+    return saved ? parseInt(saved, 10) : DEFAULT_P2P_PORT;
+  });
+  const [nodeDatadir, setNodeDatadir] = useState<string>(() => {
+    return localStorage.getItem("rogue_node_datadir") || DEFAULT_DATADIR;
+  });
+  const [nodeBootnodes, setNodeBootnodes] = useState<string>(() => {
+    return localStorage.getItem("rogue_node_bootnodes") || DEFAULT_BOOTNODES;
+  });
+
   const [nodeStatus, setNodeStatus] = useState<NodeStatus>({ running: false, pid: null });
   const [currentBlock, setCurrentBlock] = useState<number>(0);
   const [balance, setBalance] = useState<string>("0.0000");
@@ -122,26 +155,33 @@ export const App: React.FC = () => {
     const interval = setInterval(() => {
       refreshMetrics();
       refreshBlocks();
-    }, 5000);
+    }, 4000);
     return () => clearInterval(interval);
   }, [rpcUrl, unlockedAddress]);
 
-  const handleStartNode = async () => {
+  const handleStartNode = async (mine: boolean = false, threads: number = 2, coinbase?: string) => {
     try {
       const msg = await api.startNode({
-        http_port: 38845,
-        ws_port: 38846,
-        p2p_port: 38888,
-        mine: false,
-        miner_threads: 2,
+        datadir: nodeDatadir,
+        http_port: nodeHttpPort,
+        ws_port: nodeWsPort,
+        p2p_port: nodeP2pPort,
+        bootnodes: nodeBootnodes,
+        mine,
+        miner_threads: threads,
         fast_mode: false,
-        coinbase: unlockedAddress || undefined,
+        coinbase: coinbase || unlockedAddress || undefined,
       });
       setLogs((prev) => [...prev, `[Manager] ${msg}`]);
+      // Ensure local RPC URL targets this started node
+      const activeRpc = `http://127.0.0.1:${nodeHttpPort}`;
+      setRpcUrl(activeRpc);
+      localStorage.setItem("rogue_rpc_url", activeRpc);
       refreshMetrics();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       setLogs((prev) => [...prev, `[Manager Error] ${msg}`]);
+      throw err;
     }
   };
 
@@ -154,6 +194,36 @@ export const App: React.FC = () => {
       const msg = err instanceof Error ? err.message : String(err);
       setLogs((prev) => [...prev, `[Manager Error] ${msg}`]);
     }
+  };
+
+  const handleSaveNodeConfig = (config: {
+    datadir: string;
+    httpPort: number;
+    wsPort: number;
+    p2pPort: number;
+    bootnodes: string;
+  }) => {
+    setNodeDatadir(config.datadir);
+    setNodeHttpPort(config.httpPort);
+    setNodeWsPort(config.wsPort);
+    setNodeP2pPort(config.p2pPort);
+    setNodeBootnodes(config.bootnodes);
+
+    localStorage.setItem("rogue_node_datadir", config.datadir);
+    localStorage.setItem("rogue_node_http_port", config.httpPort.toString());
+    localStorage.setItem("rogue_node_ws_port", config.wsPort.toString());
+    localStorage.setItem("rogue_node_p2p_port", config.p2pPort.toString());
+    localStorage.setItem("rogue_node_bootnodes", config.bootnodes);
+  };
+
+  const handleSaveRpcUrl = (url: string) => {
+    setRpcUrl(url);
+    localStorage.setItem("rogue_rpc_url", url);
+  };
+
+  const handleSaveAutoLock = (mins: number) => {
+    setAutoLockMinutes(mins);
+    localStorage.setItem("rogue_auto_lock", mins.toString());
   };
 
   return (
@@ -178,7 +248,7 @@ export const App: React.FC = () => {
               peerCount={peerCount}
               nodeStatus={nodeStatus}
               recentBlocks={recentBlocks}
-              onStartNode={handleStartNode}
+              onStartNode={() => handleStartNode(false)}
               onStopNode={handleStopNode}
               onNavigate={(tab) => setCurrentTab(tab)}
             />
@@ -199,6 +269,8 @@ export const App: React.FC = () => {
               hashrate={hashrate}
               rpcUrl={rpcUrl}
               unlockedAddress={unlockedAddress}
+              nodeStatus={nodeStatus}
+              onEnsureNodeRunning={(threads, coinbase) => handleStartNode(true, threads, coinbase)}
             />
           )}
 
@@ -221,9 +293,15 @@ export const App: React.FC = () => {
           {currentTab === "settings" && (
             <SettingsView
               rpcUrl={rpcUrl}
-              onSaveRpcUrl={setRpcUrl}
+              onSaveRpcUrl={handleSaveRpcUrl}
               autoLockMinutes={autoLockMinutes}
-              onSaveAutoLockMinutes={setAutoLockMinutes}
+              onSaveAutoLockMinutes={handleSaveAutoLock}
+              nodeDatadir={nodeDatadir}
+              nodeHttpPort={nodeHttpPort}
+              nodeWsPort={nodeWsPort}
+              nodeP2pPort={nodeP2pPort}
+              nodeBootnodes={nodeBootnodes}
+              onSaveNodeConfig={handleSaveNodeConfig}
             />
           )}
         </main>
@@ -240,4 +318,3 @@ export const App: React.FC = () => {
     </div>
   );
 };
-

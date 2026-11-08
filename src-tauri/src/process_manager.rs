@@ -13,6 +13,7 @@ pub struct NodeConfig {
     pub http_port: u16,
     pub ws_port: u16,
     pub p2p_port: u16,
+    pub bootnodes: Option<String>,
     pub mine: bool,
     pub miner_threads: u32,
     pub fast_mode: bool,
@@ -22,12 +23,13 @@ pub struct NodeConfig {
 impl Default for NodeConfig {
     fn default() -> Self {
         Self {
-            datadir: None,
-            http_port: 38845,
-            ws_port: 38846,
-            p2p_port: 38888,
+            datadir: Some("./nodes-local/node-desktop".to_string()),
+            http_port: 38849,
+            ws_port: 38850,
+            p2p_port: 38890,
+            bootnodes: Some("enode://3bfcd978ea35fc817c5573b03e7b76cb7367720d4ff7a1fdb7ddcb83ec2ad6cba997029305678d49e1dbfccc83a20ecea0d4920a483a8e4d86ebe212b06bcefc@127.0.0.1:38888".to_string()),
             mine: false,
-            miner_threads: 1,
+            miner_threads: 2,
             fast_mode: false,
             coinbase: None,
         }
@@ -66,6 +68,18 @@ fn resolve_binary(bin_name: &str) -> Result<PathBuf, String> {
     Ok(PathBuf::from(bin_name))
 }
 
+fn resolve_datadir(raw_path: &str) -> PathBuf {
+    let p = Path::new(raw_path);
+    if p.is_absolute() {
+        return p.to_path_buf();
+    }
+    // If cwd is rogue-desktop-client, parent has nodes-local or rogue-core-chain
+    if Path::new("../rogue-core-chain").exists() {
+        return Path::new("..").join(p);
+    }
+    p.to_path_buf()
+}
+
 #[tauri::command]
 pub async fn start_node(app: AppHandle, config: NodeConfig) -> Result<String, String> {
     let mut proc_lock = NODE_PROCESS.lock().unwrap();
@@ -77,24 +91,46 @@ pub async fn start_node(app: AppHandle, config: NodeConfig) -> Result<String, St
     let mut cmd = Command::new(&geth_bin);
     cmd.arg("--rogue");
 
-    if let Some(ref datadir) = config.datadir {
-        cmd.arg("--datadir").arg(datadir);
+    if let Some(ref raw_datadir) = config.datadir {
+        let datadir = resolve_datadir(raw_datadir);
+        let _ = std::fs::create_dir_all(&datadir);
+        cmd.arg("--datadir").arg(&datadir);
     }
 
+    cmd.arg("--syncmode").arg("full");
+
     cmd.arg("--http")
+        .arg("--http.addr")
+        .arg("0.0.0.0")
         .arg("--http.port")
         .arg(config.http_port.to_string())
         .arg("--http.api")
-        .arg("eth,net,web3,miner,personal,txpool")
+        .arg("eth,net,web3,miner,personal,txpool,admin")
         .arg("--http.corsdomain")
         .arg("*")
         .arg("--ws")
+        .arg("--ws.addr")
+        .arg("0.0.0.0")
         .arg("--ws.port")
         .arg(config.ws_port.to_string())
         .arg("--ws.api")
-        .arg("eth,net,web3,miner,personal")
+        .arg("eth,net,web3,miner,personal,admin")
+        .arg("--ws.origins")
+        .arg("*")
         .arg("--port")
-        .arg(config.p2p_port.to_string());
+        .arg(config.p2p_port.to_string())
+        .arg("--authrpc.port")
+        .arg("8553")
+        .arg("--nat")
+        .arg("extip:127.0.0.1")
+        .arg("--metrics");
+
+    if let Some(ref bootnodes) = config.bootnodes {
+        let trimmed = bootnodes.trim();
+        if !trimmed.is_empty() {
+            cmd.arg("--bootnodes").arg(trimmed);
+        }
+    }
 
     if config.fast_mode {
         cmd.arg("--randomx.fast");
@@ -113,7 +149,7 @@ pub async fn start_node(app: AppHandle, config: NodeConfig) -> Result<String, St
     let mut child = cmd.spawn().map_err(|e| format!("Failed to start geth node at {:?}: {}", geth_bin, e))?;
     let pid = child.id();
 
-    // Stream logs in background
+    // Stream logs in background (Geth primarily outputs to stderr)
     if let Some(stderr) = child.stderr.take() {
         let app_handle = app.clone();
         std::thread::spawn(move || {
@@ -126,7 +162,7 @@ pub async fn start_node(app: AppHandle, config: NodeConfig) -> Result<String, St
     }
 
     *proc_lock = Some(child);
-    Ok(format!("Node started successfully (PID: {})", pid))
+    Ok(format!("Node started successfully (PID: {}) on ports P2P:{} HTTP:{}", pid, config.p2p_port, config.http_port))
 }
 
 #[tauri::command]

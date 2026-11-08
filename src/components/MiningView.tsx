@@ -1,17 +1,22 @@
 import React, { useState, useEffect } from "react";
 import { Pickaxe, Cpu, Download, Play, Square, Radio } from "lucide-react";
 import { api } from "../services/api";
+import { NodeStatus } from "../types";
 
 interface MiningViewProps {
   hashrate: number;
   rpcUrl: string;
   unlockedAddress: string | null;
+  nodeStatus?: NodeStatus;
+  onEnsureNodeRunning?: (threads: number, coinbase?: string) => Promise<void>;
 }
 
 export const MiningView: React.FC<MiningViewProps> = ({
   hashrate,
   rpcUrl,
   unlockedAddress,
+  nodeStatus,
+  onEnsureNodeRunning,
 }) => {
   const [threads, setThreads] = useState<number>(2);
   const [isMining, setIsMining] = useState<boolean>(false);
@@ -55,6 +60,14 @@ export const MiningView: React.FC<MiningViewProps> = ({
 
         if (!payoutAddr) {
           setFeedback("⚠️ Please unlock a wallet first in the Wallet tab so mining rewards can be sent to your address.");
+          return;
+        }
+
+        if (nodeStatus && !nodeStatus.running && onEnsureNodeRunning) {
+          setFeedback(`Launching dedicated node with ${threads} CPU mining threads...`);
+          await onEnsureNodeRunning(threads, payoutAddr);
+          setIsMining(true);
+          setFeedback(`Dedicated node running and mining with ${threads} CPU threads. Rewards: ${payoutAddr}`);
           return;
         }
 
