@@ -1,0 +1,17 @@
+# Node.js
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+# Rust / Tauri
+src-tauri/target/
+src-tauri/gen/
+
+# Secrets & local runtime
+.rogue-wallet.vault
+*.log
+.DS_Store
+
+# Local agent instructions
+AGENTS.md
