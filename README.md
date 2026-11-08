@@ -1,5 +1,10 @@
 # Rogue Signal Desktop (Tauri v2 + React 19)
 
+![Rogue Signal Desktop](cover-client.png)
+
+
+![Dashboard](client-dashboard.png)
+
 **Rogue Signal Desktop** is the official all-in-one desktop client, node manager, and non-custodial wallet for the **Rogue Signal (ROGUE)** blockchain (Chain ID: `800055`).
 
 Built with **Tauri v2**, **Rust**, **React 19**, **TypeScript**, and **Tailwind CSS**, it combines lightweight native performance with an advanced cyberpunk interface.
@@ -9,18 +14,18 @@ Built with **Tauri v2**, **Rust**, **React 19**, **TypeScript**, and **Tailwind 
 ## 🚀 Key Features
 
 * **Dual Connection Architecture (Hybrid Mode)**:
-  * **Managed Local Node (Sidecar)**: Supervise, start, and stop `geth --rogue` and `rogue-stratum` processes with real-time log streaming (`stdout`/`stderr`).
+  * **Managed Local Node (Sidecar)**: Supervise, start, and stop the local `geth --rogue` node process with real-time log streaming (`stdout`/`stderr`).
   * **Remote RPC Mode**: Connect seamlessly to any external Rogue Signal node via standard JSON-RPC HTTP (`:38845`) and WebSocket (`:38846`).
 * **Non-Custodial Cryptographic Keystore (Rust Core)**:
   * Hierarchical Deterministic (HD) key derivation conforming to **BIP-39** (12-word seed phrases) and **BIP-44** standard EVM path:
     $$\text{Derivation Path} = m/44'/60'/0'/0/x$$
   * Military-grade local vault encryption using **Argon2id** password-based key derivation function (KDF) and **AES-256-GCM** authenticated symmetric encryption.
   * Local offline signing for EVM EIP-155 transactions (`secp256k1` recoverable signatures with Chain ID `800055`).
-* **Complete RandomX Mining & Stratum Control Center**:
-  * **Internal CPU Miner**: Toggle internal multithreaded sealing directly from the UI with real-time thread adjustments.
-  * **Memory Profiles**: Switch between **Light Mode** (~256 MB RAM cache, ideal for low-end hardware) and **Fast Mode** (`--randomx.fast`, ~2.1 GB dataset for maximum hash performance).
-  * **Stratum v1 Bridge Supervisor**: Manage the native `cmd/rogue-stratum` TCP bridge on port `3333`.
-  * **One-Click XMRig Integration**: Instant export of preconfigured `config.json` for external standalone mining rigs.
+* **Egalitarian Home CPU Mining Control Center**:
+  * **Internal Solo CPU Miner**: Toggle internal multithreaded RandomX sealing directly from the UI with real-time thread presets (**25% Low Impact**, **50% Balanced**, **75% High Power**) and manual slider control.
+  * **Interactive System Resource Diagnostics**: Built-in hardware inspector (`get_system_specs`) detecting logical CPU cores, total RAM, and available RAM to recommend safe mining parameters.
+  * **Memory Profiles**: Defaults strictly to **Light Mode** (~256 MB RAM cache, safe for all home computers) with optional **Fast Mode** (~2.08 GB dataset for high-RAM machines).
+  * **Automatic Etherbase Synchronization**: Automatically routes 7.6 ROGUE miner block rewards to the active wallet address.
 * **EIP-1559 Gas Estimation & Transaction Engine**:
   * Dynamic priority fee calculations (**Slow**, **Normal**, **Fast**) adhering to Rogue Signal's 60M block gas limit and 10s target block time.
   * Real-time balance and gas tracking in native ROGUE (18 decimals).
@@ -33,17 +38,16 @@ Built with **Tauri v2**, **Rust**, **React 19**, **TypeScript**, and **Tailwind 
 
 ## 🛠️ Binary Provisioning & Resolution
 
-The application automatically resolves local node and bridge binaries with zero configuration:
+The application automatically resolves the local node binary with zero configuration:
 
-1. **Adjacent Build Directory**: Resolves `../rogue-core-chain/build/bin/geth` and `../rogue-core-chain/build/bin/rogue-stratum`.
+1. **Adjacent Build Directory**: Resolves `../rogue-core-chain/build/bin/geth`.
 2. **Workspace Root**: Resolves `rogue-core-chain/build/bin/geth`.
-3. **System PATH**: Falls back to global `geth` or `rogue-stratum` if installed system-wide.
+3. **System PATH**: Falls back to global `geth` if installed system-wide.
 
-To build the binaries from source before launching the client:
+To build the node binary from source before launching the client:
 ```bash
 cd ../rogue-core-chain
-make geth
-make rogue-stratum
+make core-rogue
 ```
 
 ---
@@ -68,34 +72,19 @@ Private keys are never stored in plaintext or exposed to the JavaScript frontend
 
 ---
 
-## ⛏️ RandomX Mining & Stratum Bridge Workflow
+## ⛏️ Home CPU Solo Mining Workflow
 
 ```
-+-------------------------------------------------------------------+
-|                       Rogue Signal Desktop                        |
-|                                                                   |
-|  [Internal Miner] --------RPC miner_start------> [Core-Geth Node] |
-|                                                        |          |
-|  [Stratum Bridge :3333] <--eth_getWork / submitWork----+          |
-+-------------------------------------------------------------------+
-             ^
-             | Stratum v1 Protocol
-     [External XMRig Miners]
-```
-
-### XMRig Configuration
-Export `config.json` directly from the Mining tab or connect manually:
-```json
-{
-  "pools": [
-    {
-      "algo": "rx/0",
-      "url": "127.0.0.1:3333",
-      "user": "0xYourRogueAddressHere",
-      "pass": "x"
-    }
-  ]
-}
++-----------------------------------------------------------------------+
+|                         Rogue Signal Desktop                          |
+|                                                                       |
+|  [Hardware Inspector] ---> Detects CPU Cores & Free RAM               |
+|  [CPU Miner Control]  ---> RPC miner_setEtherbase / miner_start       |
+|                                     |                                 |
+|                                     v                                 |
+|                   [Core-Rogue Node: RandomX rx/0]                     |
+|                   (Default: Light Mode ~256 MB RAM)                   |
++-----------------------------------------------------------------------+
 ```
 
 ---
