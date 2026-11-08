@@ -11,47 +11,66 @@ import {
   AlertTriangle,
   Layers,
   CheckCircle2,
+  Pencil,
+  Trash2,
+  FolderPlus,
+  GripVertical,
 } from "lucide-react";
 import { api } from "../services/api";
-import { AccountInfo } from "../types";
+import { AccountInfo, WalletSummary, WalletCategory } from "../types";
 
-interface DerivedAccountWithBalance extends AccountInfo {
+export interface AccountWithMeta extends AccountInfo {
   balance: string;
+  name: string;
+  categoryId: string;
+  order: number;
 }
 
 interface WalletViewProps {
   unlockedAddress: string | null;
+  activeWallet: WalletSummary | null;
   balance: string;
   rpcUrl: string;
   onRefreshBalance: () => void;
-  onOpenWalletModal: () => void;
+  onOpenWalletModal: (mode?: "unlock" | "create" | "import") => void;
   onSelectAddress?: (address: string) => void;
+  onWalletRenamed?: (walletId: string, newName: string) => void;
 }
 
 export const WalletView: React.FC<WalletViewProps> = ({
   unlockedAddress,
+  activeWallet,
   balance,
   rpcUrl,
   onRefreshBalance,
   onOpenWalletModal,
   onSelectAddress,
+  onWalletRenamed,
 }) => {
-  // Mnemonic Seed Phrase State
+  // Mnemonic State
   const [mnemonic, setMnemonic] = useState<string>("");
   const [showMnemonic, setShowMnemonic] = useState<boolean>(false);
   const [copiedMnemonic, setCopiedMnemonic] = useState<boolean>(false);
   const [loadingMnemonic, setLoadingMnemonic] = useState<boolean>(false);
 
   // Derived Accounts State
-  const [derivedAccounts, setDerivedAccounts] = useState<DerivedAccountWithBalance[]>([]);
-  const [derivedCount, setDerivedCount] = useState<number>(() => {
-    const saved = localStorage.getItem("rogue_derived_count");
-    return saved ? Math.max(1, parseInt(saved, 10)) : 1;
-  });
+  const [accounts, setAccounts] = useState<AccountWithMeta[]>([]);
   const [loadingAccounts, setLoadingAccounts] = useState<boolean>(false);
   const [copiedAddress, setCopiedAddress] = useState<string | null>(null);
   const [copiedPrivKey, setCopiedPrivKey] = useState<number | null>(null);
   const [revealedPrivKeys, setRevealedPrivKeys] = useState<{ [index: number]: string }>({});
+
+  // Categories State
+  const [categories, setCategories] = useState<WalletCategory[]>([]);
+  const [editingCategory, setEditingCategory] = useState<{ id: string; name: string } | null>(null);
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [showAddCategory, setShowAddCategory] = useState(false);
+
+  // Editing Account / Wallet Names
+  const [editingWalletName, setEditingWalletName] = useState(false);
+  const [walletNameInput, setWalletNameInput] = useState("");
+  const [editingAccountAddress, setEditingAccountAddress] = useState<string | null>(null);
+  const [accountNameInput, setAccountNameInput] = useState("");
 
   // Transfer Form State
   const [recipient, setRecipient] = useState("");
@@ -60,46 +79,121 @@ export const WalletView: React.FC<WalletViewProps> = ({
   const [statusMsg, setStatusMsg] = useState<{ type: "success" | "error" | "info"; text: string } | null>(null);
   const [sending, setSending] = useState(false);
 
-  // Load derived accounts whenever unlockedAddress or derivedCount changes
-  const loadDerivedAccounts = async (count: number) => {
-    if (!unlockedAddress) return;
+  // Drag and Drop State
+  const [draggedCategoryIndex, setDraggedCategoryIndex] = useState<number | null>(null);
+  const [draggedAccountAddress, setDraggedAccountAddress] = useState<string | null>(null);
+
+  // Load Categories & Metadata from localStorage for active wallet
+  useEffect(() => {
+    if (!activeWallet) return;
+
+    setWalletNameInput(activeWallet.name);
+    setShowMnemonic(false);
+    setMnemonic("");
+    setRevealedPrivKeys({});
+
+    const catKey = `rogue_categories_${activeWallet.id}`;
+    const savedCats = localStorage.getItem(catKey);
+    let currentCats: WalletCategory[];
+    if (savedCats) {
+      try {
+        currentCats = JSON.parse(savedCats);
+      } catch {
+        currentCats = [{ id: "cat_default", name: "General", order: 0 }];
+      }
+    } else {
+      currentCats = [{ id: "cat_default", name: "General", order: 0 }];
+      localStorage.setItem(catKey, JSON.stringify(currentCats));
+    }
+    setCategories(currentCats);
+
+    loadAccounts(activeWallet.id, currentCats);
+  }, [activeWallet?.id, rpcUrl]);
+
+  // Load Derived Accounts & Balances
+  const loadAccounts = async (walletId: string, currentCats: WalletCategory[]) => {
     try {
       setLoadingAccounts(true);
-      const accounts = await api.getDerivedAccounts(count);
-      const accountsWithBalance: DerivedAccountWithBalance[] = await Promise.all(
-        accounts.map(async (acc) => {
+      const rawAccounts = await api.getDerivedAccounts(walletId);
+
+      const metaKey = `rogue_account_meta_${walletId}`;
+      const savedMetaRaw = localStorage.getItem(metaKey);
+      let metaMap: Record<string, { name: string; categoryId: string; order: number }> = {};
+      if (savedMetaRaw) {
+        try {
+          metaMap = JSON.parse(savedMetaRaw);
+        } catch {
+          metaMap = {};
+        }
+      }
+
+      const defaultCatId = currentCats[0]?.id || "cat_default";
+
+      const enriched: AccountWithMeta[] = await Promise.all(
+        rawAccounts.map(async (acc) => {
+          let bal = "0.0000";
           try {
-            const bal = await api.getBalance(rpcUrl, acc.address);
-            return { ...acc, balance: bal };
+            bal = await api.getBalance(rpcUrl, acc.address);
           } catch {
-            return { ...acc, balance: "0.0000" };
+            bal = "0.0000";
           }
+
+          const meta = metaMap[acc.address.toLowerCase()] || {
+            name: acc.index === 0 ? "Cuenta Principal" : `Cuenta #${acc.index + 1}`,
+            categoryId: defaultCatId,
+            order: acc.index,
+          };
+
+          return {
+            ...acc,
+            balance: bal,
+            name: meta.name,
+            categoryId: meta.categoryId,
+            order: meta.order,
+          };
         })
       );
-      setDerivedAccounts(accountsWithBalance);
+
+      setAccounts(enriched);
     } catch (err) {
-      console.warn("Failed to load derived accounts:", err);
+      console.warn("Error loading derived accounts:", err);
     } finally {
       setLoadingAccounts(false);
     }
   };
 
-  useEffect(() => {
-    if (unlockedAddress) {
-      loadDerivedAccounts(derivedCount);
-    }
-  }, [unlockedAddress, derivedCount, rpcUrl]);
+  // Save Account Metadata
+  const saveAccountMeta = (updatedAccounts: AccountWithMeta[]) => {
+    if (!activeWallet) return;
+    const metaKey = `rogue_account_meta_${activeWallet.id}`;
+    const metaMap: Record<string, { name: string; categoryId: string; order: number }> = {};
+    updatedAccounts.forEach((acc) => {
+      metaMap[acc.address.toLowerCase()] = {
+        name: acc.name,
+        categoryId: acc.categoryId,
+        order: acc.order,
+      };
+    });
+    localStorage.setItem(metaKey, JSON.stringify(metaMap));
+  };
 
-  // Handle Mnemonic view & copy
+  // Save Categories
+  const saveCategories = (updatedCats: WalletCategory[]) => {
+    if (!activeWallet) return;
+    setCategories(updatedCats);
+    localStorage.setItem(`rogue_categories_${activeWallet.id}`, JSON.stringify(updatedCats));
+  };
+
+  // Handle Mnemonic
   const handleToggleMnemonic = async () => {
     if (showMnemonic) {
       setShowMnemonic(false);
       return;
     }
-    if (!mnemonic) {
+    if (!mnemonic && activeWallet) {
       try {
         setLoadingMnemonic(true);
-        const phrase = await api.getMnemonic();
+        const phrase = await api.getMnemonic(activeWallet.id);
         setMnemonic(phrase);
       } catch (err) {
         console.warn("Failed to get mnemonic:", err);
@@ -113,8 +207,8 @@ export const WalletView: React.FC<WalletViewProps> = ({
   const handleCopyMnemonic = async () => {
     try {
       let phrase = mnemonic;
-      if (!phrase) {
-        phrase = await api.getMnemonic();
+      if (!phrase && activeWallet) {
+        phrase = await api.getMnemonic(activeWallet.id);
         setMnemonic(phrase);
       }
       await navigator.clipboard.writeText(phrase);
@@ -125,25 +219,57 @@ export const WalletView: React.FC<WalletViewProps> = ({
     }
   };
 
-  // Handle Deriving New Address
+  // Handle Deriving New Account
   const handleDeriveAccount = async () => {
-    const nextCount = derivedCount + 1;
-    setDerivedCount(nextCount);
-    localStorage.setItem("rogue_derived_count", nextCount.toString());
-    await loadDerivedAccounts(nextCount);
+    if (!activeWallet) return;
+    const nextCount = accounts.length + 1;
+    try {
+      setLoadingAccounts(true);
+      const rawAccounts = await api.getDerivedAccounts(activeWallet.id, nextCount);
+      const defaultCatId = categories[0]?.id || "cat_default";
+
+      const updatedAccounts: AccountWithMeta[] = await Promise.all(
+        rawAccounts.map(async (acc) => {
+          const existing = accounts.find((a) => a.address.toLowerCase() === acc.address.toLowerCase());
+          if (existing) return existing;
+
+          let bal = "0.0000";
+          try {
+            bal = await api.getBalance(rpcUrl, acc.address);
+          } catch {
+            bal = "0.0000";
+          }
+
+          return {
+            ...acc,
+            balance: bal,
+            name: `Cuenta #${acc.index + 1}`,
+            categoryId: defaultCatId,
+            order: acc.index,
+          };
+        })
+      );
+
+      setAccounts(updatedAccounts);
+      saveAccountMeta(updatedAccounts);
+    } catch (err) {
+      console.error("Failed to derive account:", err);
+    } finally {
+      setLoadingAccounts(false);
+    }
   };
 
-  // Handle Copy Address
+  // Copy Helpers
   const handleCopyAddress = (addr: string) => {
     navigator.clipboard.writeText(addr);
     setCopiedAddress(addr);
     setTimeout(() => setCopiedAddress(null), 2000);
   };
 
-  // Handle Copy Private Key
   const handleCopyPrivateKey = async (index: number) => {
+    if (!activeWallet) return;
     try {
-      const privKey = await api.getPrivateKey(index);
+      const privKey = await api.getPrivateKey(index, activeWallet.id);
       await navigator.clipboard.writeText(privKey);
       setCopiedPrivKey(index);
       setTimeout(() => setCopiedPrivKey(null), 2500);
@@ -152,7 +278,6 @@ export const WalletView: React.FC<WalletViewProps> = ({
     }
   };
 
-  // Handle Toggle Reveal Private Key
   const handleToggleRevealPrivateKey = async (index: number) => {
     if (revealedPrivKeys[index]) {
       setRevealedPrivKeys((prev) => {
@@ -161,8 +286,9 @@ export const WalletView: React.FC<WalletViewProps> = ({
         return next;
       });
     } else {
+      if (!activeWallet) return;
       try {
-        const privKey = await api.getPrivateKey(index);
+        const privKey = await api.getPrivateKey(index, activeWallet.id);
         setRevealedPrivKeys((prev) => ({ ...prev, [index]: privKey }));
       } catch (err) {
         console.error("Failed to reveal private key:", err);
@@ -170,7 +296,107 @@ export const WalletView: React.FC<WalletViewProps> = ({
     }
   };
 
-  // Handle Send Transaction
+  // Rename Wallet
+  const handleSaveWalletName = async () => {
+    if (!activeWallet || !walletNameInput.trim()) return;
+    try {
+      await api.renameWallet(activeWallet.id, walletNameInput.trim());
+      if (onWalletRenamed) onWalletRenamed(activeWallet.id, walletNameInput.trim());
+      setEditingWalletName(false);
+    } catch (err) {
+      console.error("Failed to rename wallet:", err);
+    }
+  };
+
+  // Rename Account
+  const handleSaveAccountName = (address: string) => {
+    if (!accountNameInput.trim()) return;
+    const updated = accounts.map((a) => {
+      if (a.address.toLowerCase() === address.toLowerCase()) {
+        return { ...a, name: accountNameInput.trim() };
+      }
+      return a;
+    });
+    setAccounts(updated);
+    saveAccountMeta(updated);
+    setEditingAccountAddress(null);
+  };
+
+  // Category Management
+  const handleAddCategory = () => {
+    if (!newCategoryName.trim()) return;
+    const newCat: WalletCategory = {
+      id: `cat_${Date.now()}`,
+      name: newCategoryName.trim(),
+      order: categories.length,
+    };
+    const updated = [...categories, newCat];
+    saveCategories(updated);
+    setNewCategoryName("");
+    setShowAddCategory(false);
+  };
+
+  const handleSaveCategoryName = () => {
+    if (!editingCategory || !editingCategory.name.trim()) return;
+    const updated = categories.map((c) => (c.id === editingCategory.id ? { ...c, name: editingCategory.name.trim() } : c));
+    saveCategories(updated);
+    setEditingCategory(null);
+  };
+
+  const handleDeleteCategory = (catId: string) => {
+    if (categories.length <= 1) return;
+    const remainingCats = categories.filter((c) => c.id !== catId);
+    const fallbackCatId = remainingCats[0].id;
+    const updatedAccounts = accounts.map((a) => (a.categoryId === catId ? { ...a, categoryId: fallbackCatId } : a));
+    setAccounts(updatedAccounts);
+    saveAccountMeta(updatedAccounts);
+    saveCategories(remainingCats);
+  };
+
+  // Drag & Drop: Categories Reorder
+  const handleCategoryDragStart = (e: React.DragEvent, index: number) => {
+    e.dataTransfer.setData("type", "category");
+    setDraggedCategoryIndex(index);
+  };
+
+  const handleCategoryDrop = (e: React.DragEvent, targetIndex: number) => {
+    e.preventDefault();
+    if (draggedCategoryIndex === null || draggedCategoryIndex === targetIndex) return;
+
+    const reordered = [...categories];
+    const [moved] = reordered.splice(draggedCategoryIndex, 1);
+    reordered.splice(targetIndex, 0, moved);
+    const updated = reordered.map((c, i) => ({ ...c, order: i }));
+    saveCategories(updated);
+    setDraggedCategoryIndex(null);
+  };
+
+  // Drag & Drop: Accounts Moving / Reordering
+  const handleAccountDragStart = (e: React.DragEvent, address: string) => {
+    e.stopPropagation();
+    e.dataTransfer.setData("type", "account");
+    e.dataTransfer.setData("address", address);
+    setDraggedAccountAddress(address);
+  };
+
+  const handleAccountDropOnCategory = (e: React.DragEvent, targetCatId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const addr = e.dataTransfer.getData("address") || draggedAccountAddress;
+    if (!addr) return;
+
+    const updated = accounts.map((a) => {
+      if (a.address.toLowerCase() === addr.toLowerCase()) {
+        return { ...a, categoryId: targetCatId };
+      }
+      return a;
+    });
+    setAccounts(updated);
+    saveAccountMeta(updated);
+    setDraggedAccountAddress(null);
+  };
+
+  // Send Transfer
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!unlockedAddress) {
@@ -191,20 +417,17 @@ export const WalletView: React.FC<WalletViewProps> = ({
       setSending(true);
       setStatusMsg({ type: "info", text: "Estimando gas y enviando transacción a la red..." });
 
-      // Convert amount to Wei (18 decimals)
       const wei = BigInt(Math.floor(parsedAmount * 1e6)) * BigInt(10 ** 12);
       const valueHex = "0x" + wei.toString(16);
 
-      // Gas price priority presets (in Gwei)
       const priorityGwei = gasTier === "slow" ? 1 : gasTier === "normal" ? 2 : 5;
       const maxPriorityFeeHex = "0x" + (BigInt(priorityGwei) * BigInt(10 ** 9)).toString(16);
 
-      // Send transaction via RPC
       const txParams = {
         from: unlockedAddress,
         to: recipient,
         value: valueHex,
-        gas: "0x5208", // 21,000 standard transfer
+        gas: "0x5208",
         maxPriorityFeePerGas: maxPriorityFeeHex,
       };
 
@@ -216,7 +439,7 @@ export const WalletView: React.FC<WalletViewProps> = ({
       setRecipient("");
       setAmount("");
       onRefreshBalance();
-      loadDerivedAccounts(derivedCount);
+      if (activeWallet) loadAccounts(activeWallet.id, categories);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : JSON.stringify(err);
       setStatusMsg({ type: "error", text: `Error al enviar transacción: ${msg}` });
@@ -225,7 +448,7 @@ export const WalletView: React.FC<WalletViewProps> = ({
     }
   };
 
-  if (!unlockedAddress) {
+  if (!unlockedAddress || !activeWallet) {
     return (
       <div className="flex flex-col items-center justify-center p-12 bg-zinc-900/40 border border-zinc-800 rounded-xl text-center space-y-4">
         <div className="w-16 h-16 rounded-full bg-rose-500/10 border border-rose-500/30 flex items-center justify-center text-rose-500">
@@ -236,7 +459,7 @@ export const WalletView: React.FC<WalletViewProps> = ({
           Tu billetera determinista BIP-39 está cifrada de forma segura con Argon2id y AES-256-GCM. Desbloquea tu bóveda o crea una nueva para enviar y recibir ROGUE.
         </p>
         <button
-          onClick={onOpenWalletModal}
+          onClick={() => onOpenWalletModal("unlock")}
           className="px-6 py-2.5 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-sm font-semibold transition shadow-md"
         >
           Desbloquear / Inicializar Bóveda
@@ -249,43 +472,74 @@ export const WalletView: React.FC<WalletViewProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Active Account Overview Card */}
+      {/* Active Wallet & Active Account Banner */}
       <div className="p-6 bg-zinc-900/60 border border-zinc-800 rounded-xl space-y-4">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
+          <div className="space-y-1">
             <div className="flex items-center space-x-2">
-              <span className="text-xs font-bold text-rose-400 uppercase tracking-wider">
-                Dirección Activa Seleccionada
-              </span>
+              {editingWalletName ? (
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="text"
+                    value={walletNameInput}
+                    onChange={(e) => setWalletNameInput(e.target.value)}
+                    className="bg-zinc-950 border border-rose-500 rounded px-2 py-0.5 text-sm font-bold text-white outline-none"
+                    autoFocus
+                  />
+                  <button
+                    onClick={handleSaveWalletName}
+                    className="text-xs bg-rose-600 px-2 py-0.5 rounded text-white font-semibold"
+                  >
+                    Guardar
+                  </button>
+                  <button
+                    onClick={() => setEditingWalletName(false)}
+                    className="text-xs text-zinc-400 hover:text-white"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center space-x-2">
+                  <h1 className="text-lg font-black text-white">{activeWallet.name}</h1>
+                  <button
+                    onClick={() => setEditingWalletName(true)}
+                    className="p-1 text-zinc-500 hover:text-zinc-200"
+                    title="Renombrar billetera"
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
               <span className="px-2 py-0.5 rounded-full text-[10px] bg-rose-950/60 text-rose-300 border border-rose-800/60 font-mono">
-                Activa
+                Billetera Activa
               </span>
             </div>
-            <div className="mt-2 flex items-center space-x-2 font-mono text-sm text-white">
-              <span className="bg-zinc-950 px-3 py-1.5 rounded-lg border border-zinc-800 select-all">
+
+            <div className="flex items-center space-x-2 font-mono text-sm text-white pt-1">
+              <span className="text-zinc-400 text-xs font-sans font-semibold">Dirección seleccionada:</span>
+              <span className="bg-zinc-950 px-2.5 py-1 rounded-lg border border-zinc-800 text-xs">
                 {unlockedAddress}
               </span>
               <button
                 onClick={() => handleCopyAddress(unlockedAddress)}
-                className="p-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white rounded-lg transition"
+                className="p-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white rounded-lg transition"
                 title="Copiar dirección activa"
               >
                 {copiedAddress === unlockedAddress ? (
-                  <Check className="w-4 h-4 text-emerald-400" />
+                  <Check className="w-3.5 h-3.5 text-emerald-400" />
                 ) : (
-                  <Copy className="w-4 h-4" />
+                  <Copy className="w-3.5 h-3.5" />
                 )}
               </button>
             </div>
-            <div className="text-[11px] text-zinc-500 font-mono mt-1.5 flex items-center space-x-2">
-              <span>BIP-44 Estándar EVM</span>
-              <span>•</span>
-              <span>Todas las transacciones y minería se asocian a esta dirección</span>
+            <div className="text-[11px] text-zinc-500 font-mono">
+              BIP-44 Estándar EVM • Toda la minería y envíos operan sobre la dirección seleccionada
             </div>
           </div>
 
           <div className="text-right">
-            <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Saldo Disponible</span>
+            <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Saldo de la Dirección</span>
             <div className="text-3xl font-black text-amber-400 font-mono mt-1">
               {balance} <span className="text-sm font-bold text-zinc-400">ROGUE</span>
             </div>
@@ -293,17 +547,17 @@ export const WalletView: React.FC<WalletViewProps> = ({
         </div>
       </div>
 
-      {/* BIP-39 Mnemonic Seed Phrase Section */}
+      {/* BIP-39 Seed Phrase Section for this Mnemonic */}
       <div className="p-6 bg-zinc-900/40 border border-zinc-800 rounded-xl space-y-4">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-4 border-b border-zinc-800">
           <div className="flex items-center space-x-2.5">
             <Key className="w-5 h-5 text-amber-400" />
             <div>
               <h2 className="text-sm font-bold text-white uppercase tracking-wider">
-                Frase de Recuperación Mnemónica (Seed Phrase)
+                Frase Semilla Mnemónica de "{activeWallet.name}"
               </h2>
               <p className="text-xs text-zinc-400 mt-0.5">
-                BIP-39 determinista de 12 palabras para restaurar todas tus cuentas y llaves privadas
+                BIP-39 determinista para restaurar esta billetera y todas sus cuentas derivadas
               </p>
             </div>
           </div>
@@ -312,7 +566,7 @@ export const WalletView: React.FC<WalletViewProps> = ({
             <button
               onClick={handleToggleMnemonic}
               disabled={loadingMnemonic}
-              className="flex items-center space-x-1.5 px-3.5 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium rounded-lg transition"
+              className="flex items-center space-x-1.5 px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium rounded-lg transition"
             >
               {showMnemonic ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               <span>{showMnemonic ? "Ocultar Frase" : "Ver Frase Semilla"}</span>
@@ -320,7 +574,7 @@ export const WalletView: React.FC<WalletViewProps> = ({
 
             <button
               onClick={handleCopyMnemonic}
-              className="flex items-center space-x-1.5 px-3.5 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium rounded-lg transition"
+              className="flex items-center space-x-1.5 px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium rounded-lg transition"
             >
               {copiedMnemonic ? (
                 <>
@@ -356,7 +610,7 @@ export const WalletView: React.FC<WalletViewProps> = ({
             <div className="flex items-start space-x-2 p-3 bg-amber-950/30 border border-amber-800/40 rounded-lg text-xs text-amber-300">
               <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
               <span>
-                <strong>Precaución de Seguridad:</strong> Nunca compartas tu frase semilla con terceros ni la almacenes en servicios en la nube sin cifrar. Cualquiera con acceso a estas 12 palabras tiene control total sobre todos tus fondos y direcciones derivadas.
+                <strong>Seguridad Crítica:</strong> Mantén esta frase mnemónica en secreto. Da control irrestricto sobre todas las direcciones derivadas de {activeWallet.name}.
               </span>
             </div>
           </div>
@@ -364,182 +618,341 @@ export const WalletView: React.FC<WalletViewProps> = ({
           <div className="p-4 bg-zinc-950/60 border border-zinc-800/80 rounded-lg flex items-center justify-between text-xs text-zinc-400">
             <div className="flex items-center space-x-2 font-mono">
               <span className="tracking-widest text-zinc-600">•••••••• •••••••• •••••••• ••••••••</span>
-              <span className="text-zinc-500 text-[11px]">(12 palabras protegidas)</span>
+              <span className="text-zinc-500 text-[11px]">(Frase protegida)</span>
             </div>
             <span className="text-zinc-500 text-[11px]">Haz clic en "Ver Frase Semilla" para revelarla</span>
           </div>
         )}
       </div>
 
-      {/* Derived Addresses (BIP-44) Section */}
-      <div className="p-6 bg-zinc-900/40 border border-zinc-800 rounded-xl space-y-4">
+      {/* Derived Accounts Organized by Categories with Drag and Drop */}
+      <div className="p-6 bg-zinc-900/40 border border-zinc-800 rounded-xl space-y-5">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-4 border-b border-zinc-800">
           <div className="flex items-center space-x-2.5">
             <Layers className="w-5 h-5 text-cyan-400" />
             <div>
               <div className="flex items-center space-x-2">
                 <h2 className="text-sm font-bold text-white uppercase tracking-wider">
-                  Direcciones Derivadas (BIP-44)
+                  Direcciones y Categorías ({activeWallet.name})
                 </h2>
                 <span className="text-xs font-mono px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 border border-zinc-700">
-                  {derivedAccounts.length} {derivedAccounts.length === 1 ? "cuenta" : "cuentas"}
+                  {accounts.length} {accounts.length === 1 ? "cuenta" : "cuentas"}
                 </span>
               </div>
               <p className="text-xs text-zinc-400 mt-0.5">
-                Rutas deterministas generadas a partir de la misma semilla maestra
+                Organiza tus direcciones arrastrando entre categorías. Asigna nombres y propósitos personalizados.
               </p>
             </div>
           </div>
 
-          <button
-            onClick={handleDeriveAccount}
-            disabled={loadingAccounts}
-            className="flex items-center space-x-2 px-4 py-2 bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white rounded-lg text-xs font-semibold shadow-md transition shrink-0"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Agregar Dirección Derivada</span>
-          </button>
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => setShowAddCategory(!showAddCategory)}
+              className="flex items-center space-x-1.5 px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-lg text-xs font-semibold transition"
+            >
+              <FolderPlus className="w-4 h-4 text-cyan-400" />
+              <span>Nueva Categoría</span>
+            </button>
+
+            <button
+              onClick={handleDeriveAccount}
+              disabled={loadingAccounts}
+              className="flex items-center space-x-1.5 px-3.5 py-1.5 bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white rounded-lg text-xs font-semibold shadow-md transition"
+            >
+              <Plus className="w-4 h-4" />
+              <span>+ Agregar Dirección Derivada</span>
+            </button>
+          </div>
         </div>
 
-        {/* List of Derived Accounts */}
-        <div className="space-y-3">
-          {derivedAccounts.map((acc) => {
-            const isActive = acc.address.toLowerCase() === unlockedAddress?.toLowerCase();
-            const isPrivKeyRevealed = !!revealedPrivKeys[acc.index];
+        {/* Create Category Form */}
+        {showAddCategory && (
+          <div className="p-3 bg-zinc-950 border border-zinc-800 rounded-lg flex items-center space-x-2 animate-in fade-in duration-100">
+            <input
+              type="text"
+              value={newCategoryName}
+              onChange={(e) => setNewCategoryName(e.target.value)}
+              placeholder="Nombre de la nueva categoría (ej. Pagos, Staking, Vaults)..."
+              className="flex-1 bg-zinc-900 border border-zinc-800 focus:border-cyan-500 rounded px-3 py-1.5 text-xs text-white outline-none"
+              autoFocus
+            />
+            <button
+              onClick={handleAddCategory}
+              className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold rounded transition"
+            >
+              Crear
+            </button>
+            <button
+              onClick={() => setShowAddCategory(false)}
+              className="px-2 py-1.5 text-zinc-400 hover:text-white text-xs"
+            >
+              Cancelar
+            </button>
+          </div>
+        )}
+
+        {/* Categories List with Drag and Drop */}
+        <div className="space-y-4">
+          {categories.map((cat, catIndex) => {
+            const catAccounts = accounts.filter((a) => a.categoryId === cat.id);
 
             return (
               <div
-                key={acc.address}
-                className={`p-4 rounded-xl border transition ${
-                  isActive
-                    ? "bg-rose-950/15 border-rose-500/40 shadow-sm"
-                    : "bg-zinc-950/70 border-zinc-800/80 hover:border-zinc-700"
-                }`}
+                key={cat.id}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => {
+                  const dragType = e.dataTransfer.getData("type");
+                  if (dragType === "category") {
+                    handleCategoryDrop(e, catIndex);
+                  } else {
+                    handleAccountDropOnCategory(e, cat.id);
+                  }
+                }}
+                className="bg-zinc-950/60 border border-zinc-800/90 rounded-xl overflow-hidden"
               >
-                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-                  {/* Account Metadata & Address */}
-                  <div className="min-w-0 space-y-1">
-                    <div className="flex items-center space-x-2 flex-wrap gap-y-1">
-                      <span className="text-xs font-bold text-white">
-                        Cuenta #{acc.index + 1}
-                      </span>
-                      {acc.index === 0 && (
-                        <span className="text-[10px] bg-rose-950/60 text-rose-300 border border-rose-800/60 px-1.5 py-0.5 rounded font-mono">
-                          Principal (Default)
-                        </span>
-                      )}
-                      <span className="text-[11px] font-mono text-zinc-500 bg-zinc-900 px-1.5 py-0.5 rounded border border-zinc-800">
-                        {acc.path}
-                      </span>
-                      {isActive ? (
-                        <span className="flex items-center space-x-1 text-[10px] text-emerald-400 bg-emerald-950/50 border border-emerald-800/60 px-2 py-0.5 rounded-full font-mono font-semibold">
-                          <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-                          <span>Activa</span>
-                        </span>
-                      ) : (
-                        onSelectAddress && (
-                          <button
-                            onClick={() => onSelectAddress(acc.address)}
-                            className="text-[10px] text-zinc-400 hover:text-white bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 px-2 py-0.5 rounded transition"
-                          >
-                            Usar como Activa
-                          </button>
-                        )
-                      )}
-                    </div>
-
-                    <div className="flex items-center space-x-2">
-                      <span className="font-mono text-xs sm:text-sm text-zinc-200 truncate select-all">
-                        {acc.address}
-                      </span>
-                      <button
-                        onClick={() => handleCopyAddress(acc.address)}
-                        className="p-1 hover:bg-zinc-800 rounded text-zinc-400 hover:text-white transition shrink-0"
-                        title="Copiar dirección"
-                      >
-                        {copiedAddress === acc.address ? (
-                          <Check className="w-3.5 h-3.5 text-emerald-400" />
-                        ) : (
-                          <Copy className="w-3.5 h-3.5" />
-                        )}
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Balance and Action Buttons */}
-                  <div className="flex items-center justify-between lg:justify-end space-x-4 shrink-0 pt-2 lg:pt-0 border-t lg:border-t-0 border-zinc-800/60">
-                    <div className="text-right">
-                      <div className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold">Saldo</div>
-                      <div className="text-sm font-bold font-mono text-amber-400">
-                        {acc.balance} <span className="text-[10px] text-zinc-400">ROGUE</span>
+                {/* Category Header (Draggable) */}
+                <div
+                  draggable
+                  onDragStart={(e) => handleCategoryDragStart(e, catIndex)}
+                  className="px-4 py-2.5 bg-zinc-900/60 border-b border-zinc-800/70 flex items-center justify-between cursor-move"
+                >
+                  <div className="flex items-center space-x-2">
+                    <GripVertical className="w-4 h-4 text-zinc-600 hover:text-zinc-400" />
+                    {editingCategory?.id === cat.id ? (
+                      <div className="flex items-center space-x-1.5" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="text"
+                          value={editingCategory.name}
+                          onChange={(e) => setEditingCategory({ ...editingCategory, name: e.target.value })}
+                          className="bg-zinc-950 border border-cyan-500 rounded px-2 py-0.5 text-xs text-white outline-none font-bold"
+                          autoFocus
+                        />
+                        <button
+                          onClick={handleSaveCategoryName}
+                          className="text-[10px] bg-cyan-600 text-white px-2 py-0.5 rounded font-semibold"
+                        >
+                          Guardar
+                        </button>
+                        <button
+                          onClick={() => setEditingCategory(null)}
+                          className="text-[10px] text-zinc-400 hover:text-white"
+                        >
+                          Cancelar
+                        </button>
                       </div>
-                    </div>
-
-                    <div className="flex items-center space-x-1.5">
-                      {/* Copy Private Key Button */}
-                      <button
-                        onClick={() => handleCopyPrivateKey(acc.index)}
-                        className="flex items-center space-x-1 px-2.5 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium rounded-lg transition"
-                        title="Copiar llave privada al portapapeles"
-                      >
-                        {copiedPrivKey === acc.index ? (
-                          <>
-                            <Check className="w-3.5 h-3.5 text-emerald-400" />
-                            <span className="text-emerald-400 text-[11px]">¡Copiada!</span>
-                          </>
-                        ) : (
-                          <>
-                            <Key className="w-3.5 h-3.5 text-rose-400" />
-                            <span className="text-[11px]">Copiar PrivKey</span>
-                          </>
-                        )}
-                      </button>
-
-                      {/* View / Toggle Private Key Button */}
-                      <button
-                        onClick={() => handleToggleRevealPrivateKey(acc.index)}
-                        className="p-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white rounded-lg transition"
-                        title={isPrivKeyRevealed ? "Ocultar llave privada" : "Ver llave privada"}
-                      >
-                        {isPrivKeyRevealed ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                      </button>
-                    </div>
+                    ) : (
+                      <div className="flex items-center space-x-2">
+                        <span className="text-xs font-bold text-white tracking-wide">{cat.name}</span>
+                        <span className="text-[10px] font-mono text-zinc-500 bg-zinc-900 px-1.5 py-0.5 rounded">
+                          {catAccounts.length}
+                        </span>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingCategory({ id: cat.id, name: cat.name });
+                          }}
+                          className="p-1 text-zinc-500 hover:text-zinc-200"
+                          title="Renombrar categoría"
+                        >
+                          <Pencil className="w-3 h-3" />
+                        </button>
+                      </div>
+                    )}
                   </div>
+
+                  {categories.length > 1 && (
+                    <button
+                      onClick={() => handleDeleteCategory(cat.id)}
+                      className="p-1 text-zinc-600 hover:text-rose-400 transition"
+                      title="Eliminar categoría (las cuentas se moverán a la categoría principal)"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                 </div>
 
-                {/* Inline Revealed Private Key Drawer */}
-                {isPrivKeyRevealed && (
-                  <div className="mt-3 pt-3 border-t border-zinc-800/80 space-y-2 animate-in fade-in duration-150">
-                    <div className="flex items-center justify-between text-[11px] text-zinc-400">
-                      <span className="font-semibold text-rose-400 flex items-center space-x-1">
-                        <Key className="w-3 h-3 text-rose-400" />
-                        <span>Llave Privada (ECDSA secp256k1)</span>
-                      </span>
-                      <span className="text-[10px] text-zinc-500">Formato Hexadecimal (64 caracteres)</span>
+                {/* Accounts inside this Category */}
+                <div className="p-3 space-y-2.5 min-h-[50px]">
+                  {catAccounts.length === 0 ? (
+                    <div className="p-4 text-center text-xs text-zinc-600 border border-dashed border-zinc-800/80 rounded-lg">
+                      Arrastra direcciones aquí para organizarlas en esta categoría.
                     </div>
+                  ) : (
+                    catAccounts.map((acc) => {
+                      const isActive = acc.address.toLowerCase() === unlockedAddress?.toLowerCase();
+                      const isPrivKeyRevealed = !!revealedPrivKeys[acc.index];
 
-                    <div className="flex items-center space-x-2 p-2 bg-zinc-900 border border-rose-900/40 rounded-lg">
-                      <span className="font-mono text-xs text-rose-300 break-all select-all flex-1">
-                        {revealedPrivKeys[acc.index]}
-                      </span>
-                      <button
-                        onClick={() => handleCopyPrivateKey(acc.index)}
-                        className="p-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white rounded transition shrink-0"
-                        title="Copiar llave privada"
-                      >
-                        {copiedPrivKey === acc.index ? (
-                          <Check className="w-3.5 h-3.5 text-emerald-400" />
-                        ) : (
-                          <Copy className="w-3.5 h-3.5" />
-                        )}
-                      </button>
-                    </div>
+                      return (
+                        <div
+                          key={acc.address}
+                          draggable
+                          onDragStart={(e) => handleAccountDragStart(e, acc.address)}
+                          className={`p-3.5 rounded-lg border transition ${
+                            isActive
+                              ? "bg-rose-950/15 border-rose-500/40 shadow-sm"
+                              : "bg-zinc-900/40 border-zinc-800/70 hover:border-zinc-700"
+                          }`}
+                        >
+                          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                            {/* Drag handle & Account Details */}
+                            <div className="flex items-start space-x-2.5 min-w-0">
+                              <div className="cursor-move pt-1 text-zinc-600 hover:text-zinc-300">
+                                <GripVertical className="w-4 h-4" />
+                              </div>
 
-                    <p className="text-[10px] text-zinc-500">
-                      Esta llave privada permite firmar transacciones directamente sin restricciones. Mantenla confidencial.
-                    </p>
-                  </div>
-                )}
+                              <div className="min-w-0 space-y-1">
+                                <div className="flex items-center space-x-2 flex-wrap gap-y-1">
+                                  {editingAccountAddress === acc.address ? (
+                                    <div className="flex items-center space-x-1.5">
+                                      <input
+                                        type="text"
+                                        value={accountNameInput}
+                                        onChange={(e) => setAccountNameInput(e.target.value)}
+                                        className="bg-zinc-950 border border-rose-500 rounded px-1.5 py-0.5 text-xs text-white outline-none"
+                                        autoFocus
+                                      />
+                                      <button
+                                        onClick={() => handleSaveAccountName(acc.address)}
+                                        className="text-[10px] bg-rose-600 text-white px-1.5 py-0.5 rounded font-semibold"
+                                      >
+                                        Guardar
+                                      </button>
+                                      <button
+                                        onClick={() => setEditingAccountAddress(null)}
+                                        className="text-[10px] text-zinc-400 hover:text-white"
+                                      >
+                                        Cancelar
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <div className="flex items-center space-x-1.5">
+                                      <span className="text-xs font-bold text-white">{acc.name}</span>
+                                      <button
+                                        onClick={() => {
+                                          setEditingAccountAddress(acc.address);
+                                          setAccountNameInput(acc.name);
+                                        }}
+                                        className="p-0.5 text-zinc-500 hover:text-zinc-200"
+                                        title="Renombrar dirección"
+                                      >
+                                        <Pencil className="w-2.5 h-2.5" />
+                                      </button>
+                                    </div>
+                                  )}
+
+                                  <span className="text-[10px] font-mono text-zinc-500 bg-zinc-900 px-1 rounded border border-zinc-800">
+                                    {acc.path}
+                                  </span>
+
+                                  {isActive ? (
+                                    <span className="flex items-center space-x-1 text-[10px] text-emerald-400 bg-emerald-950/50 border border-emerald-800/60 px-1.5 py-0.5 rounded-full font-mono font-semibold">
+                                      <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                                      <span>Activa</span>
+                                    </span>
+                                  ) : (
+                                    onSelectAddress && (
+                                      <button
+                                        onClick={() => onSelectAddress(acc.address)}
+                                        className="text-[10px] text-zinc-400 hover:text-white bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 px-2 py-0.5 rounded transition"
+                                      >
+                                        Usar como Activa
+                                      </button>
+                                    )
+                                  )}
+                                </div>
+
+                                <div className="flex items-center space-x-2">
+                                  <span className="font-mono text-xs text-zinc-300 truncate select-all">
+                                    {acc.address}
+                                  </span>
+                                  <button
+                                    onClick={() => handleCopyAddress(acc.address)}
+                                    className="p-1 hover:bg-zinc-800 rounded text-zinc-400 hover:text-white transition shrink-0"
+                                    title="Copiar dirección"
+                                  >
+                                    {copiedAddress === acc.address ? (
+                                      <Check className="w-3.5 h-3.5 text-emerald-400" />
+                                    ) : (
+                                      <Copy className="w-3.5 h-3.5" />
+                                    )}
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Balance & Private Key actions */}
+                            <div className="flex items-center justify-between lg:justify-end space-x-4 shrink-0 pt-2 lg:pt-0 border-t lg:border-t-0 border-zinc-800/60">
+                              <div className="text-right">
+                                <div className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold">Saldo</div>
+                                <div className="text-sm font-bold font-mono text-amber-400">
+                                  {acc.balance} <span className="text-[10px] text-zinc-400">ROGUE</span>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center space-x-1.5">
+                                <button
+                                  onClick={() => handleCopyPrivateKey(acc.index)}
+                                  className="flex items-center space-x-1 px-2.5 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium rounded-lg transition"
+                                  title="Copiar llave privada"
+                                >
+                                  {copiedPrivKey === acc.index ? (
+                                    <>
+                                      <Check className="w-3.5 h-3.5 text-emerald-400" />
+                                      <span className="text-emerald-400 text-[11px]">¡Copiada!</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Key className="w-3.5 h-3.5 text-rose-400" />
+                                      <span className="text-[11px]">Copiar PrivKey</span>
+                                    </>
+                                  )}
+                                </button>
+
+                                <button
+                                  onClick={() => handleToggleRevealPrivateKey(acc.index)}
+                                  className="p-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white rounded-lg transition"
+                                  title={isPrivKeyRevealed ? "Ocultar llave privada" : "Ver llave privada"}
+                                >
+                                  {isPrivKeyRevealed ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Inline Revealed Private Key Drawer */}
+                          {isPrivKeyRevealed && (
+                            <div className="mt-3 pt-3 border-t border-zinc-800/80 space-y-2 animate-in fade-in duration-150">
+                              <div className="flex items-center justify-between text-[11px] text-zinc-400">
+                                <span className="font-semibold text-rose-400 flex items-center space-x-1">
+                                  <Key className="w-3 h-3 text-rose-400" />
+                                  <span>Llave Privada (ECDSA secp256k1) de {acc.name}</span>
+                                </span>
+                                <span className="text-[10px] text-zinc-500">Hexadecimal 64 caracteres</span>
+                              </div>
+
+                              <div className="flex items-center space-x-2 p-2 bg-zinc-900 border border-rose-900/40 rounded-lg">
+                                <span className="font-mono text-xs text-rose-300 break-all select-all flex-1">
+                                  {revealedPrivKeys[acc.index]}
+                                </span>
+                                <button
+                                  onClick={() => handleCopyPrivateKey(acc.index)}
+                                  className="p-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white rounded transition shrink-0"
+                                  title="Copiar llave privada"
+                                >
+                                  {copiedPrivKey === acc.index ? (
+                                    <Check className="w-3.5 h-3.5 text-emerald-400" />
+                                  ) : (
+                                    <Copy className="w-3.5 h-3.5" />
+                                  )}
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
               </div>
             );
           })}

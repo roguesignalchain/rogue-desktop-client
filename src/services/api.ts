@@ -1,4 +1,4 @@
-import { Block, NodeStatus, AccountInfo, NodeLaunchConfig, SyncStatus } from "../types";
+import { Block, NodeStatus, AccountInfo, WalletSummary, NodeLaunchConfig, SyncStatus } from "../types";
 
 // Safe invoke wrapper for Tauri v2
 async function safeInvoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
@@ -47,15 +47,15 @@ export const api = {
   },
 
   // Wallet and Keystore
-  generateMnemonic: async (): Promise<string> => {
-    return safeInvoke("generate_mnemonic");
+  generateMnemonic: async (words: number = 12): Promise<string> => {
+    return safeInvoke("generate_mnemonic", { words });
   },
 
-  createWallet: async (mnemonic: string, password: string): Promise<string> => {
-    return safeInvoke("create_wallet", { mnemonic, password });
+  createWallet: async (mnemonic: string, password: string, name?: string): Promise<WalletSummary> => {
+    return safeInvoke("create_wallet", { mnemonic, password, name });
   },
 
-  unlockWallet: async (password: string): Promise<string> => {
+  unlockWallet: async (password: string): Promise<WalletSummary[]> => {
     return safeInvoke("unlock_wallet", { password });
   },
 
@@ -63,24 +63,44 @@ export const api = {
     return safeInvoke("lock_wallet");
   },
 
-  getMnemonic: async (): Promise<string> => {
-    return safeInvoke("get_mnemonic");
+  addWallet: async (mnemonic: string, name?: string): Promise<WalletSummary> => {
+    return safeInvoke("add_wallet", { mnemonic, name });
+  },
+
+  removeWallet: async (walletId: string): Promise<WalletSummary[]> => {
+    return safeInvoke("remove_wallet", { walletId });
+  },
+
+  renameWallet: async (walletId: string, newName: string): Promise<void> => {
+    return safeInvoke("rename_wallet", { walletId, newName });
+  },
+
+  setActiveWallet: async (walletId: string): Promise<WalletSummary> => {
+    return safeInvoke("set_active_wallet", { walletId });
+  },
+
+  getWallets: async (): Promise<WalletSummary[]> => {
+    return safeInvoke("get_wallets");
+  },
+
+  getMnemonic: async (walletId?: string): Promise<string> => {
+    return safeInvoke("get_mnemonic", { walletId });
   },
 
   getAccounts: async (): Promise<AccountInfo[]> => {
     return safeInvoke("get_accounts");
   },
 
-  getDerivedAccounts: async (count?: number): Promise<AccountInfo[]> => {
-    return safeInvoke("get_derived_accounts", { count });
+  getDerivedAccounts: async (walletId?: string, count?: number): Promise<AccountInfo[]> => {
+    return safeInvoke("get_derived_accounts", { walletId, count });
   },
 
-  getPrivateKey: async (accountIndex: number): Promise<string> => {
-    return safeInvoke("get_private_key", { accountIndex });
+  getPrivateKey: async (accountIndex: number, walletId?: string): Promise<string> => {
+    return safeInvoke("get_private_key", { accountIndex, walletId });
   },
 
-  signTransaction: async (txHashHex: string, accountIndex?: number): Promise<string> => {
-    return safeInvoke("sign_transaction", { txHashHex, accountIndex });
+  signTransaction: async (txHashHex: string, walletId?: string, accountIndex?: number): Promise<string> => {
+    return safeInvoke("sign_transaction", { txHashHex, walletId, accountIndex });
   },
 
   // Direct JSON-RPC proxy

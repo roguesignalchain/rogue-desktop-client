@@ -1,30 +1,56 @@
-import React, { useState } from "react";
-import { X, Key, ShieldPlus, Lock, Copy, Check, AlertCircle } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { X, Key, ShieldPlus, Lock, Copy, Check, AlertCircle, Download, Sparkles } from "lucide-react";
 import { api } from "../services/api";
+import { WalletSummary } from "../types";
 
 interface WalletModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onWalletUnlocked: (address: string) => void;
+  onWalletUnlocked: (activeWallet: WalletSummary, allWallets: WalletSummary[]) => void;
+  initialMode?: "unlock" | "create" | "import";
+  isVaultUnlocked?: boolean;
 }
 
-export const WalletModal: React.FC<WalletModalProps> = ({ isOpen, onClose, onWalletUnlocked }) => {
-  const [mode, setMode] = useState<"unlock" | "create">("unlock");
+export const WalletModal: React.FC<WalletModalProps> = ({
+  isOpen,
+  onClose,
+  onWalletUnlocked,
+  initialMode = "unlock",
+  isVaultUnlocked = false,
+}) => {
+  const [mode, setMode] = useState<"unlock" | "create" | "import">(initialMode);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [walletName, setWalletName] = useState("");
   const [mnemonic, setMnemonic] = useState("");
+  const [importMnemonicInput, setImportMnemonicInput] = useState("");
+  const [wordCount, setWordCount] = useState<12 | 24>(12);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  useEffect(() => {
+    if (isOpen) {
+      setError(null);
+      if (isVaultUnlocked) {
+        setMode(initialMode === "unlock" ? "create" : initialMode);
+      } else {
+        setMode(initialMode);
+      }
+    }
+  }, [isOpen, initialMode, isVaultUnlocked]);
+
   if (!isOpen) return null;
 
-  const handleGenerateMnemonic = async () => {
+  const handleGenerateMnemonic = async (words: 12 | 24 = wordCount) => {
     try {
-      const phrase = await api.generateMnemonic();
+      setLoading(true);
+      const phrase = await api.generateMnemonic(words);
       setMnemonic(phrase);
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Failed to generate mnemonic");
+      setError(e instanceof Error ? e.message : "Error al generar mnemónico.");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -39,8 +65,11 @@ export const WalletModal: React.FC<WalletModalProps> = ({ isOpen, onClose, onWal
     setError(null);
     try {
       setLoading(true);
-      const address = await api.unlockWallet(password);
-      onWalletUnlocked(address);
+      const wallets = await api.unlockWallet(password);
+      if (wallets.length === 0) {
+        throw new Error("No se encontraron billeteras en la bóveda.");
+      }
+      onWalletUnlocked(wallets[0], wallets);
       setPassword("");
       onClose();
     } catch (err: unknown) {
@@ -50,29 +79,50 @@ export const WalletModal: React.FC<WalletModalProps> = ({ isOpen, onClose, onWal
     }
   };
 
-  const handleCreate = async (e: React.FormEvent) => {
+  const handleCreateOrAdd = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    if (!mnemonic) {
-      setError("Please generate a 12-word seed phrase first.");
+
+    const phrase = mode === "import" ? importMnemonicInput.trim().toLowerCase().replace(/\s+/g, " ") : mnemonic;
+    const words = phrase ? phrase.split(/\s+/) : [];
+
+    if (words.length !== 12 && words.length !== 24) {
+      setError("La frase mnemónica debe contener exactamente 12 o 24 palabras.");
       return;
     }
-    if (password.length < 8) {
-      setError("Master password must be at least 8 characters long.");
-      return;
-    }
-    if (password !== confirmPassword) {
-      setError("Passwords do not match.");
-      return;
+
+    if (!isVaultUnlocked) {
+      if (password.length < 8) {
+        setError("La contraseña maestra debe tener al menos 8 caracteres.");
+        return;
+      }
+      if (password !== confirmPassword) {
+        setError("Las contraseñas no coinciden.");
+        return;
+      }
     }
 
     try {
       setLoading(true);
-      const address = await api.createWallet(mnemonic, password);
-      onWalletUnlocked(address);
+      let activeWallet: WalletSummary;
+      let allWallets: WalletSummary[];
+
+      if (isVaultUnlocked) {
+        // Vault is already unlocked, add new wallet to existing vault
+        activeWallet = await api.addWallet(phrase, walletName.trim() || undefined);
+        allWallets = await api.getWallets();
+      } else {
+        // Create initial vault
+        activeWallet = await api.createWallet(phrase, password, walletName.trim() || undefined);
+        allWallets = [activeWallet];
+      }
+
+      onWalletUnlocked(activeWallet, allWallets);
       setPassword("");
       setConfirmPassword("");
       setMnemonic("");
+      setImportMnemonicInput("");
+      setWalletName("");
       onClose();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : String(err));
@@ -83,27 +133,31 @@ export const WalletModal: React.FC<WalletModalProps> = ({ isOpen, onClose, onWal
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4">
-      <div className="w-full max-w-md bg-zinc-950 border border-zinc-800 rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+      <div className="w-full max-w-lg bg-zinc-950 border border-zinc-800 rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+        {/* Modal Header & Tabs */}
         <div className="p-4 border-b border-zinc-800 flex items-center justify-between">
-          <div className="flex space-x-2">
-            <button
-              onClick={() => {
-                setMode("unlock");
-                setError(null);
-              }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
-                mode === "unlock"
-                  ? "bg-rose-500/10 text-rose-400 border border-rose-500/30"
-                  : "text-zinc-400 hover:text-white"
-              }`}
-            >
-              Unlock Vault
-            </button>
+          <div className="flex space-x-1.5 overflow-x-auto">
+            {!isVaultUnlocked && (
+              <button
+                onClick={() => {
+                  setMode("unlock");
+                  setError(null);
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+                  mode === "unlock"
+                    ? "bg-rose-500/10 text-rose-400 border border-rose-500/30"
+                    : "text-zinc-400 hover:text-white"
+                }`}
+              >
+                Desbloquear Bóveda
+              </button>
+            )}
+
             <button
               onClick={() => {
                 setMode("create");
                 setError(null);
-                if (!mnemonic) handleGenerateMnemonic();
+                if (!mnemonic) handleGenerateMnemonic(wordCount);
               }}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
                 mode === "create"
@@ -111,116 +165,301 @@ export const WalletModal: React.FC<WalletModalProps> = ({ isOpen, onClose, onWal
                   : "text-zinc-400 hover:text-white"
               }`}
             >
-              Create New Wallet
+              {isVaultUnlocked ? "+ Nueva Billetera" : "Crear Bóveda"}
+            </button>
+
+            <button
+              onClick={() => {
+                setMode("import");
+                setError(null);
+              }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+                mode === "import"
+                  ? "bg-rose-500/10 text-rose-400 border border-rose-500/30"
+                  : "text-zinc-400 hover:text-white"
+              }`}
+            >
+              Importar Mnemónico
             </button>
           </div>
 
           <button
             onClick={onClose}
-            className="p-1 text-zinc-500 hover:text-white rounded-lg transition"
+            className="p-1 hover:bg-zinc-800 rounded text-zinc-500 hover:text-white transition"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
+        {/* Modal Content */}
         <div className="p-6">
           {error && (
-            <div className="mb-4 p-3 bg-rose-950/40 border border-rose-800/80 rounded-lg flex items-center space-x-2 text-xs text-rose-300 font-mono">
-              <AlertCircle className="w-4 h-4 text-rose-400 flex-shrink-0" />
+            <div className="mb-4 p-3 bg-rose-950/40 border border-rose-800/60 rounded-lg flex items-start space-x-2 text-xs text-rose-300">
+              <AlertCircle className="w-4 h-4 shrink-0 text-rose-400 mt-0.5" />
               <span>{error}</span>
             </div>
           )}
 
-          {mode === "unlock" ? (
+          {mode === "unlock" && (
             <form onSubmit={handleUnlock} className="space-y-4">
+              <div className="flex items-center space-x-3 mb-2">
+                <div className="w-10 h-10 rounded-full bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400">
+                  <Lock className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white">Desbloquear Bóveda de Billeteras</h3>
+                  <p className="text-xs text-zinc-400">Ingresa tu contraseña maestra para acceder a todas tus cuentas</p>
+                </div>
+              </div>
+
               <div>
                 <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1">
-                  Master Vault Password
+                  Contraseña Maestra
                 </label>
                 <div className="relative">
-                  <Lock className="w-4 h-4 text-zinc-500 absolute left-3 top-2.5" />
                   <input
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Enter password..."
-                    className="w-full bg-zinc-900 border border-zinc-800 focus:border-rose-500 rounded-lg pl-9 pr-3 py-2 text-xs text-white outline-none font-mono"
+                    placeholder="••••••••••••"
+                    className="w-full bg-zinc-900 border border-zinc-800 focus:border-rose-500 rounded-lg px-3.5 py-2 text-sm text-white outline-none transition pl-10 font-mono"
+                    autoFocus
                     required
                   />
+                  <Lock className="w-4 h-4 text-zinc-500 absolute left-3 top-2.5" />
                 </div>
               </div>
 
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full flex items-center justify-center space-x-2 py-2.5 bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white rounded-lg text-xs font-semibold shadow-md transition"
+                className="w-full py-2.5 bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white rounded-lg text-sm font-semibold shadow-md transition flex items-center justify-center space-x-2"
               >
-                <Key className="w-3.5 h-3.5" />
-                <span>{loading ? "Decrypting..." : "Unlock Vault"}</span>
+                <Key className="w-4 h-4" />
+                <span>{loading ? "Desbloqueando Bóveda..." : "Desbloquear Billetera"}</span>
               </button>
             </form>
-          ) : (
-            <form onSubmit={handleCreate} className="space-y-4">
+          )}
+
+          {mode === "create" && (
+            <form onSubmit={handleCreateOrAdd} className="space-y-4">
+              <div className="flex items-center space-x-3 mb-2">
+                <div className="w-10 h-10 rounded-full bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+                  <Sparkles className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white">
+                    {isVaultUnlocked ? "Crear Nueva Billetera" : "Crear Bóveda y Generar Semilla"}
+                  </h3>
+                  <p className="text-xs text-zinc-400">Genera una frase mnemónica BIP-39 determinista criptográficamente segura</p>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1">
+                  Nombre o Alias de la Billetera (Opcional)
+                </label>
+                <input
+                  type="text"
+                  value={walletName}
+                  onChange={(e) => setWalletName(e.target.value)}
+                  placeholder="Ej. Billetera Minería, Ahorros, etc."
+                  className="w-full bg-zinc-900 border border-zinc-800 focus:border-rose-500 rounded-lg px-3.5 py-2 text-sm text-white outline-none transition"
+                />
+              </div>
+
               <div>
                 <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
-                    BIP-39 Mnemonic Phrase (12 Words)
-                  </span>
-                  <button
-                    type="button"
-                    onClick={handleCopyMnemonic}
-                    className="flex items-center space-x-1 text-[11px] text-zinc-400 hover:text-white"
-                  >
-                    {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                    <span>{copied ? "Copied" : "Copy"}</span>
-                  </button>
+                  <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
+                    Longitud de Frase Semilla
+                  </label>
+                  <div className="flex space-x-1 bg-zinc-900 p-0.5 rounded border border-zinc-800">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setWordCount(12);
+                        handleGenerateMnemonic(12);
+                      }}
+                      className={`px-2 py-0.5 text-[10px] font-mono rounded ${
+                        wordCount === 12 ? "bg-rose-600 text-white" : "text-zinc-400 hover:text-white"
+                      }`}
+                    >
+                      12 palabras
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setWordCount(24);
+                        handleGenerateMnemonic(24);
+                      }}
+                      className={`px-2 py-0.5 text-[10px] font-mono rounded ${
+                        wordCount === 24 ? "bg-rose-600 text-white" : "text-zinc-400 hover:text-white"
+                      }`}
+                    >
+                      24 palabras
+                    </button>
+                  </div>
                 </div>
 
-                <div className="grid grid-cols-3 gap-1.5 p-3 bg-zinc-900 border border-zinc-800 rounded-lg text-center font-mono text-xs">
-                  {mnemonic.split(" ").map((w, i) => (
-                    <div key={i} className="p-1 rounded bg-zinc-950/80 text-zinc-300">
-                      <span className="text-zinc-600 mr-1">{i + 1}.</span>
-                      {w}
-                    </div>
-                  ))}
+                <div className="p-3 bg-zinc-900 border border-zinc-800 rounded-lg space-y-2">
+                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-1.5 font-mono text-xs">
+                    {mnemonic.split(" ").map((w, idx) => (
+                      <div key={idx} className="bg-zinc-950 px-2 py-1 rounded border border-zinc-800/80 text-amber-300">
+                        <span className="text-zinc-600 mr-1 select-none">{idx + 1}.</span>
+                        <span>{w}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="flex items-center justify-between pt-1 border-t border-zinc-800 text-xs">
+                    <button
+                      type="button"
+                      onClick={() => handleGenerateMnemonic(wordCount)}
+                      className="text-zinc-400 hover:text-white transition"
+                    >
+                      Regenerar frase
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleCopyMnemonic}
+                      className="flex items-center space-x-1 text-rose-400 hover:text-rose-300 transition"
+                    >
+                      {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                      <span>{copied ? "Copiada" : "Copiar frase"}</span>
+                    </button>
+                  </div>
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1">
-                  Master Password
-                </label>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="At least 8 characters..."
-                  className="w-full bg-zinc-900 border border-zinc-800 focus:border-rose-500 rounded-lg px-3 py-2 text-xs text-white outline-none font-mono"
-                  required
-                />
-              </div>
+              {!isVaultUnlocked && (
+                <>
+                  <div>
+                    <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1">
+                      Contraseña Maestra (mínimo 8 caracteres)
+                    </label>
+                    <input
+                      type="password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="••••••••••••"
+                      className="w-full bg-zinc-900 border border-zinc-800 focus:border-rose-500 rounded-lg px-3.5 py-2 text-sm text-white outline-none transition font-mono"
+                      required
+                    />
+                  </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1">
-                  Confirm Password
-                </label>
-                <input
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="Repeat password..."
-                  className="w-full bg-zinc-900 border border-zinc-800 focus:border-rose-500 rounded-lg px-3 py-2 text-xs text-white outline-none font-mono"
-                  required
-                />
-              </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1">
+                      Confirmar Contraseña
+                    </label>
+                    <input
+                      type="password"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="••••••••••••"
+                      className="w-full bg-zinc-900 border border-zinc-800 focus:border-rose-500 rounded-lg px-3.5 py-2 text-sm text-white outline-none transition font-mono"
+                      required
+                    />
+                  </div>
+                </>
+              )}
 
               <button
                 type="submit"
-                disabled={loading}
-                className="w-full flex items-center justify-center space-x-2 py-2.5 bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white rounded-lg text-xs font-semibold shadow-md transition"
+                disabled={loading || !mnemonic}
+                className="w-full py-2.5 bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white rounded-lg text-sm font-semibold shadow-md transition flex items-center justify-center space-x-2"
               >
-                <ShieldPlus className="w-3.5 h-3.5" />
-                <span>{loading ? "Encrypting & Deriving..." : "Create & Encrypt Wallet"}</span>
+                <ShieldPlus className="w-4 h-4" />
+                <span>{loading ? "Creando Billetera..." : isVaultUnlocked ? "Guardar Billetera en Bóveda" : "Crear Bóveda y Guardar"}</span>
+              </button>
+            </form>
+          )}
+
+          {mode === "import" && (
+            <form onSubmit={handleCreateOrAdd} className="space-y-4">
+              <div className="flex items-center space-x-3 mb-2">
+                <div className="w-10 h-10 rounded-full bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400">
+                  <Download className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white">Importar Mnemónico Existente</h3>
+                  <p className="text-xs text-zinc-400">Restaura una billetera existente ingresando su semilla de 12 o 24 palabras</p>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1">
+                  Nombre o Alias de la Billetera (Opcional)
+                </label>
+                <input
+                  type="text"
+                  value={walletName}
+                  onChange={(e) => setWalletName(e.target.value)}
+                  placeholder="Ej. Billetera Importada 1"
+                  className="w-full bg-zinc-900 border border-zinc-800 focus:border-rose-500 rounded-lg px-3.5 py-2 text-sm text-white outline-none transition"
+                />
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
+                    Frase Mnemónica (12 o 24 palabras separadas por espacio)
+                  </label>
+                  <span className="text-[11px] font-mono text-zinc-500">
+                    {importMnemonicInput.trim() ? importMnemonicInput.trim().split(/\s+/).length : 0} palabras
+                  </span>
+                </div>
+                <textarea
+                  value={importMnemonicInput}
+                  onChange={(e) => setImportMnemonicInput(e.target.value)}
+                  placeholder="pega tus 12 o 24 palabras aquí separadas por espacio..."
+                  rows={3}
+                  className="w-full bg-zinc-900 border border-zinc-800 focus:border-rose-500 rounded-lg p-3 text-xs text-white font-mono outline-none transition resize-none leading-relaxed"
+                  required
+                />
+                <p className="text-[11px] text-zinc-500 mt-1">
+                  Se normalizan automáticamente espacios múltiples, mayúsculas y saltos de línea.
+                </p>
+              </div>
+
+              {!isVaultUnlocked && (
+                <>
+                  <div>
+                    <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1">
+                      Contraseña Maestra (mínimo 8 caracteres)
+                    </label>
+                    <input
+                      type="password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="••••••••••••"
+                      className="w-full bg-zinc-900 border border-zinc-800 focus:border-rose-500 rounded-lg px-3.5 py-2 text-sm text-white outline-none transition font-mono"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1">
+                      Confirmar Contraseña
+                    </label>
+                    <input
+                      type="password"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="••••••••••••"
+                      className="w-full bg-zinc-900 border border-zinc-800 focus:border-rose-500 rounded-lg px-3.5 py-2 text-sm text-white outline-none transition font-mono"
+                      required
+                    />
+                  </div>
+                </>
+              )}
+
+              <button
+                type="submit"
+                disabled={loading || !importMnemonicInput.trim()}
+                className="w-full py-2.5 bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-white rounded-lg text-sm font-semibold shadow-md transition flex items-center justify-center space-x-2"
+              >
+                <Download className="w-4 h-4" />
+                <span>{loading ? "Importando..." : isVaultUnlocked ? "Importar a la Bóveda Actual" : "Crear Bóveda con Mnemónico"}</span>
               </button>
             </form>
           )}
@@ -229,4 +468,3 @@ export const WalletModal: React.FC<WalletModalProps> = ({ isOpen, onClose, onWal
     </div>
   );
 };
-
