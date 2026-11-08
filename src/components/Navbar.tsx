@@ -97,7 +97,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       {/* Dynamic Sync Status & Block tracker */}
       <div className="flex items-center space-x-4">
         {/* Dynamic Network / Sync Badge */}
-        {!nodeStatus.running ? (
+        {!rpcConnected && !nodeStatus.running ? (
           <div className="flex items-center space-x-1.5 px-2.5 py-1 bg-red-950/30 border border-red-900/40 rounded-full text-xs font-mono text-red-400">
             <span className="w-2 h-2 rounded-full bg-red-500" />
             <span>Nodo Offline</span>

@@ -50,7 +50,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
         {/* Synchronization Status Widget (Decoupled from manual start/stop) */}
         <div className="w-full md:w-80 bg-zinc-950 border border-zinc-800 rounded-lg p-3.5 shadow-inner shrink-0">
-          {!nodeStatus.running ? (
+          {!rpcConnected && !nodeStatus.running ? (
             <div className="flex items-center space-x-3 py-1">
               <div className="w-8 h-8 rounded-full bg-red-950/60 border border-red-800/50 flex items-center justify-center shrink-0">
                 <Radio className="w-4 h-4 text-red-400" />
