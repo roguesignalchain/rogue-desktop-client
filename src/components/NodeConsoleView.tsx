@@ -129,7 +129,7 @@ export const NodeConsoleView: React.FC<NodeConsoleViewProps> = ({ logs, onClearL
             ))
           ) : (
             <div className="text-zinc-600 text-center py-16">
-              Awaiting node or stratum engine startup logs...
+              Awaiting node engine startup logs...
             </div>
           )}
         </div>

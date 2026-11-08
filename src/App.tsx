@@ -107,15 +107,6 @@ export const App: React.FC = () => {
         } else {
           cleanups.push(unlistenNode);
         }
-
-        const unlistenStratum = await listen<string>("stratum-log", (event) => {
-          setLogs((prev) => [...prev.slice(-300), `[Stratum] ${event.payload}`]);
-        });
-        if (isCancelled) {
-          unlistenStratum();
-        } else {
-          cleanups.push(unlistenStratum);
-        }
       } catch (err) {
         // Outside of Tauri context or mocking
       }
@@ -206,7 +197,7 @@ export const App: React.FC = () => {
   const executeWalletSwitch = async (walletId: string, stopMining: boolean = false) => {
     try {
       if (stopMining) {
-        await handleStopNode();
+        await api.stopMining(rpcUrl);
         setLogs((prev) => [...prev, "[Mining] Minería detenida automáticamente al cambiar de billetera activa."]);
       }
 
@@ -244,9 +235,14 @@ export const App: React.FC = () => {
     }
   };
 
-  const handleSelectAddress = (addr: string) => {
+  const handleSelectAddress = async (addr: string) => {
     setUnlockedAddress(addr);
     setLogs((prev) => [...prev, `[Wallet] Dirección activa seleccionada: ${addr}`]);
+    try {
+      await api.setEtherbase(rpcUrl, addr);
+    } catch {
+      // Node might not be ready yet
+    }
   };
 
   // Inactivity auto-lock listener
@@ -544,6 +540,8 @@ export const App: React.FC = () => {
               nodeStatus={nodeStatus}
               syncStatus={syncStatus}
               peerCount={peerCount}
+              recentBlocks={recentBlocks}
+              currentBlock={currentBlock}
             />
           )}
 

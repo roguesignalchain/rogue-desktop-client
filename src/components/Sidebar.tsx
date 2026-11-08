@@ -12,7 +12,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onSelectTab }) => 
   const navItems = [
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
     { id: "wallet", label: "Wallet", icon: Wallet },
-    { id: "mining", label: "Mining & Stratum", icon: Pickaxe },
+    { id: "mining", label: "Minería CPU", icon: Pickaxe },
     { id: "explorer", label: "Mini Explorer", icon: Compass },
     { id: "console", label: "Node Console", icon: Terminal },
     { id: "settings", label: "Settings", icon: Settings },
