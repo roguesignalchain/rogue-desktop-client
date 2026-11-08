@@ -35,13 +35,13 @@ Built with **Tauri v2**, **Rust**, **React 19**, **TypeScript**, and **Tailwind 
 
 The application automatically resolves local node and bridge binaries with zero configuration:
 
-1. **Adjacent Build Directory**: Resolves `../rogue-geth/build/bin/geth` and `../rogue-geth/build/bin/rogue-stratum`.
-2. **Workspace Root**: Resolves `rogue-geth/build/bin/geth`.
+1. **Adjacent Build Directory**: Resolves `../rogue-core-chain/build/bin/geth` and `../rogue-core-chain/build/bin/rogue-stratum`.
+2. **Workspace Root**: Resolves `rogue-core-chain/build/bin/geth`.
 3. **System PATH**: Falls back to global `geth` or `rogue-stratum` if installed system-wide.
 
 To build the binaries from source before launching the client:
 ```bash
-cd ../rogue-geth
+cd ../rogue-core-chain
 make geth
 make rogue-stratum
 ```

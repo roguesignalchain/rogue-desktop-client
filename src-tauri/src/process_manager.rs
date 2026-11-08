@@ -41,19 +41,25 @@ pub struct ProcessStatus {
 }
 
 fn resolve_binary(bin_name: &str) -> Result<PathBuf, String> {
-    // 1. Look in adjacent rogue-geth build directory
-    let relative_path = Path::new("../rogue-geth/build/bin").join(bin_name);
+    // 1. Look in adjacent rogue-core-chain build directory
+    let relative_path = Path::new("../rogue-core-chain/build/bin").join(bin_name);
     if relative_path.exists() {
         return Ok(relative_path);
     }
 
-    // 2. Look in workspace root
-    let workspace_path = Path::new("rogue-geth/build/bin").join(bin_name);
+    // 2. Fallback to legacy rogue-geth path
+    let legacy_relative = Path::new("../rogue-geth/build/bin").join(bin_name);
+    if legacy_relative.exists() {
+        return Ok(legacy_relative);
+    }
+
+    // 3. Look in workspace root
+    let workspace_path = Path::new("rogue-core-chain/build/bin").join(bin_name);
     if workspace_path.exists() {
         return Ok(workspace_path);
     }
 
-    // 3. Fallback to PATH
+    // 4. Fallback to PATH
     Ok(PathBuf::from(bin_name))
 }
 
