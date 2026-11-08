@@ -420,15 +420,15 @@ export const WalletView: React.FC<WalletViewProps> = ({
       const wei = BigInt(Math.floor(parsedAmount * 1e6)) * BigInt(10 ** 12);
       const valueHex = "0x" + wei.toString(16);
 
-      const priorityGwei = gasTier === "slow" ? 1 : gasTier === "normal" ? 2 : 5;
-      const maxPriorityFeeHex = "0x" + (BigInt(priorityGwei) * BigInt(10 ** 9)).toString(16);
+      const gasPriceGwei = gasTier === "slow" ? 1 : gasTier === "normal" ? 2 : 5;
+      const gasPriceHex = "0x" + (BigInt(gasPriceGwei) * BigInt(10 ** 9)).toString(16);
 
       const txParams = {
         from: unlockedAddress,
         to: recipient,
         value: valueHex,
         gas: "0x5208",
-        maxPriorityFeePerGas: maxPriorityFeeHex,
+        gasPrice: gasPriceHex,
       };
 
       const txHash = await api.callRpc<string>(rpcUrl, "eth_sendTransaction", [txParams]);
