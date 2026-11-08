@@ -82,7 +82,7 @@ export const WalletModal: React.FC<WalletModalProps> = ({ isOpen, onClose, onWal
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4">
       <div className="w-full max-w-md bg-zinc-950 border border-zinc-800 rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
         <div className="p-4 border-b border-zinc-800 flex items-center justify-between">
           <div className="flex space-x-2">

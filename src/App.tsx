@@ -153,6 +153,15 @@ export const App: React.FC = () => {
     };
   }, []);
 
+  const handleLockWallet = async () => {
+    try {
+      await api.lockWallet();
+    } catch (e) {
+      console.warn("Failed to lock wallet backend:", e);
+    }
+    setUnlockedAddress(null);
+  };
+
   // Inactivity auto-lock listener
   useEffect(() => {
     const handleActivity = () => {
@@ -166,7 +175,7 @@ export const App: React.FC = () => {
       if (autoLockMinutes > 0 && unlockedAddress) {
         const elapsed = (Date.now() - lastActivityRef.current) / 1000 / 60;
         if (elapsed >= autoLockMinutes) {
-          setUnlockedAddress(null);
+          handleLockWallet();
           setLogs((prev) => [...prev, "[Security] Wallet automatically locked due to inactivity."]);
         }
       }
@@ -375,7 +384,7 @@ export const App: React.FC = () => {
         currentBlock={currentBlock}
         unlockedAddress={unlockedAddress}
         onOpenWalletModal={() => setIsWalletModalOpen(true)}
-        onLockWallet={() => setUnlockedAddress(null)}
+        onLockWallet={handleLockWallet}
       />
 
       <div className="flex flex-1 overflow-hidden">
@@ -404,6 +413,7 @@ export const App: React.FC = () => {
               rpcUrl={rpcUrl}
               onRefreshBalance={refreshMetrics}
               onOpenWalletModal={() => setIsWalletModalOpen(true)}
+              onSelectAddress={(addr) => setUnlockedAddress(addr)}
             />
           )}
 
@@ -469,7 +479,7 @@ export const App: React.FC = () => {
 
       {/* Graceful Shutdown Modal Overlay */}
       {isShuttingDown && (
-        <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center select-none animate-fadeIn">
+        <div className="fixed inset-0 z-[100] bg-black/95 flex flex-col items-center justify-center p-6 text-center select-none animate-fadeIn">
           <div className="w-16 h-16 rounded-full bg-rose-950/60 border border-rose-600/40 flex items-center justify-center mb-6 shadow-[0_0_24px_rgba(244,63,94,0.3)]">
             <Loader2 className="w-8 h-8 text-rose-500 animate-spin" />
           </div>

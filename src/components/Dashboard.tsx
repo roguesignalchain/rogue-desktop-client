@@ -41,7 +41,6 @@ export const Dashboard: React.FC<DashboardProps> = ({
     <div className="space-y-6">
       {/* Top Banner with Real-Time Blockchain Synchronization */}
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 p-6 bg-gradient-to-r from-zinc-900 via-zinc-900 to-zinc-950 border border-zinc-800 rounded-xl relative overflow-hidden">
-        <div className="absolute right-0 top-0 w-96 h-96 bg-rose-500/5 rounded-full blur-3xl pointer-events-none" />
         <div className="max-w-xl">
           <h1 className="text-2xl font-bold text-white tracking-wide">Rogue Signal Node Dashboard</h1>
           <p className="text-sm text-zinc-400 mt-1">
@@ -50,7 +49,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
         </div>
 
         {/* Synchronization Status Widget (Decoupled from manual start/stop) */}
-        <div className="w-full md:w-80 bg-zinc-950/70 border border-zinc-800 rounded-lg p-3.5 backdrop-blur-sm shadow-inner shrink-0">
+        <div className="w-full md:w-80 bg-zinc-950 border border-zinc-800 rounded-lg p-3.5 shadow-inner shrink-0">
           {!nodeStatus.running ? (
             <div className="flex items-center space-x-3 py-1">
               <div className="w-8 h-8 rounded-full bg-red-950/60 border border-red-800/50 flex items-center justify-center shrink-0">
