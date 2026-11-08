@@ -54,6 +54,12 @@ export interface Account {
   index: number;
 }
 
+export interface AccountInfo {
+  address: string;
+  index: number;
+  path: string;
+}
+
 export interface NetworkInfo {
   chainId: number;
   networkName: string;

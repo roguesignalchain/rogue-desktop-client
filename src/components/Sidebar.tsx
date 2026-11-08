@@ -19,7 +19,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onSelectTab }) => 
   ];
 
   return (
-    <aside className="w-56 border-r border-zinc-800 bg-zinc-950/60 flex flex-col justify-between p-3 select-none">
+    <aside className="w-56 border-r border-zinc-800 bg-zinc-950 flex flex-col justify-between p-3 select-none relative z-10 shrink-0">
       <nav className="space-y-1">
         {navItems.map((item) => {
           const Icon = item.icon;

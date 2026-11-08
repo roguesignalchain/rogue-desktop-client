@@ -20,11 +20,14 @@ pub fn run() {
             wallet::generate_mnemonic,
             wallet::create_wallet,
             wallet::unlock_wallet,
+            wallet::lock_wallet,
+            wallet::get_mnemonic,
             wallet::get_accounts,
+            wallet::get_derived_accounts,
+            wallet::get_private_key,
             wallet::sign_transaction,
             rpc::call_rpc
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
-

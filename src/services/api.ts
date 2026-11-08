@@ -1,4 +1,4 @@
-import { Block, NodeStatus, Account, NodeLaunchConfig, SyncStatus } from "../types";
+import { Block, NodeStatus, AccountInfo, NodeLaunchConfig, SyncStatus } from "../types";
 
 // Safe invoke wrapper for Tauri v2
 async function safeInvoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
@@ -59,12 +59,28 @@ export const api = {
     return safeInvoke("unlock_wallet", { password });
   },
 
-  getAccounts: async (): Promise<Account[]> => {
+  lockWallet: async (): Promise<void> => {
+    return safeInvoke("lock_wallet");
+  },
+
+  getMnemonic: async (): Promise<string> => {
+    return safeInvoke("get_mnemonic");
+  },
+
+  getAccounts: async (): Promise<AccountInfo[]> => {
     return safeInvoke("get_accounts");
   },
 
-  signTransaction: async (txHashHex: string): Promise<string> => {
-    return safeInvoke("sign_transaction", { txHashHex });
+  getDerivedAccounts: async (count?: number): Promise<AccountInfo[]> => {
+    return safeInvoke("get_derived_accounts", { count });
+  },
+
+  getPrivateKey: async (accountIndex: number): Promise<string> => {
+    return safeInvoke("get_private_key", { accountIndex });
+  },
+
+  signTransaction: async (txHashHex: string, accountIndex?: number): Promise<string> => {
+    return safeInvoke("sign_transaction", { txHashHex, accountIndex });
   },
 
   // Direct JSON-RPC proxy
