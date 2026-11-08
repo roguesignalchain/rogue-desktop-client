@@ -5,7 +5,6 @@ use std::sync::Mutex;
 use tauri::{AppHandle, Emitter};
 
 static NODE_PROCESS: Mutex<Option<Child>> = Mutex::new(None);
-static STRATUM_PROCESS: Mutex<Option<Child>> = Mutex::new(None);
 
 const EMBEDDED_GENESIS: &str = include_str!("../../../genesis.json");
 
@@ -203,7 +202,7 @@ pub async fn start_node(app: AppHandle, config: NodeConfig) -> Result<String, St
         .arg("--http.port")
         .arg(config.http_port.to_string())
         .arg("--http.api")
-        .arg("eth,net,web3,miner,personal,txpool,admin")
+        .arg("eth,net,web3,miner,personal,txpool,admin,randomx")
         .arg("--http.corsdomain")
         .arg("*");
 
@@ -214,7 +213,7 @@ pub async fn start_node(app: AppHandle, config: NodeConfig) -> Result<String, St
             .arg("--ws.port")
             .arg(config.ws_port.to_string())
             .arg("--ws.api")
-            .arg("eth,net,web3,miner,personal,admin")
+            .arg("eth,net,web3,miner,personal,admin,randomx")
             .arg("--ws.origins")
             .arg("*");
     }
@@ -317,7 +316,6 @@ pub async fn stop_node() -> Result<String, String> {
 #[tauri::command]
 pub async fn exit_app(app: AppHandle) -> Result<(), String> {
     let _ = stop_node().await;
-    let _ = stop_stratum().await;
     app.exit(0);
     Ok(())
 }
@@ -368,50 +366,88 @@ pub async fn get_node_status() -> Result<ProcessStatus, String> {
     }
 }
 
-#[tauri::command]
-pub async fn start_stratum(app: AppHandle, listen_port: u16, rpc_url: String) -> Result<String, String> {
-    let mut proc_lock = STRATUM_PROCESS.lock().unwrap();
-    if proc_lock.is_some() {
-        return Err("Stratum is already running".to_string());
-    }
-
-    let stratum_bin = resolve_binary("rogue-stratum")?;
-    let mut cmd = Command::new(&stratum_bin);
-    cmd.arg("-stratum.port")
-        .arg(listen_port.to_string())
-        .arg("-node.rpc")
-        .arg(rpc_url)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
-
-    let mut child = cmd
-        .spawn()
-        .map_err(|e| format!("Failed to start rogue-stratum at {:?}: {}", stratum_bin, e))?;
-    let pid = child.id();
-
-    if let Some(stderr) = child.stderr.take() {
-        let app_handle = app.clone();
-        std::thread::spawn(move || {
-            use std::io::{BufRead, BufReader};
-            let reader = BufReader::new(stderr);
-            for line in reader.lines().flatten() {
-                let _ = app_handle.emit("stratum-log", line);
-            }
-        });
-    }
-
-    *proc_lock = Some(child);
-    Ok(format!("Stratum bridge started (PID: {})", pid))
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct SystemSpecs {
+    pub cpu_model: String,
+    pub cpu_cores: u32,
+    pub total_ram_mb: u64,
+    pub available_ram_mb: u64,
+    pub recommended_threads: u32,
+    pub can_run_fast_mode: bool,
+    pub recommended_cache_mb: u32,
 }
 
 #[tauri::command]
-pub async fn stop_stratum() -> Result<String, String> {
-    let mut proc_lock = STRATUM_PROCESS.lock().unwrap();
-    if let Some(mut child) = proc_lock.take() {
-        let _ = child.kill();
-        let _ = child.wait();
-        Ok("Stratum bridge stopped".to_string())
-    } else {
-        Err("Stratum is not running".to_string())
+pub async fn get_system_specs() -> Result<SystemSpecs, String> {
+    let cpu_cores = std::thread::available_parallelism()
+        .map(|n| n.get() as u32)
+        .unwrap_or(4)
+        .max(1);
+
+    let mut cpu_model = "Standard Desktop CPU".to_string();
+    let mut total_ram_mb: u64 = 8192;
+    let mut available_ram_mb: u64 = 4096;
+
+    #[cfg(target_os = "linux")]
+    {
+        if let Ok(cpuinfo) = std::fs::read_to_string("/proc/cpuinfo") {
+            for line in cpuinfo.lines() {
+                if line.starts_with("model name") || line.starts_with("Hardware") || line.starts_with("Model") {
+                    if let Some((_, val)) = line.split_once(':') {
+                        let trimmed = val.trim();
+                        if !trimmed.is_empty() {
+                            cpu_model = trimmed.to_string();
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        if let Ok(meminfo) = std::fs::read_to_string("/proc/meminfo") {
+            let mut total_kb: u64 = 0;
+            let mut avail_kb: u64 = 0;
+            let mut free_kb: u64 = 0;
+            for line in meminfo.lines() {
+                let parts: Vec<&str> = line.split_whitespace().collect();
+                if parts.len() >= 2 {
+                    match parts[0] {
+                        "MemTotal:" => total_kb = parts[1].parse().unwrap_or(0),
+                        "MemAvailable:" => avail_kb = parts[1].parse().unwrap_or(0),
+                        "MemFree:" => free_kb = parts[1].parse().unwrap_or(0),
+                        _ => {}
+                    }
+                }
+            }
+            if total_kb > 0 {
+                total_ram_mb = total_kb / 1024;
+            }
+            if avail_kb > 0 {
+                available_ram_mb = avail_kb / 1024;
+            } else if free_kb > 0 {
+                available_ram_mb = free_kb / 1024;
+            }
+        }
     }
+
+    let recommended_threads = (cpu_cores / 2).max(1);
+    let can_run_fast_mode = available_ram_mb >= 3072;
+    let recommended_cache_mb = if total_ram_mb >= 16384 {
+        1024
+    } else if total_ram_mb >= 8192 {
+        512
+    } else {
+        256
+    };
+
+    Ok(SystemSpecs {
+        cpu_model,
+        cpu_cores,
+        total_ram_mb,
+        available_ram_mb,
+        recommended_threads,
+        can_run_fast_mode,
+        recommended_cache_mb,
+    })
 }

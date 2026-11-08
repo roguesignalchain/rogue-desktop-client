@@ -12,8 +12,11 @@ import {
   Play,
   Square,
   RefreshCw,
+  Activity,
+  ShieldCheck,
 } from "lucide-react";
-import { NodeStatus } from "../types";
+import { NodeStatus, SystemSpecs } from "../types";
+import { api } from "../services/api";
 
 interface SettingsViewProps {
   rpcUrl: string;
@@ -78,6 +81,27 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [showDangerConfirm, setShowDangerConfirm] = useState(false);
   const [isResettingDb, setIsResettingDb] = useState(false);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const [specs, setSpecs] = useState<SystemSpecs | null>(null);
+  const [checkingSpecs, setCheckingSpecs] = useState<boolean>(false);
+
+  const handleCheckSystemResources = async () => {
+    try {
+      setCheckingSpecs(true);
+      const res = await api.getSystemSpecs();
+      setSpecs(res);
+      setCache(res.recommendedCacheMb);
+      setActionMessage(
+        `Diagnóstico de hardware: ${res.cpuCores} núcleos (${res.cpuModel}), ${(
+          res.availableRamMb / 1024
+        ).toFixed(1)} GB RAM libre. Caché recomendada ajustada a ${res.recommendedCacheMb} MB.`
+      );
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setActionMessage(`Error al verificar recursos del sistema: ${msg}`);
+    } finally {
+      setCheckingSpecs(false);
+    }
+  };
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
@@ -288,6 +312,66 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               <span className="text-[10px] text-zinc-500 mt-1 block">
                 Enodes separados por comas para descubrir pares automáticamente al iniciar.
               </span>
+            </div>
+
+            {/* Hardware Verification & Safe Resources Section */}
+            <div className="p-4 bg-zinc-950/70 border border-zinc-800 rounded-xl space-y-3 mt-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2 text-xs font-semibold text-cyan-400">
+                  <Activity className="w-4 h-4" />
+                  <span>Verificación de Recursos del Sistema (CPU y Memoria)</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleCheckSystemResources}
+                  disabled={checkingSpecs}
+                  className="flex items-center space-x-1.5 px-3 py-1.5 bg-cyan-950/70 hover:bg-cyan-900/80 border border-cyan-700/60 text-cyan-200 rounded-lg text-xs font-semibold transition"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${checkingSpecs ? "animate-spin" : ""}`} />
+                  <span>{checkingSpecs ? "Verificando..." : "Verificar Recursos del Sistema"}</span>
+                </button>
+              </div>
+
+              <p className="text-[11px] text-zinc-400">
+                Analiza los núcleos y la memoria RAM de tu computador para determinar cuánta memoria caché y cuántos núcleos utilizar con total seguridad.
+              </p>
+
+              {specs && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
+                  <div className="p-2.5 bg-zinc-900/80 border border-zinc-800 rounded-lg">
+                    <span className="text-[10px] text-zinc-400 uppercase block">CPU Detectada</span>
+                    <span className="text-xs font-mono font-bold text-white block truncate">
+                      {specs.cpuCores} Núcleos Lógicos
+                    </span>
+                    <span className="text-[10px] font-mono text-zinc-400 block truncate">
+                      {specs.cpuModel}
+                    </span>
+                  </div>
+
+                  <div className="p-2.5 bg-zinc-900/80 border border-zinc-800 rounded-lg">
+                    <span className="text-[10px] text-zinc-400 uppercase block">Memoria RAM Disponible</span>
+                    <span className="text-xs font-mono font-bold text-emerald-400 block">
+                      {(specs.availableRamMb / 1024).toFixed(1)} GB Libres
+                    </span>
+                    <span className="text-[10px] font-mono text-zinc-400 block">
+                      Total: {(specs.totalRamMb / 1024).toFixed(1)} GB ({specs.availableRamMb} MB libres)
+                    </span>
+                  </div>
+
+                  <div className="p-2.5 bg-emerald-950/20 border border-emerald-800/50 rounded-lg">
+                    <span className="text-[10px] text-emerald-300 uppercase font-semibold flex items-center space-x-1">
+                      <ShieldCheck className="w-3 h-3" />
+                      <span>Ajuste Seguro Sugerido</span>
+                    </span>
+                    <span className="text-xs font-mono font-bold text-emerald-400 block">
+                      {specs.recommendedThreads} Hilos / Caché {specs.recommendedCacheMb} MB
+                    </span>
+                    <span className="text-[10px] text-zinc-400 block">
+                      Modo RandomX: Light Mode (256 MB)
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Performance and Cache Profile */}

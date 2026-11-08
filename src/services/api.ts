@@ -1,4 +1,4 @@
-import { Block, NodeStatus, AccountInfo, WalletSummary, NodeLaunchConfig, SyncStatus } from "../types";
+import { Block, NodeStatus, AccountInfo, WalletSummary, NodeLaunchConfig, SyncStatus, SystemSpecs } from "../types";
 
 // Safe invoke wrapper for Tauri v2
 async function safeInvoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
@@ -37,13 +37,22 @@ export const api = {
     return safeInvoke("clean_chaindata", { datadir });
   },
 
-  // Stratum bridge management
-  startStratum: async (listenPort: number, rpcUrl: string): Promise<string> => {
-    return safeInvoke("start_stratum", { listenPort, rpcUrl });
-  },
-
-  stopStratum: async (): Promise<string> => {
-    return safeInvoke("stop_stratum");
+  // Hardware diagnostics
+  getSystemSpecs: async (): Promise<SystemSpecs> => {
+    try {
+      return await safeInvoke<SystemSpecs>("get_system_specs");
+    } catch {
+      const cores = typeof navigator !== "undefined" && navigator.hardwareConcurrency ? navigator.hardwareConcurrency : 4;
+      return {
+        cpuModel: "Procesador Estándar",
+        cpuCores: cores,
+        totalRamMb: 8192,
+        availableRamMb: 4096,
+        recommendedThreads: Math.max(1, Math.floor(cores / 2)),
+        canRunFastMode: true,
+        recommendedCacheMb: 512,
+      };
+    }
   },
 
   // Wallet and Keystore
@@ -146,7 +155,21 @@ export const api = {
     }
   },
 
-  startMining: async (rpcUrl: string, threads: number, coinbase?: string): Promise<void> => {
+  setFastMode: async (rpcUrl: string, fastMode: boolean): Promise<boolean> => {
+    try {
+      return await api.callRpc<boolean>(rpcUrl, "randomx_setFastMode", [fastMode]);
+    } catch (e) {
+      console.warn("randomx_setFastMode error:", e);
+      return false;
+    }
+  },
+
+  startMining: async (rpcUrl: string, threads: number, coinbase?: string, fastMode: boolean = false): Promise<void> => {
+    try {
+      await api.callRpc(rpcUrl, "randomx_setFastMode", [fastMode]);
+    } catch (e) {
+      console.warn("Could not set RandomX fastMode:", e);
+    }
     if (coinbase) {
       try {
         await api.callRpc(rpcUrl, "miner_setEtherbase", [coinbase]);

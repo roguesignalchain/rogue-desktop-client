@@ -46,8 +46,16 @@ export interface MiningConfig {
   minerThreads: number;
   fastMode: boolean;
   coinbase: string;
-  stratumPort: number;
-  stratumRunning: boolean;
+}
+
+export interface SystemSpecs {
+  cpuModel: string;
+  cpuCores: number;
+  totalRamMb: number;
+  availableRamMb: number;
+  recommendedThreads: number;
+  canRunFastMode: boolean;
+  recommendedCacheMb: number;
 }
 
 export interface Account {
