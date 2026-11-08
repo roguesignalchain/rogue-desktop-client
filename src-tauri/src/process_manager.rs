@@ -30,7 +30,7 @@ impl Default for NodeConfig {
         Self {
             datadir: Some("./nodes-local/node-desktop".to_string()),
             http_port: 38849,
-            ws_port: 38850,
+            ws_port: 0,
             p2p_port: 38890,
             bootnodes: Some("enode://3bfcd978ea35fc817c5573b03e7b76cb7367720d4ff7a1fdb7ddcb83ec2ad6cba997029305678d49e1dbfccc83a20ecea0d4920a483a8e4d86ebe212b06bcefc@127.0.0.1:38888".to_string()),
             mine: false,
@@ -194,23 +194,27 @@ pub async fn start_node(app: AppHandle, config: NodeConfig) -> Result<String, St
 
     cmd.arg("--http")
         .arg("--http.addr")
-        .arg("0.0.0.0")
+        .arg("127.0.0.1")
         .arg("--http.port")
         .arg(config.http_port.to_string())
         .arg("--http.api")
         .arg("eth,net,web3,miner,personal,txpool,admin")
         .arg("--http.corsdomain")
-        .arg("*")
-        .arg("--ws")
-        .arg("--ws.addr")
-        .arg("0.0.0.0")
-        .arg("--ws.port")
-        .arg(config.ws_port.to_string())
-        .arg("--ws.api")
-        .arg("eth,net,web3,miner,personal,admin")
-        .arg("--ws.origins")
-        .arg("*")
-        .arg("--port")
+        .arg("*");
+
+    if config.ws_port > 0 && config.ws_port != config.http_port {
+        cmd.arg("--ws")
+            .arg("--ws.addr")
+            .arg("127.0.0.1")
+            .arg("--ws.port")
+            .arg(config.ws_port.to_string())
+            .arg("--ws.api")
+            .arg("eth,net,web3,miner,personal,admin")
+            .arg("--ws.origins")
+            .arg("*");
+    }
+
+    cmd.arg("--port")
         .arg(config.p2p_port.to_string())
         .arg("--authrpc.port")
         .arg("8553")
