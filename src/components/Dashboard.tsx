@@ -110,11 +110,11 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 <div className="flex items-center space-x-2">
                   <RefreshCw className="w-4 h-4 text-cyan-400 animate-spin" />
                   <span className="text-xs font-bold text-cyan-400 uppercase tracking-wider">
-                    Sincronizando Cadena
+                    {syncStatus.peersAhead ? "Verificando Cadena con Pares" : "Sincronizando Cadena"}
                   </span>
                 </div>
                 <span className="text-xs font-bold text-cyan-300 font-mono">
-                  {syncStatus.progressPercentage}%
+                  {syncStatus.peersAhead ? "Descargando..." : `${syncStatus.progressPercentage}%`}
                 </span>
               </div>
 
@@ -122,14 +122,33 @@ export const Dashboard: React.FC<DashboardProps> = ({
               <div className="w-full bg-zinc-800 rounded-full h-2 overflow-hidden">
                 <div
                   className="bg-gradient-to-r from-cyan-500 to-emerald-400 h-2 rounded-full transition-all duration-500 ease-out"
-                  style={{ width: `${Math.max(3, syncStatus.progressPercentage)}%` }}
+                  style={{ width: `${Math.max(5, syncStatus.progressPercentage)}%` }}
                 />
               </div>
 
               <div className="flex items-center justify-between text-[11px] font-mono text-zinc-400">
-                <span>Bloque: #{syncStatus.currentBlock || currentBlock}</span>
-                <span className="text-zinc-500">/</span>
-                <span className="text-cyan-400 font-bold">Pico: #{syncStatus.highestBlock}</span>
+                <span>Bloque actual: #{currentBlock}</span>
+                <span className="text-zinc-500">•</span>
+                <span className="text-cyan-400 font-bold">
+                  {syncStatus.highestBlock > currentBlock ? `Pico: #${syncStatus.highestBlock}` : `${peerCount} ${peerCount === 1 ? "par activo" : "pares activos"}`}
+                </span>
+              </div>
+            </div>
+          ) : currentBlock === 0 ? (
+            <div className="flex items-center space-x-3 py-1">
+              <div className="w-9 h-9 rounded-full bg-amber-950/80 border border-amber-500/30 flex items-center justify-center shrink-0 shadow-[0_0_12px_rgba(245,158,11,0.25)]">
+                <RefreshCw className="w-5 h-5 text-amber-400 animate-spin" />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center space-x-1.5">
+                  <span className="text-xs font-bold text-amber-400 uppercase tracking-wider">
+                    Bloque Génesis (#0)
+                  </span>
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping" />
+                </div>
+                <p className="text-[11px] text-zinc-400 truncate mt-0.5">
+                  Esperando bloques de {peerCount} {peerCount === 1 ? "par activo" : "pares activos"}...
+                </p>
               </div>
             </div>
           ) : (

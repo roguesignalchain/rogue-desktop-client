@@ -53,7 +53,7 @@ export const App: React.FC = () => {
     return saved ? parseInt(saved, 10) : 256;
   });
   const [nodeSyncmode, setNodeSyncmode] = useState<"full" | "snap">(() => {
-    return (localStorage.getItem("rogue_node_syncmode") as "full" | "snap") || "full";
+    return "full";
   });
   const [nodeVerbosity, setNodeVerbosity] = useState<number>(() => {
     const saved = localStorage.getItem("rogue_node_verbosity");
@@ -295,7 +295,7 @@ export const App: React.FC = () => {
       }
 
       try {
-        const sync = await api.getSyncStatus(rpcUrl);
+        const sync = await api.getSyncStatus(rpcUrl, blockNum);
         setSyncStatus(sync);
       } catch {
         // Transient sync query failure

@@ -315,9 +315,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   onChange={(e) => setSyncmode(e.target.value as "full" | "snap")}
                   className="w-full bg-zinc-950 border border-zinc-800 focus:border-rose-500 rounded-lg px-3 py-2 text-xs font-mono text-white outline-none"
                 >
-                  <option value="full">Full (Recomendado - Validador PoW)</option>
-                  <option value="snap">Snap (Sincronización Rápida)</option>
+                  <option value="full">Full (Obligatorio - Validación Completa PoW RandomX)</option>
+                  <option value="snap" disabled>Snap (Deshabilitado en redes PoW por riesgo de desincronización)</option>
                 </select>
+                <span className="text-[10px] text-zinc-500 mt-1 block">
+                  El algoritmo RandomX requiere validación de bloques completos desde el génesis.
+                </span>
               </div>
 
               <div>
