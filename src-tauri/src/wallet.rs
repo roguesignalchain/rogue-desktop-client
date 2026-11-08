@@ -607,6 +607,7 @@ mod tests {
 
     #[test]
     fn test_bip44_derivation_matches_metamask() {
+        // Known BIP-39 / BIP-44 test vector for derivation verification - DO NOT USE FOR REAL FUNDS
         let mnemonic = "draft horse index reduce awkward black final airport velvet boy obvious during";
         let privkey = derive_private_key_bip44(mnemonic, 0).expect("derivation failed");
         let secp = Secp256k1::new();
