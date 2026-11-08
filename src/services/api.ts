@@ -1,4 +1,4 @@
-import { Block, NodeStatus, Account } from "../types";
+import { Block, NodeStatus, Account, NodeLaunchConfig } from "../types";
 
 // Safe invoke wrapper for Tauri v2
 async function safeInvoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
@@ -13,16 +13,7 @@ async function safeInvoke<T>(cmd: string, args?: Record<string, unknown>): Promi
 
 export const api = {
   // Node management
-  startNode: async (config: {
-    datadir?: string;
-    http_port: number;
-    ws_port: number;
-    p2p_port: number;
-    mine: boolean;
-    miner_threads: number;
-    fast_mode: boolean;
-    coinbase?: string;
-  }): Promise<string> => {
+  startNode: async (config: NodeLaunchConfig): Promise<string> => {
     return safeInvoke("start_node", { config });
   },
 

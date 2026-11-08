@@ -16,6 +16,18 @@ export interface NodeStatus {
   pid?: number | null;
 }
 
+export interface NodeLaunchConfig {
+  datadir?: string;
+  http_port: number;
+  ws_port: number;
+  p2p_port: number;
+  bootnodes?: string;
+  mine: boolean;
+  miner_threads: number;
+  fast_mode: boolean;
+  coinbase?: string;
+}
+
 export interface MiningConfig {
   mine: boolean;
   minerThreads: number;
