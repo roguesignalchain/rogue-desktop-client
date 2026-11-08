@@ -241,7 +241,7 @@ pub async fn start_node(app: AppHandle, config: NodeConfig) -> Result<String, St
         }
     }
 
-    cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
+    cmd.stdout(Stdio::null()).stderr(Stdio::piped());
 
     let mut child = cmd
         .spawn()
@@ -291,12 +291,12 @@ pub async fn stop_node() -> Result<String, String> {
                     return Ok(format!("Node stopped cleanly with status: {:?}", status));
                 }
                 Ok(None) => {
-                    if start.elapsed() >= std::time::Duration::from_secs(8) {
+                    if start.elapsed() >= std::time::Duration::from_secs(3) {
                         let _ = child.kill();
                         let _ = child.wait();
                         return Ok("Node forcefully killed after graceful shutdown timeout".to_string());
                     }
-                    std::thread::sleep(std::time::Duration::from_millis(200));
+                    std::thread::sleep(std::time::Duration::from_millis(100));
                 }
                 Err(e) => {
                     let _ = child.kill();
@@ -307,6 +307,14 @@ pub async fn stop_node() -> Result<String, String> {
     } else {
         Ok("Node is not running".to_string())
     }
+}
+
+#[tauri::command]
+pub async fn exit_app(app: AppHandle) -> Result<(), String> {
+    let _ = stop_node().await;
+    let _ = stop_stratum().await;
+    app.exit(0);
+    Ok(())
 }
 
 #[tauri::command]

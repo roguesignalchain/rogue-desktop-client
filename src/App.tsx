@@ -133,11 +133,15 @@ export const App: React.FC = () => {
           event.preventDefault();
           setIsShuttingDown(true);
           try {
-            await api.stopNode();
+            await api.exitApp();
           } catch (e) {
-            console.error("Error shutting down node cleanly:", e);
+            console.error("Error calling exitApp:", e);
+            try {
+              await appWindow.destroy();
+            } catch {
+              // ignore
+            }
           }
-          await appWindow.destroy();
         });
       } catch (err) {
         // Outside of Tauri context

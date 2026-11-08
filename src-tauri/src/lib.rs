@@ -12,6 +12,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             process_manager::start_node,
             process_manager::stop_node,
+            process_manager::exit_app,
             process_manager::get_node_status,
             process_manager::clean_chaindata,
             process_manager::start_stratum,
