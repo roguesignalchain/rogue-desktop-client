@@ -281,26 +281,43 @@ export const App: React.FC = () => {
       const status = await api.getNodeStatus();
       setNodeStatus(status);
 
+      // Primary connectivity check: if block number responds, RPC is connected
       const blockNum = await api.getBlockNumber(rpcUrl);
       setCurrentBlock(blockNum);
+      setRpcConnected(true);
 
-      const peers = await api.getPeerCount(rpcUrl);
-      setPeerCount(peers);
-
-      const sync = await api.getSyncStatus(rpcUrl);
-      setSyncStatus(sync);
-
-      const hr = await api.getHashrate(rpcUrl);
-      setHashrate(hr);
-
-      if (unlockedAddress) {
-        const bal = await api.getBalance(rpcUrl, unlockedAddress);
-        setBalance(bal);
+      // Secondary metrics are queried safely to prevent transient timeouts from dropping the connection
+      try {
+        const peers = await api.getPeerCount(rpcUrl);
+        setPeerCount(peers);
+      } catch {
+        // Transient peer query failure
       }
 
-      setRpcConnected(true);
+      try {
+        const sync = await api.getSyncStatus(rpcUrl);
+        setSyncStatus(sync);
+      } catch {
+        // Transient sync query failure
+      }
+
+      try {
+        const hr = await api.getHashrate(rpcUrl);
+        setHashrate(hr);
+      } catch {
+        // Transient hashrate query failure
+      }
+
+      if (unlockedAddress) {
+        try {
+          const bal = await api.getBalance(rpcUrl, unlockedAddress);
+          setBalance(bal);
+        } catch {
+          // Transient balance query failure
+        }
+      }
     } catch {
-      // Node may be offline, starting up, or RPC endpoint not responding
+      // Node is unreachable via RPC endpoint
       setRpcConnected(false);
     }
   };
