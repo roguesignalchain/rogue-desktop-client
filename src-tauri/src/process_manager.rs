@@ -183,7 +183,12 @@ pub async fn start_node(app: AppHandle, config: NodeConfig) -> Result<String, St
     cmd.arg("--rogue");
     cmd.arg("--datadir").arg(&datadir);
 
-    let sync_mode = config.syncmode.unwrap_or_else(|| "full".to_string());
+    // Enforce full sync mode for Rogue Signal RandomX PoW to avoid snap-sync state corruption
+    let sync_mode = match config.syncmode.as_deref() {
+        Some("snap") => "full",
+        Some(m) => m,
+        None => "full",
+    };
     cmd.arg("--syncmode").arg(sync_mode);
 
     let cache_size = config.cache.unwrap_or(256);

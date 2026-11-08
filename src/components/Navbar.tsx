@@ -115,7 +115,12 @@ export const Navbar: React.FC<NavbarProps> = ({
         ) : syncStatus.isSyncing ? (
           <div className="flex items-center space-x-1.5 px-2.5 py-1 bg-cyan-950/30 border border-cyan-800/40 rounded-full text-xs font-mono text-cyan-300">
             <RefreshCw className="w-3 h-3 text-cyan-400 animate-spin" />
-            <span>Syncing {syncStatus.progressPercentage}%</span>
+            <span>{syncStatus.peersAhead ? "Verificando..." : `Syncing ${syncStatus.progressPercentage}%`}</span>
+          </div>
+        ) : currentBlock === 0 ? (
+          <div className="flex items-center space-x-1.5 px-2.5 py-1 bg-amber-950/30 border border-amber-800/40 rounded-full text-xs font-mono text-amber-300">
+            <RefreshCw className="w-3 h-3 text-amber-400 animate-spin" />
+            <span>Iniciando Cadena #0</span>
           </div>
         ) : (
           <div className="flex items-center space-x-1.5 px-2.5 py-1 bg-emerald-950/40 border border-emerald-800/50 rounded-full text-xs font-mono text-emerald-300">

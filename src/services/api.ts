@@ -209,7 +209,7 @@ export const api = {
     }
   },
 
-  getSyncStatus: async (rpcUrl: string): Promise<SyncStatus> => {
+  getSyncStatus: async (rpcUrl: string, currentLocalBlock: number = 0): Promise<SyncStatus> => {
     try {
       const res = await api.callRpc<unknown>(rpcUrl, "eth_syncing");
       if (res && typeof res === "object") {
@@ -228,16 +228,68 @@ export const api = {
           currentBlock,
           highestBlock,
           progressPercentage,
+          stage: "syncing",
         };
       }
 
-      // eth_syncing is false
+      // If eth_syncing is false, inspect peer total difficulty to verify if peers are ahead
+      let peersAhead = false;
+      let peerHighestTd = BigInt(0);
+      let localTd = BigInt(0x10000); // Genesis TD default
+
+      try {
+        const latestBlock = await api.callRpc<{ totalDifficulty?: string }>(rpcUrl, "eth_getBlockByNumber", ["latest", false]);
+        if (latestBlock?.totalDifficulty) {
+          localTd = BigInt(latestBlock.totalDifficulty);
+        }
+      } catch {
+        // Fallback
+      }
+
+      try {
+        const peers = await api.callRpc<Array<{ protocols?: { eth?: { difficulty?: number | string; head?: string } } }>>(
+          rpcUrl,
+          "admin_peers"
+        );
+        if (Array.isArray(peers) && peers.length > 0) {
+          for (const p of peers) {
+            const diff = p.protocols?.eth?.difficulty;
+            if (diff !== undefined && diff !== null) {
+              const td = BigInt(diff);
+              if (td > peerHighestTd) {
+                peerHighestTd = td;
+              }
+              if (td > localTd) {
+                peersAhead = true;
+              }
+            }
+          }
+        }
+      } catch {
+        // Transient admin_peers failure
+      }
+
+      if (peersAhead) {
+        return {
+          isSyncing: true,
+          startingBlock: 0,
+          currentBlock: currentLocalBlock,
+          highestBlock: Math.max(currentLocalBlock + 1, 1),
+          progressPercentage: 50,
+          peersAhead: true,
+          stage: "verifying",
+        };
+      }
+
+      // eth_syncing is false and no peers are ahead
       return {
         isSyncing: false,
         startingBlock: 0,
-        currentBlock: 0,
-        highestBlock: 0,
+        currentBlock: currentLocalBlock,
+        highestBlock: currentLocalBlock,
         progressPercentage: 100,
+        peersAhead: false,
+        stage: "synced",
       };
     } catch {
       return {
@@ -246,6 +298,7 @@ export const api = {
         currentBlock: 0,
         highestBlock: 0,
         progressPercentage: 0,
+        stage: "idle",
       };
     }
   },

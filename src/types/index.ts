@@ -37,6 +37,8 @@ export interface SyncStatus {
   currentBlock: number;
   highestBlock: number;
   progressPercentage: number;
+  peersAhead?: boolean;
+  stage?: "idle" | "connecting" | "verifying" | "syncing" | "synced";
 }
 
 export interface MiningConfig {
