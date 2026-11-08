@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Pickaxe, Cpu, Download, Play, Square, Radio } from "lucide-react";
 import { api } from "../services/api";
 
@@ -20,16 +20,51 @@ export const MiningView: React.FC<MiningViewProps> = ({
   const stratumPort = 3333;
   const [feedback, setFeedback] = useState<string | null>(null);
 
+  // Synchronize mining status with node
+  useEffect(() => {
+    let mounted = true;
+    const checkMining = async () => {
+      try {
+        const mining = await api.isMining(rpcUrl);
+        if (mounted) {
+          setIsMining(mining);
+        }
+      } catch {
+        // Node unreachable
+      }
+    };
+
+    checkMining();
+    const interval = setInterval(checkMining, 4000);
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
+  }, [rpcUrl]);
+
   const handleToggleMining = async () => {
     try {
       if (!isMining) {
-        await api.callRpc(rpcUrl, "miner_start", [threads]);
+        let payoutAddr = unlockedAddress;
+        if (!payoutAddr) {
+          const currentCoinbase = await api.getCoinbase(rpcUrl);
+          if (currentCoinbase && currentCoinbase !== "0x0000000000000000000000000000000000000000") {
+            payoutAddr = currentCoinbase;
+          }
+        }
+
+        if (!payoutAddr) {
+          setFeedback("⚠️ Please unlock a wallet first in the Wallet tab so mining rewards can be sent to your address.");
+          return;
+        }
+
+        await api.startMining(rpcUrl, threads, payoutAddr);
         setIsMining(true);
-        setFeedback(`Internal miner started with ${threads} CPU threads.`);
+        setFeedback(`Internal miner started with ${threads} CPU threads. Rewards destination: ${payoutAddr}`);
       } else {
-        await api.callRpc(rpcUrl, "miner_stop", []);
+        await api.stopMining(rpcUrl);
         setIsMining(false);
-        setFeedback("Internal miner stopped.");
+        setFeedback("Internal miner stopped successfully.");
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : JSON.stringify(err);
@@ -40,13 +75,13 @@ export const MiningView: React.FC<MiningViewProps> = ({
   const handleToggleStratum = async () => {
     try {
       if (!stratumRunning) {
-        await api.startStratum(stratumPort, rpcUrl);
+        const res = await api.startStratum(stratumPort, rpcUrl);
         setStratumRunning(true);
-        setFeedback(`Stratum v1 bridge running on port :${stratumPort}. Ready for XMRig!`);
+        setFeedback(`Stratum v1 bridge active on port :${stratumPort}. Ready for XMRig! (${res})`);
       } else {
-        await api.stopStratum();
+        const res = await api.stopStratum();
         setStratumRunning(false);
-        setFeedback("Stratum bridge stopped.");
+        setFeedback(`Stratum bridge stopped: ${res}`);
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : JSON.stringify(err);
