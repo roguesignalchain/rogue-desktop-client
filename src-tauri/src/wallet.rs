@@ -61,36 +61,75 @@ pub fn generate_mnemonic(words: Option<u32>) -> Result<String, String> {
     Ok(mnemonic.to_string())
 }
 
+fn derive_bip32_child(
+    secp: &Secp256k1<secp256k1::All>,
+    parent_key: &SecretKey,
+    parent_chain_code: &[u8; 32],
+    index: u32,
+) -> Result<(SecretKey, [u8; 32]), String> {
+    let mut mac = <HmacSha512 as hmac::Mac>::new_from_slice(parent_chain_code).map_err(|e| e.to_string())?;
+
+    if index >= 0x8000_0000 {
+        // Hardened child: 0x00 || parent_key (32 bytes) || index (4 bytes BE)
+        mac.update(&[0u8]);
+        mac.update(&parent_key.secret_bytes());
+        mac.update(&index.to_be_bytes());
+    } else {
+        // Normal child: compressed pubkey (33 bytes) || index (4 bytes BE)
+        let pubkey = PublicKey::from_secret_key(secp, parent_key);
+        mac.update(&pubkey.serialize());
+        mac.update(&index.to_be_bytes());
+    }
+
+    let result = mac.finalize().into_bytes();
+    let mut il = [0u8; 32];
+    il.copy_from_slice(&result[0..32]);
+    let mut child_chain_code = [0u8; 32];
+    child_chain_code.copy_from_slice(&result[32..64]);
+
+    let scalar = secp256k1::Scalar::from_be_bytes(il)
+        .map_err(|_| "IL is greater than or equal to curve order".to_string())?;
+    let child_key = parent_key
+        .add_tweak(&scalar)
+        .map_err(|e| format!("Tweaking secret key failed: {:?}", e))?;
+
+    Ok((child_key, child_chain_code))
+}
+
 fn derive_private_key_bip44(mnemonic_str: &str, account_index: u32) -> Result<[u8; 32], String> {
     let mnemonic = Mnemonic::parse_in_normalized(Language::English, mnemonic_str)
         .map_err(|e| format!("Invalid mnemonic: {:?}", e))?;
     let seed = mnemonic.to_seed("");
 
-    // Simple master key derivation (HMAC-SHA512("Bitcoin seed", seed))
+    // BIP-32 Master key derivation: HMAC-SHA512("Bitcoin seed", seed)
     let mut mac = <HmacSha512 as hmac::Mac>::new_from_slice(b"Bitcoin seed").map_err(|e| e.to_string())?;
     mac.update(&seed);
     let result = mac.finalize().into_bytes();
 
-    let mut master_key = [0u8; 32];
-    master_key.copy_from_slice(&result[0..32]);
+    let mut master_key_bytes = [0u8; 32];
+    master_key_bytes.copy_from_slice(&result[0..32]);
+    let mut chain_code = [0u8; 32];
+    chain_code.copy_from_slice(&result[32..64]);
 
-    // Hardened / non-hardened path derivation for m/44'/60'/0'/0/index
-    let mut child_mac = <HmacSha512 as hmac::Mac>::new_from_slice(&result[32..64]).map_err(|e| e.to_string())?;
-    child_mac.update(&master_key);
-    child_mac.update(&44u32.to_be_bytes());
-    child_mac.update(&60u32.to_be_bytes());
-    child_mac.update(&account_index.to_be_bytes());
+    let secp = Secp256k1::new();
+    let mut current_key = SecretKey::from_slice(&master_key_bytes).map_err(|e| e.to_string())?;
 
-    let child_res = child_mac.finalize().into_bytes();
-    let mut privkey = [0u8; 32];
-    privkey.copy_from_slice(&child_res[0..32]);
+    // Standard BIP-44 EVM path: m / 44' / 60' / 0' / 0 / account_index
+    let path = [
+        0x8000_0000 + 44, // 44'
+        0x8000_0000 + 60, // 60'
+        0x8000_0000 + 0,  // 0'
+        0,                 // 0 (external change)
+        account_index,     // account index
+    ];
 
-    // Ensure valid secp256k1 scalar
-    if SecretKey::from_slice(&privkey).is_err() {
-        privkey[0] = 0x01;
+    for &index in &path {
+        let (next_key, next_chain_code) = derive_bip32_child(&secp, &current_key, &chain_code, index)?;
+        current_key = next_key;
+        chain_code = next_chain_code;
     }
 
-    Ok(privkey)
+    Ok(current_key.secret_bytes())
 }
 
 fn public_key_to_address(pubkey: &PublicKey) -> String {
@@ -560,4 +599,21 @@ pub fn sign_transaction(
     full_sig[64] = rec_id.to_i32() as u8;
 
     Ok(format!("0x{}", hex::encode(full_sig)))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_bip44_derivation_matches_metamask() {
+        let mnemonic = "draft horse index reduce awkward black final airport velvet boy obvious during";
+        let privkey = derive_private_key_bip44(mnemonic, 0).expect("derivation failed");
+        let secp = Secp256k1::new();
+        let secret = SecretKey::from_slice(&privkey).expect("invalid secret key");
+        let pubkey = PublicKey::from_secret_key(&secp, &secret);
+        let address = public_key_to_address(&pubkey);
+
+        assert_eq!(address.to_lowercase(), "0x0544802665bc7c22124348e745a7abaa8420e197".to_lowercase());
+    }
 }
