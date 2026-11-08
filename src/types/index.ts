@@ -26,6 +26,17 @@ export interface NodeLaunchConfig {
   miner_threads: number;
   fast_mode: boolean;
   coinbase?: string;
+  cache?: number;
+  syncmode?: "full" | "snap" | "fast";
+  verbosity?: number;
+}
+
+export interface SyncStatus {
+  isSyncing: boolean;
+  startingBlock: number;
+  currentBlock: number;
+  highestBlock: number;
+  progressPercentage: number;
 }
 
 export interface MiningConfig {

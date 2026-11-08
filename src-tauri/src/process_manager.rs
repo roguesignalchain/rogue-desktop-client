@@ -7,6 +7,8 @@ use tauri::{AppHandle, Emitter};
 static NODE_PROCESS: Mutex<Option<Child>> = Mutex::new(None);
 static STRATUM_PROCESS: Mutex<Option<Child>> = Mutex::new(None);
 
+const EMBEDDED_GENESIS: &str = include_str!("../../../genesis.json");
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct NodeConfig {
     pub datadir: Option<String>,
@@ -18,6 +20,9 @@ pub struct NodeConfig {
     pub miner_threads: u32,
     pub fast_mode: bool,
     pub coinbase: Option<String>,
+    pub cache: Option<u32>,
+    pub syncmode: Option<String>,
+    pub verbosity: Option<u32>,
 }
 
 impl Default for NodeConfig {
@@ -32,6 +37,9 @@ impl Default for NodeConfig {
             miner_threads: 2,
             fast_mode: false,
             coinbase: None,
+            cache: Some(256),
+            syncmode: Some("full".to_string()),
+            verbosity: Some(3),
         }
     }
 }
@@ -68,55 +76,121 @@ fn resolve_binary(bin_name: &str) -> Result<PathBuf, String> {
     Ok(PathBuf::from(bin_name))
 }
 
-fn resolve_datadir(raw_path: &str) -> PathBuf {
-    let p = Path::new(raw_path);
-    if p.is_absolute() {
+fn resolve_datadir(raw_path: Option<&str>) -> PathBuf {
+    if let Some(raw) = raw_path {
+        let p = Path::new(raw);
+        if p.is_absolute() {
+            return p.to_path_buf();
+        }
+        // 1. If cwd is src-tauri (tauri dev mode) -> workspace root is ../..
+        if Path::new("../../rogue-core-chain").exists() {
+            let target = Path::new("../..").join(p);
+            if let Ok(abs) = target.canonicalize() {
+                return abs;
+            }
+            return target;
+        }
+        // 2. If cwd is rogue-desktop-client -> workspace root is ..
+        if Path::new("../rogue-core-chain").exists() {
+            let target = Path::new("..").join(p);
+            if let Ok(abs) = target.canonicalize() {
+                return abs;
+            }
+            return target;
+        }
+        // 3. If cwd is workspace root
+        if Path::new("rogue-core-chain").exists() {
+            if let Ok(abs) = p.canonicalize() {
+                return abs;
+            }
+            return p.to_path_buf();
+        }
         return p.to_path_buf();
     }
-    // 1. If cwd is src-tauri (tauri dev mode) -> workspace root is ../..
-    if Path::new("../../rogue-core-chain").exists() {
-        let target = Path::new("../..").join(p);
-        if let Ok(abs) = target.canonicalize() {
-            return abs;
-        }
-        return target;
+
+    #[cfg(debug_assertions)]
+    {
+        resolve_datadir(Some("./nodes-local/node-desktop"))
     }
-    // 2. If cwd is rogue-desktop-client -> workspace root is ..
-    if Path::new("../rogue-core-chain").exists() {
-        let target = Path::new("..").join(p);
-        if let Ok(abs) = target.canonicalize() {
-            return abs;
+    #[cfg(not(debug_assertions))]
+    {
+        if let Some(home) = std::env::var_os("HOME") {
+            PathBuf::from(home).join(".rogue-signal/chaindata")
+        } else if let Some(appdata) = std::env::var_os("APPDATA") {
+            PathBuf::from(appdata).join("RogueSignal/chaindata")
+        } else {
+            resolve_datadir(Some("./nodes-local/node-desktop"))
         }
-        return target;
     }
-    // 3. If cwd is workspace root
-    if Path::new("rogue-core-chain").exists() {
-        if let Ok(abs) = p.canonicalize() {
-            return abs;
-        }
-        return p.to_path_buf();
+}
+
+fn ensure_genesis_init(geth_bin: &Path, datadir: &Path) -> Result<(), String> {
+    let chaindata = datadir.join("geth").join("chaindata");
+    if chaindata.exists() && chaindata.read_dir().map(|mut d| d.next().is_some()).unwrap_or(false) {
+        return Ok(());
     }
-    p.to_path_buf()
+
+    let _ = std::fs::create_dir_all(datadir);
+    let genesis_file = datadir.join("genesis.json");
+    std::fs::write(&genesis_file, EMBEDDED_GENESIS)
+        .map_err(|e| format!("Failed to write embedded genesis.json: {}", e))?;
+
+    let mut cmd = Command::new(geth_bin);
+    cmd.arg("--rogue")
+        .arg("--datadir")
+        .arg(datadir)
+        .arg("init")
+        .arg(&genesis_file)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+
+    let output = cmd.output().map_err(|e| format!("Failed to execute geth init: {}", e))?;
+    if !output.status.success() {
+        let err_msg = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("geth init failed: {}", err_msg));
+    }
+
+    Ok(())
+}
+
+fn is_rpc_active(port: u16) -> bool {
+    use std::net::{SocketAddr, TcpStream};
+    let addr = SocketAddr::from(([127, 0, 0, 1], port));
+    TcpStream::connect_timeout(&addr, std::time::Duration::from_millis(300)).is_ok()
 }
 
 #[tauri::command]
 pub async fn start_node(app: AppHandle, config: NodeConfig) -> Result<String, String> {
     let mut proc_lock = NODE_PROCESS.lock().unwrap();
     if proc_lock.is_some() {
-        return Err("Node is already running".to_string());
+        return Ok("Node is already managed and running".to_string());
+    }
+
+    if is_rpc_active(config.http_port) {
+        return Ok(format!(
+            "Node is already responding on RPC port {}. Reusing active instance.",
+            config.http_port
+        ));
     }
 
     let geth_bin = resolve_binary("geth")?;
+    let datadir = resolve_datadir(config.datadir.as_deref());
+
+    // Ensure genesis block is initialized if chaindata does not exist
+    ensure_genesis_init(&geth_bin, &datadir)?;
+
     let mut cmd = Command::new(&geth_bin);
     cmd.arg("--rogue");
+    cmd.arg("--datadir").arg(&datadir);
 
-    if let Some(ref raw_datadir) = config.datadir {
-        let datadir = resolve_datadir(raw_datadir);
-        let _ = std::fs::create_dir_all(&datadir);
-        cmd.arg("--datadir").arg(&datadir);
-    }
+    let sync_mode = config.syncmode.unwrap_or_else(|| "full".to_string());
+    cmd.arg("--syncmode").arg(sync_mode);
 
-    cmd.arg("--syncmode").arg("full");
+    let cache_size = config.cache.unwrap_or(256);
+    cmd.arg("--cache").arg(cache_size.to_string());
+
+    let verbosity_level = config.verbosity.unwrap_or(3);
+    cmd.arg("--verbosity").arg(verbosity_level.to_string());
 
     cmd.arg("--http")
         .arg("--http.addr")
@@ -165,7 +239,9 @@ pub async fn start_node(app: AppHandle, config: NodeConfig) -> Result<String, St
 
     cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
 
-    let mut child = cmd.spawn().map_err(|e| format!("Failed to start geth node at {:?}: {}", geth_bin, e))?;
+    let mut child = cmd
+        .spawn()
+        .map_err(|e| format!("Failed to start geth node at {:?}: {}", geth_bin, e))?;
     let pid = child.id();
 
     // Stream logs in background (Geth primarily outputs to stderr)
@@ -181,19 +257,72 @@ pub async fn start_node(app: AppHandle, config: NodeConfig) -> Result<String, St
     }
 
     *proc_lock = Some(child);
-    Ok(format!("Node started successfully (PID: {}) on ports P2P:{} HTTP:{}", pid, config.p2p_port, config.http_port))
+    Ok(format!(
+        "Node started successfully (PID: {}) on ports P2P:{} HTTP:{}",
+        pid, config.p2p_port, config.http_port
+    ))
 }
 
 #[tauri::command]
 pub async fn stop_node() -> Result<String, String> {
     let mut proc_lock = NODE_PROCESS.lock().unwrap();
     if let Some(mut child) = proc_lock.take() {
-        let _ = child.kill();
-        let _ = child.wait();
-        Ok("Node stopped".to_string())
+        let pid = child.id();
+
+        #[cfg(unix)]
+        {
+            unsafe {
+                libc::kill(pid as i32, libc::SIGTERM);
+            }
+        }
+        #[cfg(not(unix))]
+        {
+            let _ = child.kill();
+        }
+
+        let start = std::time::Instant::now();
+        loop {
+            match child.try_wait() {
+                Ok(Some(status)) => {
+                    return Ok(format!("Node stopped cleanly with status: {:?}", status));
+                }
+                Ok(None) => {
+                    if start.elapsed() >= std::time::Duration::from_secs(8) {
+                        let _ = child.kill();
+                        let _ = child.wait();
+                        return Ok("Node forcefully killed after graceful shutdown timeout".to_string());
+                    }
+                    std::thread::sleep(std::time::Duration::from_millis(200));
+                }
+                Err(e) => {
+                    let _ = child.kill();
+                    return Err(format!("Error while waiting for node shutdown: {}", e));
+                }
+            }
+        }
     } else {
-        Err("Node is not running".to_string())
+        Ok("Node is not running".to_string())
     }
+}
+
+#[tauri::command]
+pub async fn clean_chaindata(datadir: Option<String>) -> Result<String, String> {
+    let _ = stop_node().await;
+
+    let resolved = resolve_datadir(datadir.as_deref());
+    let geth_dir = resolved.join("geth");
+    if geth_dir.exists() {
+        std::fs::remove_dir_all(&geth_dir)
+            .map_err(|e| format!("Failed to delete geth directory at {:?}: {}", geth_dir, e))?;
+    }
+
+    let geth_bin = resolve_binary("geth")?;
+    ensure_genesis_init(&geth_bin, &resolved)?;
+
+    Ok(format!(
+        "Chaindata reset and genesis reinitialized successfully at {:?}",
+        resolved
+    ))
 }
 
 #[tauri::command]
@@ -203,7 +332,10 @@ pub async fn get_node_status() -> Result<ProcessStatus, String> {
         match child.try_wait() {
             Ok(Some(_status)) => {
                 *proc_lock = None;
-                Ok(ProcessStatus { running: false, pid: None })
+                Ok(ProcessStatus {
+                    running: false,
+                    pid: None,
+                })
             }
             Ok(None) => Ok(ProcessStatus {
                 running: true,
@@ -212,7 +344,10 @@ pub async fn get_node_status() -> Result<ProcessStatus, String> {
             Err(e) => Err(e.to_string()),
         }
     } else {
-        Ok(ProcessStatus { running: false, pid: None })
+        Ok(ProcessStatus {
+            running: false,
+            pid: None,
+        })
     }
 }
 
@@ -232,7 +367,9 @@ pub async fn start_stratum(app: AppHandle, listen_port: u16, rpc_url: String) ->
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
 
-    let mut child = cmd.spawn().map_err(|e| format!("Failed to start rogue-stratum at {:?}: {}", stratum_bin, e))?;
+    let mut child = cmd
+        .spawn()
+        .map_err(|e| format!("Failed to start rogue-stratum at {:?}: {}", stratum_bin, e))?;
     let pid = child.id();
 
     if let Some(stderr) = child.stderr.take() {
@@ -261,4 +398,3 @@ pub async fn stop_stratum() -> Result<String, String> {
         Err("Stratum is not running".to_string())
     }
 }
-

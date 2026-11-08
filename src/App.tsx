@@ -8,8 +8,9 @@ import { ExplorerView } from "./components/ExplorerView";
 import { NodeConsoleView } from "./components/NodeConsoleView";
 import { SettingsView } from "./components/SettingsView";
 import { WalletModal } from "./components/WalletModal";
-import { Block, NodeStatus } from "./types";
+import { Block, NodeStatus, SyncStatus } from "./types";
 import { api } from "./services/api";
+import { Loader2, ShieldAlert } from "lucide-react";
 
 const DEFAULT_HTTP_PORT = 38849;
 const DEFAULT_WS_PORT = 38850;
@@ -47,8 +48,26 @@ export const App: React.FC = () => {
   const [nodeBootnodes, setNodeBootnodes] = useState<string>(() => {
     return localStorage.getItem("rogue_node_bootnodes") || DEFAULT_BOOTNODES;
   });
+  const [nodeCache, setNodeCache] = useState<number>(() => {
+    const saved = localStorage.getItem("rogue_node_cache");
+    return saved ? parseInt(saved, 10) : 256;
+  });
+  const [nodeSyncmode, setNodeSyncmode] = useState<"full" | "snap">(() => {
+    return (localStorage.getItem("rogue_node_syncmode") as "full" | "snap") || "full";
+  });
+  const [nodeVerbosity, setNodeVerbosity] = useState<number>(() => {
+    const saved = localStorage.getItem("rogue_node_verbosity");
+    return saved ? parseInt(saved, 10) : 3;
+  });
 
   const [nodeStatus, setNodeStatus] = useState<NodeStatus>({ running: false, pid: null });
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>({
+    isSyncing: false,
+    startingBlock: 0,
+    currentBlock: 0,
+    highestBlock: 0,
+    progressPercentage: 100,
+  });
   const [currentBlock, setCurrentBlock] = useState<number>(0);
   const [balance, setBalance] = useState<string>("0.0000");
   const [hashrate, setHashrate] = useState<number>(0);
@@ -58,6 +77,7 @@ export const App: React.FC = () => {
   const [unlockedAddress, setUnlockedAddress] = useState<string | null>(null);
   const [isWalletModalOpen, setIsWalletModalOpen] = useState<boolean>(false);
   const [loadingBlocks, setLoadingBlocks] = useState<boolean>(false);
+  const [isShuttingDown, setIsShuttingDown] = useState<boolean>(false);
 
   const lastActivityRef = useRef<number>(Date.now());
 
@@ -87,6 +107,33 @@ export const App: React.FC = () => {
     };
   }, []);
 
+  // Intercept window close to gracefully stop node
+  useEffect(() => {
+    let unlistenClose: (() => void) | undefined;
+    async function setupCloseHandler() {
+      try {
+        const { getCurrentWindow } = await import("@tauri-apps/api/window");
+        const appWindow = getCurrentWindow();
+        unlistenClose = await appWindow.onCloseRequested(async (event) => {
+          event.preventDefault();
+          setIsShuttingDown(true);
+          try {
+            await api.stopNode();
+          } catch (e) {
+            console.error("Error shutting down node cleanly:", e);
+          }
+          await appWindow.destroy();
+        });
+      } catch (err) {
+        // Outside of Tauri context
+      }
+    }
+    setupCloseHandler();
+    return () => {
+      if (unlistenClose) unlistenClose();
+    };
+  }, []);
+
   // Inactivity auto-lock listener
   useEffect(() => {
     const handleActivity = () => {
@@ -113,7 +160,7 @@ export const App: React.FC = () => {
     };
   }, [autoLockMinutes, unlockedAddress]);
 
-  // Periodic polling for node metrics
+  // Periodic polling for node metrics & sync status
   const refreshMetrics = async () => {
     try {
       const status = await api.getNodeStatus();
@@ -125,6 +172,9 @@ export const App: React.FC = () => {
       const peers = await api.getPeerCount(rpcUrl);
       setPeerCount(peers);
 
+      const sync = await api.getSyncStatus(rpcUrl);
+      setSyncStatus(sync);
+
       const hr = await api.getHashrate(rpcUrl);
       setHashrate(hr);
 
@@ -133,7 +183,7 @@ export const App: React.FC = () => {
         setBalance(bal);
       }
     } catch {
-      // Node may be offline
+      // Node may be offline or starting up
     }
   };
 
@@ -149,15 +199,19 @@ export const App: React.FC = () => {
     }
   };
 
+  // Adaptive polling: 2s during active sync or waiting for peers, 4s once synced
   useEffect(() => {
     refreshMetrics();
     refreshBlocks();
+
+    const pollIntervalMs = syncStatus.isSyncing || peerCount === 0 ? 2000 : 4000;
     const interval = setInterval(() => {
       refreshMetrics();
       refreshBlocks();
-    }, 4000);
+    }, pollIntervalMs);
+
     return () => clearInterval(interval);
-  }, [rpcUrl, unlockedAddress]);
+  }, [rpcUrl, unlockedAddress, syncStatus.isSyncing, peerCount]);
 
   const handleStartNode = async (mine: boolean = false, threads: number = 2, coinbase?: string) => {
     try {
@@ -171,9 +225,11 @@ export const App: React.FC = () => {
         miner_threads: threads,
         fast_mode: false,
         coinbase: coinbase || unlockedAddress || undefined,
+        cache: nodeCache,
+        syncmode: nodeSyncmode,
+        verbosity: nodeVerbosity,
       });
       setLogs((prev) => [...prev, `[Manager] ${msg}`]);
-      // Ensure local RPC URL targets this started node
       const activeRpc = `http://127.0.0.1:${nodeHttpPort}`;
       setRpcUrl(activeRpc);
       localStorage.setItem("rogue_rpc_url", activeRpc);
@@ -196,24 +252,82 @@ export const App: React.FC = () => {
     }
   };
 
+  // Auto-start node upon application mount with retry backoff
+  useEffect(() => {
+    let attempts = 0;
+    let isCancelled = false;
+
+    const tryAutoStart = async () => {
+      try {
+        await handleStartNode(false);
+      } catch (err) {
+        if (!isCancelled && attempts < 3) {
+          attempts++;
+          const delay = Math.pow(2, attempts) * 1000;
+          setLogs((prev) => [
+            ...prev,
+            `[Auto-Start] Retry attempt ${attempts}/3 in ${delay / 1000}s...`,
+          ]);
+          setTimeout(tryAutoStart, delay);
+        }
+      }
+    };
+
+    tryAutoStart();
+    return () => {
+      isCancelled = true;
+    };
+  }, []);
+
+  const handleRetryPeers = async () => {
+    if (!nodeBootnodes) return;
+    const enodes = nodeBootnodes.split(",").map((e) => e.trim()).filter(Boolean);
+    for (const enode of enodes) {
+      try {
+        await api.addPeer(rpcUrl, enode);
+        setLogs((prev) => [...prev, `[P2P] Added peer/bootnode: ${enode}`]);
+      } catch (err) {
+        console.warn("Failed to add peer:", err);
+      }
+    }
+    refreshMetrics();
+  };
+
+  const handleCleanChaindata = async (customDatadir?: string) => {
+    const targetDir = customDatadir || nodeDatadir;
+    setLogs((prev) => [...prev, `[Maintenance] Wiping chaindata at ${targetDir}...`]);
+    const res = await api.cleanChaindata(targetDir);
+    setLogs((prev) => [...prev, `[Maintenance] ${res}`]);
+    await handleStartNode(false);
+  };
+
   const handleSaveNodeConfig = (config: {
     datadir: string;
     httpPort: number;
     wsPort: number;
     p2pPort: number;
     bootnodes: string;
+    cache: number;
+    syncmode: "full" | "snap";
+    verbosity: number;
   }) => {
     setNodeDatadir(config.datadir);
     setNodeHttpPort(config.httpPort);
     setNodeWsPort(config.wsPort);
     setNodeP2pPort(config.p2pPort);
     setNodeBootnodes(config.bootnodes);
+    setNodeCache(config.cache);
+    setNodeSyncmode(config.syncmode);
+    setNodeVerbosity(config.verbosity);
 
     localStorage.setItem("rogue_node_datadir", config.datadir);
     localStorage.setItem("rogue_node_http_port", config.httpPort.toString());
     localStorage.setItem("rogue_node_ws_port", config.wsPort.toString());
     localStorage.setItem("rogue_node_p2p_port", config.p2pPort.toString());
     localStorage.setItem("rogue_node_bootnodes", config.bootnodes);
+    localStorage.setItem("rogue_node_cache", config.cache.toString());
+    localStorage.setItem("rogue_node_syncmode", config.syncmode);
+    localStorage.setItem("rogue_node_verbosity", config.verbosity.toString());
   };
 
   const handleSaveRpcUrl = (url: string) => {
@@ -227,9 +341,11 @@ export const App: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col h-screen bg-[#08090c] text-slate-100 overflow-hidden">
+    <div className="flex flex-col h-screen bg-[#08090c] text-slate-100 overflow-hidden relative">
       <Navbar
         nodeStatus={nodeStatus}
+        syncStatus={syncStatus}
+        peerCount={peerCount}
         currentBlock={currentBlock}
         unlockedAddress={unlockedAddress}
         onOpenWalletModal={() => setIsWalletModalOpen(true)}
@@ -247,10 +363,10 @@ export const App: React.FC = () => {
               hashrate={hashrate}
               peerCount={peerCount}
               nodeStatus={nodeStatus}
+              syncStatus={syncStatus}
               recentBlocks={recentBlocks}
-              onStartNode={() => handleStartNode(false)}
-              onStopNode={handleStopNode}
               onNavigate={(tab) => setCurrentTab(tab)}
+              onRetryPeers={handleRetryPeers}
             />
           )}
 
@@ -270,7 +386,8 @@ export const App: React.FC = () => {
               rpcUrl={rpcUrl}
               unlockedAddress={unlockedAddress}
               nodeStatus={nodeStatus}
-              onEnsureNodeRunning={(threads, coinbase) => handleStartNode(true, threads, coinbase)}
+              syncStatus={syncStatus}
+              peerCount={peerCount}
             />
           )}
 
@@ -301,6 +418,13 @@ export const App: React.FC = () => {
               nodeWsPort={nodeWsPort}
               nodeP2pPort={nodeP2pPort}
               nodeBootnodes={nodeBootnodes}
+              nodeCache={nodeCache}
+              nodeSyncmode={nodeSyncmode}
+              nodeVerbosity={nodeVerbosity}
+              nodeStatus={nodeStatus}
+              onStartNode={() => handleStartNode(false)}
+              onStopNode={handleStopNode}
+              onCleanChaindata={handleCleanChaindata}
               onSaveNodeConfig={handleSaveNodeConfig}
             />
           )}
@@ -315,6 +439,25 @@ export const App: React.FC = () => {
           setLogs((prev) => [...prev, `[Wallet] Vault unlocked: ${addr}`]);
         }}
       />
+
+      {/* Graceful Shutdown Modal Overlay */}
+      {isShuttingDown && (
+        <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center select-none animate-fadeIn">
+          <div className="w-16 h-16 rounded-full bg-rose-950/60 border border-rose-600/40 flex items-center justify-center mb-6 shadow-[0_0_24px_rgba(244,63,94,0.3)]">
+            <Loader2 className="w-8 h-8 text-rose-500 animate-spin" />
+          </div>
+          <h2 className="text-xl font-bold text-white tracking-wide">
+            Cerrando el nodo y guardando la base de datos...
+          </h2>
+          <p className="text-sm text-zinc-400 max-w-md mt-2">
+            Core-Geth está sincronizando el estado de LevelDB a disco de forma segura. Por favor no desconectes el equipo para evitar la corrupción de la blockchain.
+          </p>
+          <div className="mt-6 flex items-center space-x-2 text-xs font-mono text-amber-400 bg-amber-950/40 border border-amber-800/50 px-3 py-1.5 rounded-full">
+            <ShieldAlert className="w-4 h-4 text-amber-400" />
+            <span>Apagado ordenado en curso</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
