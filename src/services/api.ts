@@ -70,19 +70,60 @@ export const api = {
 
   // Direct JSON-RPC proxy
   callRpc: async <T>(endpoint: string, method: string, params: unknown[] = []): Promise<T> => {
-    try {
-      return await safeInvoke<T>("call_rpc", { endpoint, method, params });
-    } catch {
-      // Fallback to direct HTTP fetch
-      const res = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
-      });
-      const data = await res.json();
-      if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
-      return data.result as T;
+    const isTauri = typeof window !== "undefined" && ("__TAURI_INTERNALS__" in window || "__TAURI__" in window);
+    if (isTauri) {
+      return safeInvoke<T>("call_rpc", { endpoint, method, params });
     }
+    // Web fallback only when running outside Tauri
+    const res = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
+    return data.result as T;
+  },
+
+  // Mining control helpers
+  isMining: async (rpcUrl: string): Promise<boolean> => {
+    try {
+      return await api.callRpc<boolean>(rpcUrl, "eth_mining");
+    } catch {
+      return false;
+    }
+  },
+
+  getCoinbase: async (rpcUrl: string): Promise<string | null> => {
+    try {
+      return await api.callRpc<string>(rpcUrl, "eth_coinbase");
+    } catch {
+      return null;
+    }
+  },
+
+  setEtherbase: async (rpcUrl: string, address: string): Promise<boolean> => {
+    try {
+      return await api.callRpc<boolean>(rpcUrl, "miner_setEtherbase", [address]);
+    } catch (e) {
+      console.warn("miner_setEtherbase error:", e);
+      return false;
+    }
+  },
+
+  startMining: async (rpcUrl: string, threads: number, coinbase?: string): Promise<void> => {
+    if (coinbase) {
+      try {
+        await api.callRpc(rpcUrl, "miner_setEtherbase", [coinbase]);
+      } catch (e) {
+        console.warn("Could not set miner etherbase:", e);
+      }
+    }
+    await api.callRpc(rpcUrl, "miner_start", [threads]);
+  },
+
+  stopMining: async (rpcUrl: string): Promise<void> => {
+    await api.callRpc(rpcUrl, "miner_stop", []);
   },
 
   // Convenience RPC helpers

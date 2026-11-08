@@ -41,25 +41,28 @@ pub struct ProcessStatus {
 }
 
 fn resolve_binary(bin_name: &str) -> Result<PathBuf, String> {
-    // 1. Look in adjacent rogue-core-chain build directory
-    let relative_path = Path::new("../rogue-core-chain/build/bin").join(bin_name);
-    if relative_path.exists() {
-        return Ok(relative_path);
+    let candidates = [
+        // 1. From src-tauri during development (cwd is rogue-desktop-client/src-tauri)
+        Path::new("../../rogue-core-chain/build/bin").join(bin_name),
+        // 2. From rogue-desktop-client directory
+        Path::new("../rogue-core-chain/build/bin").join(bin_name),
+        // 3. From workspace root
+        Path::new("rogue-core-chain/build/bin").join(bin_name),
+        // 4. Legacy directory fallbacks
+        Path::new("../../rogue-geth/build/bin").join(bin_name),
+        Path::new("../rogue-geth/build/bin").join(bin_name),
+    ];
+
+    for candidate in &candidates {
+        if candidate.exists() {
+            if let Ok(canonical) = candidate.canonicalize() {
+                return Ok(canonical);
+            }
+            return Ok(candidate.clone());
+        }
     }
 
-    // 2. Fallback to legacy rogue-geth path
-    let legacy_relative = Path::new("../rogue-geth/build/bin").join(bin_name);
-    if legacy_relative.exists() {
-        return Ok(legacy_relative);
-    }
-
-    // 3. Look in workspace root
-    let workspace_path = Path::new("rogue-core-chain/build/bin").join(bin_name);
-    if workspace_path.exists() {
-        return Ok(workspace_path);
-    }
-
-    // 4. Fallback to PATH
+    // 5. Fallback to system PATH
     Ok(PathBuf::from(bin_name))
 }
 
