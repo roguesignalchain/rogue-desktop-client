@@ -8,9 +8,9 @@ import { ExplorerView } from "./components/ExplorerView";
 import { NodeConsoleView } from "./components/NodeConsoleView";
 import { SettingsView } from "./components/SettingsView";
 import { WalletModal } from "./components/WalletModal";
-import { Block, NodeStatus, SyncStatus } from "./types";
+import { Block, NodeStatus, SyncStatus, WalletSummary, AccountInfo } from "./types";
 import { api } from "./services/api";
-import { Loader2, ShieldAlert } from "lucide-react";
+import { Loader2, ShieldAlert, AlertTriangle } from "lucide-react";
 
 const DEFAULT_HTTP_PORT = 38849;
 const DEFAULT_WS_PORT = 0; // Disabled by default to avoid port collision with local nodes
@@ -76,7 +76,13 @@ export const App: React.FC = () => {
   const [recentBlocks, setRecentBlocks] = useState<Block[]>([]);
   const [logs, setLogs] = useState<string[]>([]);
   const [unlockedAddress, setUnlockedAddress] = useState<string | null>(null);
+  const [allWallets, setAllWallets] = useState<WalletSummary[]>([]);
+  const [activeWallet, setActiveWallet] = useState<WalletSummary | null>(null);
+  const [derivedAccounts, setDerivedAccounts] = useState<AccountInfo[]>([]);
   const [isWalletModalOpen, setIsWalletModalOpen] = useState<boolean>(false);
+  const [walletModalMode, setWalletModalMode] = useState<"unlock" | "create" | "import">("unlock");
+  const [pendingWalletSwitchId, setPendingWalletSwitchId] = useState<string | null>(null);
+  const [showMiningSwitchConfirm, setShowMiningSwitchConfirm] = useState<boolean>(false);
   const [loadingBlocks, setLoadingBlocks] = useState<boolean>(false);
   const [isShuttingDown, setIsShuttingDown] = useState<boolean>(false);
 
@@ -153,6 +159,15 @@ export const App: React.FC = () => {
     };
   }, []);
 
+  const loadActiveWalletAccounts = async (walletId: string) => {
+    try {
+      const accs = await api.getDerivedAccounts(walletId);
+      setDerivedAccounts(accs);
+    } catch (e) {
+      console.warn("Could not load derived accounts:", e);
+    }
+  };
+
   const handleLockWallet = async () => {
     try {
       await api.lockWallet();
@@ -160,6 +175,78 @@ export const App: React.FC = () => {
       console.warn("Failed to lock wallet backend:", e);
     }
     setUnlockedAddress(null);
+    setActiveWallet(null);
+    setAllWallets([]);
+    setDerivedAccounts([]);
+    setLogs((prev) => [...prev, "[Wallet] Bóveda bloqueada exitosamente."]);
+  };
+
+  const handleWalletUnlocked = async (actWallet: WalletSummary, walletsList: WalletSummary[]) => {
+    setAllWallets(walletsList);
+    const savedActiveId = localStorage.getItem("rogue_active_wallet_id");
+    const found = walletsList.find((w) => w.id === savedActiveId) || actWallet;
+    setActiveWallet(found);
+    setUnlockedAddress(found.primary_address);
+    await loadActiveWalletAccounts(found.id);
+    setLogs((prev) => [...prev, `[Wallet] Bóveda desbloqueada: ${found.name} (${found.primary_address})`]);
+  };
+
+  const handleSwitchWalletRequest = async (walletId: string) => {
+    if (activeWallet?.id === walletId) return;
+
+    if (hashrate > 0) {
+      setPendingWalletSwitchId(walletId);
+      setShowMiningSwitchConfirm(true);
+      return;
+    }
+
+    await executeWalletSwitch(walletId);
+  };
+
+  const executeWalletSwitch = async (walletId: string, stopMining: boolean = false) => {
+    try {
+      if (stopMining) {
+        await handleStopNode();
+        setLogs((prev) => [...prev, "[Mining] Minería detenida automáticamente al cambiar de billetera activa."]);
+      }
+
+      const summary = await api.setActiveWallet(walletId);
+      setActiveWallet(summary);
+      setUnlockedAddress(summary.primary_address);
+      localStorage.setItem("rogue_active_wallet_id", walletId);
+      await loadActiveWalletAccounts(walletId);
+      setLogs((prev) => [...prev, `[Wallet] Billetera activa cambiada a: ${summary.name} (${summary.primary_address})`]);
+    } catch (err) {
+      console.error("Error switching wallet:", err);
+    } finally {
+      setShowMiningSwitchConfirm(false);
+      setPendingWalletSwitchId(null);
+    }
+  };
+
+  const handleRemoveWallet = async (walletId: string) => {
+    try {
+      const updated = await api.removeWallet(walletId);
+      setAllWallets(updated);
+      if (activeWallet?.id === walletId && updated.length > 0) {
+        await executeWalletSwitch(updated[0].id);
+      }
+      setLogs((prev) => [...prev, "[Wallet] Billetera eliminada de la bóveda."]);
+    } catch (err) {
+      console.error("Error removing wallet:", err);
+    }
+  };
+
+  const handleWalletRenamed = (walletId: string, newName: string) => {
+    setAllWallets((prev) => prev.map((w) => (w.id === walletId ? { ...w, name: newName } : w)));
+    if (activeWallet?.id === walletId) {
+      setActiveWallet((prev) => (prev ? { ...prev, name: newName } : null));
+    }
+  };
+
+  const handleSelectAddress = (addr: string) => {
+    setUnlockedAddress(addr);
+    setLogs((prev) => [...prev, `[Wallet] Dirección activa seleccionada: ${addr}`]);
   };
 
   // Inactivity auto-lock listener
@@ -383,8 +470,18 @@ export const App: React.FC = () => {
         peerCount={peerCount}
         currentBlock={currentBlock}
         unlockedAddress={unlockedAddress}
-        onOpenWalletModal={() => setIsWalletModalOpen(true)}
+        activeWallet={activeWallet}
+        allWallets={allWallets}
+        derivedAccounts={derivedAccounts}
+        activeBalance={balance}
+        onOpenWalletModal={(mode) => {
+          setWalletModalMode(mode || "unlock");
+          setIsWalletModalOpen(true);
+        }}
         onLockWallet={handleLockWallet}
+        onSelectWallet={handleSwitchWalletRequest}
+        onSelectAddress={handleSelectAddress}
+        onRemoveWallet={handleRemoveWallet}
       />
 
       <div className="flex flex-1 overflow-hidden">
@@ -409,11 +506,16 @@ export const App: React.FC = () => {
           {currentTab === "wallet" && (
             <WalletView
               unlockedAddress={unlockedAddress}
+              activeWallet={activeWallet}
               balance={balance}
               rpcUrl={rpcUrl}
               onRefreshBalance={refreshMetrics}
-              onOpenWalletModal={() => setIsWalletModalOpen(true)}
-              onSelectAddress={(addr) => setUnlockedAddress(addr)}
+              onOpenWalletModal={(mode) => {
+                setWalletModalMode(mode || "create");
+                setIsWalletModalOpen(true);
+              }}
+              onSelectAddress={handleSelectAddress}
+              onWalletRenamed={handleWalletRenamed}
             />
           )}
 
@@ -471,11 +573,53 @@ export const App: React.FC = () => {
       <WalletModal
         isOpen={isWalletModalOpen}
         onClose={() => setIsWalletModalOpen(false)}
-        onWalletUnlocked={(addr) => {
-          setUnlockedAddress(addr);
-          setLogs((prev) => [...prev, `[Wallet] Vault unlocked: ${addr}`]);
-        }}
+        onWalletUnlocked={handleWalletUnlocked}
+        initialMode={walletModalMode}
+        isVaultUnlocked={!!unlockedAddress}
       />
+
+      {/* Confirmation Modal when switching wallet while mining is active */}
+      {showMiningSwitchConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 animate-in fade-in duration-100">
+          <div className="w-full max-w-md bg-zinc-950 border border-amber-800/80 rounded-xl shadow-2xl p-6 space-y-4">
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 rounded-full bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-white">Minería RandomX en Ejecución</h3>
+                <p className="text-xs text-amber-300">Cambio de billetera requiere pausar la minería</p>
+              </div>
+            </div>
+
+            <p className="text-xs text-zinc-400 leading-relaxed">
+              Actualmente estás minando bloques con la billetera activa anterior. Si cambias de billetera ahora, la minería local se detendrá automáticamente para evitar pagos a una dirección no deseada.
+            </p>
+
+            <div className="flex items-center justify-end space-x-2 pt-2 border-t border-zinc-800">
+              <button
+                onClick={() => {
+                  setShowMiningSwitchConfirm(false);
+                  setPendingWalletSwitchId(null);
+                }}
+                className="px-3.5 py-1.5 text-xs text-zinc-400 hover:text-white rounded-lg transition"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => {
+                  if (pendingWalletSwitchId) {
+                    executeWalletSwitch(pendingWalletSwitchId, true);
+                  }
+                }}
+                className="px-4 py-1.5 bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold rounded-lg shadow transition"
+              >
+                Detener Minería y Cambiar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Graceful Shutdown Modal Overlay */}
       {isShuttingDown && (

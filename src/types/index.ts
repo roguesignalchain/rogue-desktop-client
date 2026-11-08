@@ -54,10 +54,25 @@ export interface Account {
   index: number;
 }
 
+export interface WalletSummary {
+  id: string;
+  name: string;
+  primary_address: string;
+  derived_count: number;
+}
+
 export interface AccountInfo {
   address: string;
   index: number;
   path: string;
+  name?: string;
+  categoryId?: string;
+}
+
+export interface WalletCategory {
+  id: string;
+  name: string;
+  order: number;
 }
 
 export interface NetworkInfo {
