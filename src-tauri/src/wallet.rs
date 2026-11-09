@@ -142,8 +142,26 @@ fn public_key_to_address(pubkey: &PublicKey) -> String {
 }
 
 fn get_vault_path() -> PathBuf {
-    let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-    PathBuf::from(home).join(".rogue-wallet.vault")
+    #[cfg(debug_assertions)]
+    {
+        let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+        PathBuf::from(home).join(".rogue-wallet.vault")
+    }
+    #[cfg(not(debug_assertions))]
+    {
+        let vault_dir = if let Some(data_home) = std::env::var_os("XDG_DATA_HOME") {
+            PathBuf::from(data_home).join("rogue-signal")
+        } else if let Some(home) = std::env::var_os("HOME") {
+            PathBuf::from(home).join(".local").join("share").join("rogue-signal")
+        } else if let Some(appdata) = std::env::var_os("APPDATA") {
+            PathBuf::from(appdata).join("rogue-signal")
+        } else {
+            let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+            PathBuf::from(home).join(".rogue-signal")
+        };
+        let _ = std::fs::create_dir_all(&vault_dir);
+        vault_dir.join("wallet.vault")
+    }
 }
 
 fn save_vault_locked(wallets: &[WalletItem], active_id: &Option<String>) -> Result<(), String> {
@@ -178,6 +196,12 @@ fn save_vault_locked(wallets: &[WalletItem], active_id: &Option<String>) -> Resu
     let path = get_vault_path();
     fs::write(&path, serde_json::to_string_pretty(&vault).unwrap())
         .map_err(|e| format!("Failed to write vault file: {}", e))?;
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = fs::set_permissions(&path, fs::Permissions::from_mode(0o600));
+    }
 
     Ok(())
 }

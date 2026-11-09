@@ -22,12 +22,42 @@
       }
     ],
     "security": {
-      "csp": null
+      "csp": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; connect-src 'self' http://127.0.0.1:* ws://127.0.0.1:* http://localhost:* ws://localhost:* https://api.github.com; img-src 'self' data: https:;"
     }
   },
   "bundle": {
     "active": true,
-    "targets": "all"
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.png",
+      "icons/icon.ico"
+    ],
+    "category": "Finance",
+    "shortDescription": "Official desktop wallet & node manager for Rogue Signal (ROGUE)",
+    "longDescription": "Rogue Signal Desktop Client provides an integrated GUI for managing wallets, tracking transactions, running local RandomX nodes, and participating in the Rogue Signal blockchain network.",
+    "copyright": "Copyright 2024-2026 Rogue Signal Authors",
+    "externalBin": [
+      "bin/core-rogue"
+    ],
+    "linux": {
+      "deb": {
+        "depends": ["libc6 (>= 2.31)", "libgcc-s1"]
+      },
+      "rpm": {
+        "release": "1"
+      },
+      "appimage": {
+        "bundleMediaFramework": false
+      }
+    },
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser"
+      }
+    }
   }
 }
 

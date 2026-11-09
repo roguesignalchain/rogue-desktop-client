@@ -50,14 +50,31 @@ pub struct ProcessStatus {
 }
 
 fn resolve_binary(bin_name: &str) -> Result<PathBuf, String> {
+    // 1. Production Sidecar (next to current executable)
+    if let Ok(exe_path) = std::env::current_exe() {
+        if let Some(exe_dir) = exe_path.parent() {
+            let sidecar_candidates = [
+                exe_dir.join(bin_name),
+                exe_dir.join(format!("{}-x86_64-unknown-linux-gnu", bin_name)),
+                exe_dir.join(format!("{}.exe", bin_name)),
+                exe_dir.join(format!("{}-x86_64-pc-windows-msvc.exe", bin_name)),
+            ];
+            for sc in &sidecar_candidates {
+                if sc.exists() {
+                    return Ok(sc.clone());
+                }
+            }
+        }
+    }
+
     let candidates = [
-        // 1. From src-tauri during development (cwd is rogue-desktop-client/src-tauri)
+        // 2. From src-tauri during development (cwd is rogue-desktop-client/src-tauri)
         Path::new("../../rogue-core-chain/build/bin").join(bin_name),
-        // 2. From rogue-desktop-client directory
+        // 3. From rogue-desktop-client directory
         Path::new("../rogue-core-chain/build/bin").join(bin_name),
-        // 3. From workspace root
+        // 4. From workspace root
         Path::new("rogue-core-chain/build/bin").join(bin_name),
-        // 4. Legacy directory fallbacks
+        // 5. Legacy directory fallbacks
         Path::new("../../rogue-geth/build/bin").join(bin_name),
         Path::new("../rogue-geth/build/bin").join(bin_name),
     ];
@@ -71,7 +88,7 @@ fn resolve_binary(bin_name: &str) -> Result<PathBuf, String> {
         }
     }
 
-    // 5. Fallback to system PATH
+    // 6. Fallback to system PATH
     Ok(PathBuf::from(bin_name))
 }
 
@@ -113,10 +130,12 @@ fn resolve_datadir(raw_path: Option<&str>) -> PathBuf {
     }
     #[cfg(not(debug_assertions))]
     {
-        if let Some(home) = std::env::var_os("HOME") {
-            PathBuf::from(home).join(".rogue-signal/chaindata")
+        if let Some(data_home) = std::env::var_os("XDG_DATA_HOME") {
+            PathBuf::from(data_home).join("rogue-signal").join("chaindata")
+        } else if let Some(home) = std::env::var_os("HOME") {
+            PathBuf::from(home).join(".local").join("share").join("rogue-signal").join("chaindata")
         } else if let Some(appdata) = std::env::var_os("APPDATA") {
-            PathBuf::from(appdata).join("RogueSignal/chaindata")
+            PathBuf::from(appdata).join("rogue-signal").join("chaindata")
         } else {
             resolve_datadir(Some("./nodes-local/node-desktop"))
         }
@@ -172,7 +191,8 @@ pub async fn start_node(app: AppHandle, config: NodeConfig) -> Result<String, St
         ));
     }
 
-    let geth_bin = resolve_binary("geth")?;
+    let geth_bin = resolve_binary("core-rogue")
+        .or_else(|_| resolve_binary("geth"))?;
     let datadir = resolve_datadir(config.datadir.as_deref());
 
     // Ensure genesis block is initialized if chaindata does not exist
@@ -295,10 +315,10 @@ pub async fn stop_node() -> Result<String, String> {
                     return Ok(format!("Node stopped cleanly with status: {:?}", status));
                 }
                 Ok(None) => {
-                    if start.elapsed() >= std::time::Duration::from_secs(3) {
+                    if start.elapsed() >= std::time::Duration::from_secs(10) {
                         let _ = child.kill();
                         let _ = child.wait();
-                        return Ok("Node forcefully killed after graceful shutdown timeout".to_string());
+                        return Ok("Node forcefully killed after graceful shutdown timeout (10s)".to_string());
                     }
                     std::thread::sleep(std::time::Duration::from_millis(100));
                 }
@@ -331,7 +351,8 @@ pub async fn clean_chaindata(datadir: Option<String>) -> Result<String, String> 
             .map_err(|e| format!("Failed to delete geth directory at {:?}: {}", geth_dir, e))?;
     }
 
-    let geth_bin = resolve_binary("geth")?;
+    let geth_bin = resolve_binary("core-rogue")
+        .or_else(|_| resolve_binary("geth"))?;
     ensure_genesis_init(&geth_bin, &resolved)?;
 
     Ok(format!(

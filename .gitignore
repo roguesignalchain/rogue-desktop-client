@@ -14,6 +14,7 @@ src-tauri/gen/
 .DS_Store
 nodes-local/
 **/nodes-local/
+src-tauri/bin/core-rogue*
 
 # Local agent instructions
 AGENTS.md
