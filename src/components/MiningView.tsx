@@ -192,8 +192,7 @@ export const MiningView: React.FC<MiningViewProps> = ({
 
   const formatHashrate = (hr: number) => {
     if (hr <= 0) return "0.00 H/s";
-    if (hr >= 1000) return `${(hr / 1000).toFixed(2)} kH/s`;
-    return `${hr.toFixed(1)} H/s`;
+    return `${(hr / 1000).toFixed(2)} kH/s`;
   };
 
   const ramUsagePercent = specs
