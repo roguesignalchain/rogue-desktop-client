@@ -82,8 +82,8 @@ export const Navbar: React.FC<NavbarProps> = ({
     <header className="h-14 border-b border-zinc-800 bg-zinc-950 px-6 flex items-center justify-between sticky top-0 z-30 select-none">
       {/* Brand & Network info */}
       <div className="flex items-center space-x-4">
-        <div className="flex items-center space-x-2">
-          <div className="w-3 h-3 rounded-full bg-rose-500 animate-pulse shadow-[0_0_8px_#f43f5e]" />
+        <div className="flex items-center space-x-2.5">
+          <img src="/icon.png" alt="Rogue Signal" className="w-6 h-6 rounded object-contain shadow-sm" />
           <span className="font-black text-lg tracking-wider bg-gradient-to-r from-rose-500 to-amber-400 bg-clip-text text-transparent">
             ROGUE SIGNAL
           </span>
