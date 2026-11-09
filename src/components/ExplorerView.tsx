@@ -21,11 +21,11 @@ export const ExplorerView: React.FC<ExplorerViewProps> = ({ blocks, onRefresh, l
   return (
     <div className="space-y-6">
       {/* Header and Search */}
-      <div className="p-6 bg-zinc-900/40 border border-zinc-800 rounded-xl space-y-4">
+      <div className="p-6 bg-zinc-900/40 border border-zinc-800 rounded-[2px] space-y-4">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <h1 className="text-xl font-bold text-white flex items-center space-x-2">
-              <Compass className="w-5 h-5 text-cyan-400" />
+              <Compass className="w-5 h-5 text-white" />
               <span>Rogue Signal Mini Explorer</span>
             </h1>
             <p className="text-xs text-zinc-400 mt-1">
@@ -36,9 +36,9 @@ export const ExplorerView: React.FC<ExplorerViewProps> = ({ blocks, onRefresh, l
           <button
             onClick={onRefresh}
             disabled={loading}
-            className="flex items-center space-x-1.5 px-3 py-2 bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 text-white rounded-lg text-xs font-mono transition"
+            className="flex items-center space-x-1.5 px-3 py-2 bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 text-white rounded-[2px] text-xs font-mono transition"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin text-cyan-400" : ""}`} />
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin text-white" : ""}`} />
             <span>Refresh</span>
           </button>
         </div>
@@ -50,16 +50,16 @@ export const ExplorerView: React.FC<ExplorerViewProps> = ({ blocks, onRefresh, l
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value.trim())}
             placeholder="Search by block height, hash, or miner address..."
-            className="w-full bg-zinc-950 border border-zinc-800 focus:border-cyan-500 rounded-lg pl-10 pr-4 py-2 text-xs font-mono text-white outline-none transition"
+            className="w-full bg-zinc-950 border border-zinc-800 focus:border-white rounded-[2px] pl-10 pr-4 py-2 text-xs font-mono text-white outline-none transition"
           />
         </div>
       </div>
 
       {/* Block List */}
-      <div className="bg-zinc-900/40 border border-zinc-800 rounded-xl overflow-hidden">
+      <div className="bg-zinc-900/40 border border-zinc-800 rounded-[2px] overflow-hidden">
         <div className="p-4 border-b border-zinc-800 flex items-center justify-between">
           <div className="flex items-center space-x-2">
-            <Layers className="w-4 h-4 text-cyan-400" />
+            <Layers className="w-4 h-4 text-white" />
             <h2 className="text-xs font-bold text-white uppercase tracking-wider">Recent Blocks ({filteredBlocks.length})</h2>
           </div>
         </div>
@@ -77,7 +77,7 @@ export const ExplorerView: React.FC<ExplorerViewProps> = ({ blocks, onRefresh, l
                 <div key={b.hash} className="p-4 hover:bg-zinc-900/60 transition space-y-2">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-3">
-                      <span className="text-cyan-400 font-bold text-sm">#{height}</span>
+                      <span className="text-white font-bold text-sm">#{height}</span>
                       <span className="text-zinc-500 text-[11px]">{date}</span>
                     </div>
                     <div className="text-[11px] px-2 py-0.5 rounded bg-zinc-950 border border-zinc-800 text-zinc-400">
@@ -92,7 +92,7 @@ export const ExplorerView: React.FC<ExplorerViewProps> = ({ blocks, onRefresh, l
                     </div>
                     <div className="truncate">
                       <span className="text-zinc-500">Miner: </span>
-                      <span className="text-rose-300">{b.miner}</span>
+                      <span className="text-zinc-300">{b.miner}</span>
                     </div>
                   </div>
 

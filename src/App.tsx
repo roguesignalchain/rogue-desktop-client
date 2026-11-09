@@ -475,7 +475,7 @@ export const App: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col h-screen bg-[#08090c] text-slate-100 overflow-hidden relative">
+    <div className="flex flex-col h-screen bg-black text-slate-100 overflow-hidden relative">
       <Navbar
         nodeStatus={nodeStatus}
         syncStatus={syncStatus}
@@ -596,14 +596,14 @@ export const App: React.FC = () => {
       {/* Confirmation Modal when switching wallet while mining is active */}
       {showMiningSwitchConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 animate-in fade-in duration-100">
-          <div className="w-full max-w-md bg-zinc-950 border border-amber-800/80 rounded-xl shadow-2xl p-6 space-y-4">
+          <div className="w-full max-w-md bg-zinc-950 border border-white/20 rounded-[2px] shadow-2xl p-6 space-y-4">
             <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 rounded-full bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
+              <div className="w-10 h-10 rounded-full bg-black border border-white/20 flex items-center justify-center text-white shrink-0">
                 <AlertTriangle className="w-5 h-5" />
               </div>
               <div>
                 <h3 className="text-sm font-bold text-white">Minería RandomX en Ejecución</h3>
-                <p className="text-xs text-amber-300">Cambio de billetera requiere pausar la minería</p>
+                <p className="text-xs text-zinc-300">Cambio de billetera requiere pausar la minería</p>
               </div>
             </div>
 
@@ -627,7 +627,7 @@ export const App: React.FC = () => {
                     executeWalletSwitch(pendingWalletSwitchId, true);
                   }
                 }}
-                className="px-4 py-1.5 bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold rounded-lg shadow transition"
+                className="px-4 py-1.5 bg-white hover:bg-zinc-200 text-black text-xs font-mono uppercase tracking-wider font-bold rounded-[2px] shadow-[0_0_15px_rgba(255,255,255,0.15)] transition"
               >
                 Detener Minería y Cambiar
               </button>
@@ -639,8 +639,8 @@ export const App: React.FC = () => {
       {/* Graceful Shutdown Modal Overlay */}
       {isShuttingDown && (
         <div className="fixed inset-0 z-[100] bg-black/95 flex flex-col items-center justify-center p-6 text-center select-none animate-fadeIn">
-          <div className="w-16 h-16 rounded-full bg-rose-950/60 border border-rose-600/40 flex items-center justify-center mb-6 shadow-[0_0_24px_rgba(244,63,94,0.3)]">
-            <Loader2 className="w-8 h-8 text-rose-500 animate-spin" />
+          <div className="w-16 h-16 rounded-full bg-black border border-white/25 flex items-center justify-center mb-6 shadow-[0_0_25px_rgba(255,255,255,0.15)]">
+            <Loader2 className="w-8 h-8 text-white animate-spin" />
           </div>
           <h2 className="text-xl font-bold text-white tracking-wide">
             Cerrando el nodo y guardando la base de datos...
@@ -648,8 +648,8 @@ export const App: React.FC = () => {
           <p className="text-sm text-zinc-400 max-w-md mt-2">
             Core-Geth está sincronizando el estado de LevelDB a disco de forma segura. Por favor no desconectes el equipo para evitar la corrupción de la blockchain.
           </p>
-          <div className="mt-6 flex items-center space-x-2 text-xs font-mono text-amber-400 bg-amber-950/40 border border-amber-800/50 px-3 py-1.5 rounded-full">
-            <ShieldAlert className="w-4 h-4 text-amber-400" />
+          <div className="mt-6 flex items-center space-x-2 text-xs font-mono text-white bg-white/10 border border-white/20 px-3 py-1.5 rounded-[2px]">
+            <ShieldAlert className="w-4 h-4 text-white" />
             <span>Apagado ordenado en curso</span>
           </div>
         </div>

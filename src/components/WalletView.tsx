@@ -450,8 +450,8 @@ export const WalletView: React.FC<WalletViewProps> = ({
 
   if (!unlockedAddress || !activeWallet) {
     return (
-      <div className="flex flex-col items-center justify-center p-12 bg-zinc-900/40 border border-zinc-800 rounded-xl text-center space-y-4">
-        <div className="w-16 h-16 rounded-full bg-rose-500/10 border border-rose-500/30 flex items-center justify-center text-rose-500">
+      <div className="flex flex-col items-center justify-center p-12 bg-zinc-900/40 border border-zinc-800 rounded-[2px] text-center space-y-4">
+        <div className="w-16 h-16 rounded-full bg-black border border-white/20 flex items-center justify-center text-white">
           <Shield className="w-8 h-8" />
         </div>
         <h2 className="text-xl font-bold text-white">Billetera Bloqueada o No Inicializada</h2>
@@ -460,7 +460,7 @@ export const WalletView: React.FC<WalletViewProps> = ({
         </p>
         <button
           onClick={() => onOpenWalletModal("unlock")}
-          className="px-6 py-2.5 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-sm font-semibold transition shadow-md"
+          className="px-6 py-2.5 bg-white hover:bg-zinc-200 text-black rounded-[2px] text-xs font-mono uppercase tracking-wider font-bold transition shadow-[0_0_15px_rgba(255,255,255,0.15)]"
         >
           Desbloquear / Inicializar Bóveda
         </button>
@@ -473,7 +473,7 @@ export const WalletView: React.FC<WalletViewProps> = ({
   return (
     <div className="space-y-6">
       {/* Active Wallet & Active Account Banner */}
-      <div className="p-6 bg-zinc-900/60 border border-zinc-800 rounded-xl space-y-4">
+      <div className="p-6 bg-zinc-900/60 border border-zinc-800 rounded-[2px] space-y-4">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="space-y-1">
             <div className="flex items-center space-x-2">
@@ -483,12 +483,12 @@ export const WalletView: React.FC<WalletViewProps> = ({
                     type="text"
                     value={walletNameInput}
                     onChange={(e) => setWalletNameInput(e.target.value)}
-                    className="bg-zinc-950 border border-rose-500 rounded px-2 py-0.5 text-sm font-bold text-white outline-none"
+                    className="bg-zinc-950 border border-white rounded px-2 py-0.5 text-sm font-bold text-white outline-none"
                     autoFocus
                   />
                   <button
                     onClick={handleSaveWalletName}
-                    className="text-xs bg-rose-600 px-2 py-0.5 rounded text-white font-semibold"
+                    className="text-xs bg-white text-black font-bold px-2 py-0.5 rounded text-white font-semibold"
                   >
                     Guardar
                   </button>
@@ -511,23 +511,23 @@ export const WalletView: React.FC<WalletViewProps> = ({
                   </button>
                 </div>
               )}
-              <span className="px-2 py-0.5 rounded-full text-[10px] bg-rose-950/60 text-rose-300 border border-rose-800/60 font-mono">
+              <span className="px-2 py-0.5 rounded-full text-[10px] bg-rose-950/60 text-zinc-200 border border-rose-800/60 font-mono">
                 Billetera Activa
               </span>
             </div>
 
             <div className="flex items-center space-x-2 font-mono text-sm text-white pt-1">
               <span className="text-zinc-400 text-xs font-sans font-semibold">Dirección seleccionada:</span>
-              <span className="bg-zinc-950 px-2.5 py-1 rounded-lg border border-zinc-800 text-xs">
+              <span className="bg-zinc-950 px-2.5 py-1 rounded-[2px] border border-zinc-800 text-xs">
                 {unlockedAddress}
               </span>
               <button
                 onClick={() => handleCopyAddress(unlockedAddress)}
-                className="p-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white rounded-lg transition"
+                className="p-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white rounded-[2px] transition"
                 title="Copiar dirección activa"
               >
                 {copiedAddress === unlockedAddress ? (
-                  <Check className="w-3.5 h-3.5 text-emerald-400" />
+                  <Check className="w-3.5 h-3.5 text-white" />
                 ) : (
                   <Copy className="w-3.5 h-3.5" />
                 )}
@@ -540,7 +540,7 @@ export const WalletView: React.FC<WalletViewProps> = ({
 
           <div className="text-right">
             <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Saldo de la Dirección</span>
-            <div className="text-3xl font-black text-amber-400 font-mono mt-1">
+            <div className="text-3xl font-black text-white font-mono mt-1">
               {balance} <span className="text-sm font-bold text-zinc-400">ROGUE</span>
             </div>
           </div>
@@ -548,10 +548,10 @@ export const WalletView: React.FC<WalletViewProps> = ({
       </div>
 
       {/* BIP-39 Seed Phrase Section for this Mnemonic */}
-      <div className="p-6 bg-zinc-900/40 border border-zinc-800 rounded-xl space-y-4">
+      <div className="p-6 bg-zinc-900/40 border border-zinc-800 rounded-[2px] space-y-4">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-4 border-b border-zinc-800">
           <div className="flex items-center space-x-2.5">
-            <Key className="w-5 h-5 text-amber-400" />
+            <Key className="w-5 h-5 text-white" />
             <div>
               <h2 className="text-sm font-bold text-white uppercase tracking-wider">
                 Frase Semilla Mnemónica de "{activeWallet.name}"
@@ -566,7 +566,7 @@ export const WalletView: React.FC<WalletViewProps> = ({
             <button
               onClick={handleToggleMnemonic}
               disabled={loadingMnemonic}
-              className="flex items-center space-x-1.5 px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium rounded-lg transition"
+              className="flex items-center space-x-1.5 px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium rounded-[2px] transition"
             >
               {showMnemonic ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               <span>{showMnemonic ? "Ocultar Frase" : "Ver Frase Semilla"}</span>
@@ -574,12 +574,12 @@ export const WalletView: React.FC<WalletViewProps> = ({
 
             <button
               onClick={handleCopyMnemonic}
-              className="flex items-center space-x-1.5 px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium rounded-lg transition"
+              className="flex items-center space-x-1.5 px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium rounded-[2px] transition"
             >
               {copiedMnemonic ? (
                 <>
-                  <Check className="w-4 h-4 text-emerald-400" />
-                  <span className="text-emerald-400">¡Copiada!</span>
+                  <Check className="w-4 h-4 text-white" />
+                  <span className="text-white">¡Copiada!</span>
                 </>
               ) : (
                 <>
@@ -597,25 +597,25 @@ export const WalletView: React.FC<WalletViewProps> = ({
               {mnemonicWords.map((word, idx) => (
                 <div
                   key={idx}
-                  className="flex items-center space-x-2 p-2.5 bg-zinc-950 border border-zinc-800 rounded-lg font-mono text-sm"
+                  className="flex items-center space-x-2 p-2.5 bg-zinc-950 border border-zinc-800 rounded-[2px] font-mono text-sm"
                 >
                   <span className="text-zinc-500 text-xs select-none w-5 text-right font-sans font-semibold">
                     {idx + 1}.
                   </span>
-                  <span className="text-amber-300 font-medium select-all">{word}</span>
+                  <span className="text-zinc-200 font-medium select-all">{word}</span>
                 </div>
               ))}
             </div>
 
-            <div className="flex items-start space-x-2 p-3 bg-amber-950/30 border border-amber-800/40 rounded-lg text-xs text-amber-300">
-              <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+            <div className="flex items-start space-x-2 p-3 bg-white/5 border border-white/15 rounded-[2px] text-xs text-zinc-200">
+              <AlertTriangle className="w-4 h-4 text-white shrink-0 mt-0.5" />
               <span>
                 <strong>Seguridad Crítica:</strong> Mantén esta frase mnemónica en secreto. Da control irrestricto sobre todas las direcciones derivadas de {activeWallet.name}.
               </span>
             </div>
           </div>
         ) : (
-          <div className="p-4 bg-zinc-950/60 border border-zinc-800/80 rounded-lg flex items-center justify-between text-xs text-zinc-400">
+          <div className="p-4 bg-zinc-950/60 border border-zinc-800/80 rounded-[2px] flex items-center justify-between text-xs text-zinc-400">
             <div className="flex items-center space-x-2 font-mono">
               <span className="tracking-widest text-zinc-600">•••••••• •••••••• •••••••• ••••••••</span>
               <span className="text-zinc-500 text-[11px]">(Frase protegida)</span>
@@ -626,10 +626,10 @@ export const WalletView: React.FC<WalletViewProps> = ({
       </div>
 
       {/* Derived Accounts Organized by Categories with Drag and Drop */}
-      <div className="p-6 bg-zinc-900/40 border border-zinc-800 rounded-xl space-y-5">
+      <div className="p-6 bg-zinc-900/40 border border-zinc-800 rounded-[2px] space-y-5">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-4 border-b border-zinc-800">
           <div className="flex items-center space-x-2.5">
-            <Layers className="w-5 h-5 text-cyan-400" />
+            <Layers className="w-5 h-5 text-white" />
             <div>
               <div className="flex items-center space-x-2">
                 <h2 className="text-sm font-bold text-white uppercase tracking-wider">
@@ -648,16 +648,16 @@ export const WalletView: React.FC<WalletViewProps> = ({
           <div className="flex items-center space-x-2">
             <button
               onClick={() => setShowAddCategory(!showAddCategory)}
-              className="flex items-center space-x-1.5 px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-lg text-xs font-semibold transition"
+              className="flex items-center space-x-1.5 px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-[2px] text-xs font-semibold transition"
             >
-              <FolderPlus className="w-4 h-4 text-cyan-400" />
+              <FolderPlus className="w-4 h-4 text-white" />
               <span>Nueva Categoría</span>
             </button>
 
             <button
               onClick={handleDeriveAccount}
               disabled={loadingAccounts}
-              className="flex items-center space-x-1.5 px-3.5 py-1.5 bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white rounded-lg text-xs font-semibold shadow-md transition"
+              className="flex items-center space-x-1.5 px-3.5 py-1.5 bg-white hover:bg-zinc-200 disabled:opacity-40 text-black rounded-[2px] text-xs font-mono uppercase tracking-wider font-bold shadow-[0_0_15px_rgba(255,255,255,0.15)] transition"
             >
               <Plus className="w-4 h-4" />
               <span>+ Agregar Dirección Derivada</span>
@@ -667,18 +667,18 @@ export const WalletView: React.FC<WalletViewProps> = ({
 
         {/* Create Category Form */}
         {showAddCategory && (
-          <div className="p-3 bg-zinc-950 border border-zinc-800 rounded-lg flex items-center space-x-2 animate-in fade-in duration-100">
+          <div className="p-3 bg-zinc-950 border border-zinc-800 rounded-[2px] flex items-center space-x-2 animate-in fade-in duration-100">
             <input
               type="text"
               value={newCategoryName}
               onChange={(e) => setNewCategoryName(e.target.value)}
               placeholder="Nombre de la nueva categoría (ej. Pagos, Staking, Vaults)..."
-              className="flex-1 bg-zinc-900 border border-zinc-800 focus:border-cyan-500 rounded px-3 py-1.5 text-xs text-white outline-none"
+              className="flex-1 bg-zinc-900 border border-zinc-800 focus:border-white rounded px-3 py-1.5 text-xs text-white outline-none"
               autoFocus
             />
             <button
               onClick={handleAddCategory}
-              className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold rounded transition"
+              className="px-3 py-1.5 bg-white hover:bg-zinc-200 text-black text-xs font-mono uppercase tracking-wider font-bold rounded-[2px] transition"
             >
               Crear
             </button>
@@ -708,7 +708,7 @@ export const WalletView: React.FC<WalletViewProps> = ({
                     handleAccountDropOnCategory(e, cat.id);
                   }
                 }}
-                className="bg-zinc-950/60 border border-zinc-800/90 rounded-xl overflow-hidden"
+                className="bg-zinc-950/60 border border-zinc-800/90 rounded-[2px] overflow-hidden"
               >
                 {/* Category Header (Draggable) */}
                 <div
@@ -724,12 +724,12 @@ export const WalletView: React.FC<WalletViewProps> = ({
                           type="text"
                           value={editingCategory.name}
                           onChange={(e) => setEditingCategory({ ...editingCategory, name: e.target.value })}
-                          className="bg-zinc-950 border border-cyan-500 rounded px-2 py-0.5 text-xs text-white outline-none font-bold"
+                          className="bg-zinc-950 border border-white rounded px-2 py-0.5 text-xs text-white outline-none font-bold"
                           autoFocus
                         />
                         <button
                           onClick={handleSaveCategoryName}
-                          className="text-[10px] bg-cyan-600 text-white px-2 py-0.5 rounded font-semibold"
+                          className="text-[10px] bg-white text-black font-bold text-white px-2 py-0.5 rounded font-semibold"
                         >
                           Guardar
                         </button>
@@ -763,7 +763,7 @@ export const WalletView: React.FC<WalletViewProps> = ({
                   {categories.length > 1 && (
                     <button
                       onClick={() => handleDeleteCategory(cat.id)}
-                      className="p-1 text-zinc-600 hover:text-rose-400 transition"
+                      className="p-1 text-zinc-600 hover:text-white transition"
                       title="Eliminar categoría (las cuentas se moverán a la categoría principal)"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
@@ -774,7 +774,7 @@ export const WalletView: React.FC<WalletViewProps> = ({
                 {/* Accounts inside this Category */}
                 <div className="p-3 space-y-2.5 min-h-[50px]">
                   {catAccounts.length === 0 ? (
-                    <div className="p-4 text-center text-xs text-zinc-600 border border-dashed border-zinc-800/80 rounded-lg">
+                    <div className="p-4 text-center text-xs text-zinc-600 border border-dashed border-zinc-800/80 rounded-[2px]">
                       Arrastra direcciones aquí para organizarlas en esta categoría.
                     </div>
                   ) : (
@@ -787,9 +787,9 @@ export const WalletView: React.FC<WalletViewProps> = ({
                           key={acc.address}
                           draggable
                           onDragStart={(e) => handleAccountDragStart(e, acc.address)}
-                          className={`p-3.5 rounded-lg border transition ${
+                          className={`p-3.5 rounded-[2px] border transition ${
                             isActive
-                              ? "bg-rose-950/15 border-rose-500/40 shadow-sm"
+                              ? "bg-white/10 border-white/40 shadow-sm"
                               : "bg-zinc-900/40 border-zinc-800/70 hover:border-zinc-700"
                           }`}
                         >
@@ -808,12 +808,12 @@ export const WalletView: React.FC<WalletViewProps> = ({
                                         type="text"
                                         value={accountNameInput}
                                         onChange={(e) => setAccountNameInput(e.target.value)}
-                                        className="bg-zinc-950 border border-rose-500 rounded px-1.5 py-0.5 text-xs text-white outline-none"
+                                        className="bg-zinc-950 border border-white rounded px-1.5 py-0.5 text-xs text-white outline-none"
                                         autoFocus
                                       />
                                       <button
                                         onClick={() => handleSaveAccountName(acc.address)}
-                                        className="text-[10px] bg-rose-600 text-white px-1.5 py-0.5 rounded font-semibold"
+                                        className="text-[10px] bg-white text-black font-bold text-white px-1.5 py-0.5 rounded font-semibold"
                                       >
                                         Guardar
                                       </button>
@@ -845,8 +845,8 @@ export const WalletView: React.FC<WalletViewProps> = ({
                                   </span>
 
                                   {isActive ? (
-                                    <span className="flex items-center space-x-1 text-[10px] text-emerald-400 bg-emerald-950/50 border border-emerald-800/60 px-1.5 py-0.5 rounded-full font-mono font-semibold">
-                                      <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                                    <span className="flex items-center space-x-1 text-[10px] text-white bg-white/10 border border-white/20 px-1.5 py-0.5 rounded-full font-mono font-semibold">
+                                      <CheckCircle2 className="w-3 h-3 text-white" />
                                       <span>Activa</span>
                                     </span>
                                   ) : (
@@ -871,7 +871,7 @@ export const WalletView: React.FC<WalletViewProps> = ({
                                     title="Copiar dirección"
                                   >
                                     {copiedAddress === acc.address ? (
-                                      <Check className="w-3.5 h-3.5 text-emerald-400" />
+                                      <Check className="w-3.5 h-3.5 text-white" />
                                     ) : (
                                       <Copy className="w-3.5 h-3.5" />
                                     )}
@@ -884,7 +884,7 @@ export const WalletView: React.FC<WalletViewProps> = ({
                             <div className="flex items-center justify-between lg:justify-end space-x-4 shrink-0 pt-2 lg:pt-0 border-t lg:border-t-0 border-zinc-800/60">
                               <div className="text-right">
                                 <div className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold">Saldo</div>
-                                <div className="text-sm font-bold font-mono text-amber-400">
+                                <div className="text-sm font-bold font-mono text-white">
                                   {acc.balance} <span className="text-[10px] text-zinc-400">ROGUE</span>
                                 </div>
                               </div>
@@ -892,17 +892,17 @@ export const WalletView: React.FC<WalletViewProps> = ({
                               <div className="flex items-center space-x-1.5">
                                 <button
                                   onClick={() => handleCopyPrivateKey(acc.index)}
-                                  className="flex items-center space-x-1 px-2.5 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium rounded-lg transition"
+                                  className="flex items-center space-x-1 px-2.5 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium rounded-[2px] transition"
                                   title="Copiar llave privada"
                                 >
                                   {copiedPrivKey === acc.index ? (
                                     <>
-                                      <Check className="w-3.5 h-3.5 text-emerald-400" />
-                                      <span className="text-emerald-400 text-[11px]">¡Copiada!</span>
+                                      <Check className="w-3.5 h-3.5 text-white" />
+                                      <span className="text-white text-[11px]">¡Copiada!</span>
                                     </>
                                   ) : (
                                     <>
-                                      <Key className="w-3.5 h-3.5 text-rose-400" />
+                                      <Key className="w-3.5 h-3.5 text-white" />
                                       <span className="text-[11px]">Copiar PrivKey</span>
                                     </>
                                   )}
@@ -910,7 +910,7 @@ export const WalletView: React.FC<WalletViewProps> = ({
 
                                 <button
                                   onClick={() => handleToggleRevealPrivateKey(acc.index)}
-                                  className="p-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white rounded-lg transition"
+                                  className="p-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white rounded-[2px] transition"
                                   title={isPrivKeyRevealed ? "Ocultar llave privada" : "Ver llave privada"}
                                 >
                                   {isPrivKeyRevealed ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
@@ -923,15 +923,15 @@ export const WalletView: React.FC<WalletViewProps> = ({
                           {isPrivKeyRevealed && (
                             <div className="mt-3 pt-3 border-t border-zinc-800/80 space-y-2 animate-in fade-in duration-150">
                               <div className="flex items-center justify-between text-[11px] text-zinc-400">
-                                <span className="font-semibold text-rose-400 flex items-center space-x-1">
-                                  <Key className="w-3 h-3 text-rose-400" />
+                                <span className="font-semibold text-white flex items-center space-x-1">
+                                  <Key className="w-3 h-3 text-white" />
                                   <span>Llave Privada (ECDSA secp256k1) de {acc.name}</span>
                                 </span>
                                 <span className="text-[10px] text-zinc-500">Hexadecimal 64 caracteres</span>
                               </div>
 
-                              <div className="flex items-center space-x-2 p-2 bg-zinc-900 border border-rose-900/40 rounded-lg">
-                                <span className="font-mono text-xs text-rose-300 break-all select-all flex-1">
+                              <div className="flex items-center space-x-2 p-2 bg-zinc-900 border border-rose-900/40 rounded-[2px]">
+                                <span className="font-mono text-xs text-zinc-200 break-all select-all flex-1">
                                   {revealedPrivKeys[acc.index]}
                                 </span>
                                 <button
@@ -940,7 +940,7 @@ export const WalletView: React.FC<WalletViewProps> = ({
                                   title="Copiar llave privada"
                                 >
                                   {copiedPrivKey === acc.index ? (
-                                    <Check className="w-3.5 h-3.5 text-emerald-400" />
+                                    <Check className="w-3.5 h-3.5 text-white" />
                                   ) : (
                                     <Copy className="w-3.5 h-3.5" />
                                   )}
@@ -960,9 +960,9 @@ export const WalletView: React.FC<WalletViewProps> = ({
       </div>
 
       {/* Send Transfer Card */}
-      <div className="p-6 bg-zinc-900/40 border border-zinc-800 rounded-xl">
+      <div className="p-6 bg-zinc-900/40 border border-zinc-800 rounded-[2px]">
         <div className="flex items-center space-x-2 pb-4 border-b border-zinc-800">
-          <Send className="w-4 h-4 text-rose-500" />
+          <Send className="w-4 h-4 text-white" />
           <h2 className="text-sm font-bold text-white uppercase tracking-wider">Transferir ROGUE (EIP-1559)</h2>
         </div>
 
@@ -976,7 +976,7 @@ export const WalletView: React.FC<WalletViewProps> = ({
               value={recipient}
               onChange={(e) => setRecipient(e.target.value.trim())}
               placeholder="0x..."
-              className="w-full bg-zinc-950 border border-zinc-800 focus:border-rose-500 rounded-lg px-3.5 py-2 text-sm text-white font-mono outline-none transition"
+              className="w-full bg-zinc-950 border border-zinc-800 focus:border-white rounded-[2px] px-3.5 py-2 text-sm text-white font-mono outline-none transition"
               required
             />
           </div>
@@ -993,7 +993,7 @@ export const WalletView: React.FC<WalletViewProps> = ({
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
                 placeholder="0.00"
-                className="w-full bg-zinc-950 border border-zinc-800 focus:border-rose-500 rounded-lg px-3.5 py-2 text-sm text-white font-mono outline-none transition pr-20"
+                className="w-full bg-zinc-950 border border-zinc-800 focus:border-white rounded-[2px] px-3.5 py-2 text-sm text-white font-mono outline-none transition pr-20"
                 required
               />
               <button
@@ -1022,9 +1022,9 @@ export const WalletView: React.FC<WalletViewProps> = ({
                 <div
                   key={tier.id}
                   onClick={() => setGasTier(tier.id)}
-                  className={`p-3 rounded-lg border text-center cursor-pointer transition ${
+                  className={`p-3 rounded-[2px] border text-center cursor-pointer transition ${
                     gasTier === tier.id
-                      ? "bg-rose-500/10 border-rose-500 text-rose-300"
+                      ? "bg-rose-500/10 border-white text-zinc-200"
                       : "bg-zinc-950/60 border-zinc-800 text-zinc-400 hover:border-zinc-700"
                   }`}
                 >
@@ -1038,11 +1038,11 @@ export const WalletView: React.FC<WalletViewProps> = ({
 
           {statusMsg && (
             <div
-              className={`p-3 rounded-lg text-xs font-mono border ${
+              className={`p-3 rounded-[2px] text-xs font-mono border ${
                 statusMsg.type === "success"
-                  ? "bg-emerald-950/40 border-emerald-800 text-emerald-300"
+                  ? "bg-emerald-950/40 border-emerald-800 text-zinc-300"
                   : statusMsg.type === "error"
-                  ? "bg-rose-950/40 border-rose-800 text-rose-300"
+                  ? "bg-rose-950/40 border-rose-800 text-zinc-200"
                   : "bg-zinc-900 border-zinc-700 text-zinc-300"
               }`}
             >
@@ -1053,7 +1053,7 @@ export const WalletView: React.FC<WalletViewProps> = ({
           <button
             type="submit"
             disabled={sending}
-            className="w-full flex items-center justify-center space-x-2 py-2.5 bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white rounded-lg text-sm font-semibold shadow-md transition"
+            className="w-full flex items-center justify-center space-x-2 py-2.5 bg-white text-black font-bold hover:bg-rose-500 disabled:opacity-50 text-white rounded-[2px] text-sm font-semibold shadow-md transition"
           >
             <Send className="w-4 h-4" />
             <span>{sending ? "Transmitiendo Transacción..." : "Enviar ROGUE"}</span>

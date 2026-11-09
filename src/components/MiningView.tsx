@@ -202,128 +202,129 @@ export const MiningView: React.FC<MiningViewProps> = ({
   return (
     <div className="space-y-6">
       {/* Top Banner */}
-      <div className="p-6 bg-zinc-900/40 border border-zinc-800 rounded-xl flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <div className="p-6 bg-[#0A0A0C] border border-white/10 rounded-[2px] flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-white flex items-center space-x-2">
-            <Pickaxe className="w-5 h-5 text-rose-500" />
+          <div className="text-[10px] font-mono text-zinc-400 uppercase tracking-widest mb-1">[CONSENSUS ENGINE: RANDOMX RX/0]</div>
+          <h1 className="text-xl font-bold text-white flex items-center space-x-2 font-display">
+            <Pickaxe className="w-5 h-5 text-white" />
             <span>Minería Doméstica CPU — RandomX (rx/0)</span>
           </h1>
-          <p className="text-xs text-zinc-400 mt-1">
+          <p className="text-xs text-zinc-400 mt-1 font-sans">
             Minería en solitario (Solo Mining) integrada directamente en el nodo para computadores caseros. 1 CPU = 1 Voto.
           </p>
         </div>
 
         <div className="flex items-center space-x-6">
           <div className="text-right font-mono">
-            <span className="text-[11px] text-zinc-400 uppercase tracking-wider block">
-              Bloques Recientes Míos
+            <span className="text-[10px] text-zinc-400 uppercase tracking-wider block">
+              [MIS BLOQUES MINADOS]
             </span>
-            <span className="text-xl font-black text-emerald-400 flex items-center justify-end space-x-1">
-              <Award className="w-4 h-4 text-emerald-400" />
+            <span className="text-xl font-black text-white flex items-center justify-end space-x-1">
+              <Award className="w-4 h-4 text-white" />
               <span>{minedByMeCount}</span>
             </span>
           </div>
 
-          <div className="h-8 w-px bg-zinc-800" />
+          <div className="h-8 w-px bg-white/10" />
 
           <div className="text-right font-mono">
-            <span className="text-[11px] text-zinc-400 uppercase tracking-wider block">
-              Hashrate CPU Local
+            <span className="text-[10px] text-zinc-400 uppercase tracking-wider block">
+              [HASHRATE CPU LOCAL]
             </span>
-            <span className="text-2xl font-black text-rose-400">{formatHashrate(hashrate)}</span>
+            <span className="text-2xl font-black text-white">{formatHashrate(hashrate)}</span>
           </div>
         </div>
       </div>
 
       {/* Sync Readiness Banner */}
       {isNetworkSynced ? (
-        <div className="p-4 bg-emerald-950/30 border border-emerald-800/50 rounded-xl flex items-center justify-between">
+        <div className="p-4 bg-white/5 border border-white/20 rounded-[2px] flex items-center justify-between font-mono">
           <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 rounded-full bg-emerald-950/80 border border-emerald-500/40 flex items-center justify-center shrink-0">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+            <div className="w-8 h-8 rounded-[2px] bg-white/10 border border-white/30 flex items-center justify-center shrink-0">
+              <CheckCircle2 className="w-4 h-4 text-white" />
             </div>
             <div>
-              <h2 className="text-xs font-bold text-emerald-300 uppercase tracking-wider">
-                ¡Blockchain sincronizada! Motor CPU listo para minar
+              <h2 className="text-xs font-bold text-white uppercase tracking-wider">
+                [BLOCKCHAIN SINCRONIZADA — MOTOR CPU LISTO]
               </h2>
-              <p className="text-[11px] text-zinc-400 mt-0.5">
-                Nodo conectado con {peerCount} {peerCount === 1 ? "par" : "pares"}. Cada bloque encontrado otorga 7.6 ROGUE directamente a tu billetera.
+              <p className="text-[11px] text-zinc-400 mt-0.5 font-sans">
+                Nodo conectado con {peerCount} {peerCount === 1 ? "par" : "pares"}. Recompensa de bloque: 7.6 ROGUE al minero.
               </p>
             </div>
           </div>
-          <span className="text-xs font-mono text-emerald-400 px-2.5 py-1 bg-emerald-950/60 rounded border border-emerald-800/60">
-            Sincronizado
+          <span className="text-xs font-mono text-white px-2.5 py-1 bg-white/10 rounded-[2px] border border-white/30 font-bold">
+            [SYNCED]
           </span>
         </div>
       ) : (
-        <div className="p-4 bg-amber-950/20 border border-amber-800/40 rounded-xl flex items-center justify-between">
+        <div className="p-4 bg-black border border-white/15 rounded-[2px] flex items-center justify-between font-mono">
           <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 rounded-full bg-amber-950/80 border border-amber-500/40 flex items-center justify-center shrink-0">
+            <div className="w-8 h-8 rounded-[2px] bg-black border border-white/20 flex items-center justify-center shrink-0">
               {peerCount === 0 ? (
-                <AlertTriangle className="w-4 h-4 text-amber-400" />
+                <AlertTriangle className="w-4 h-4 text-zinc-400" />
               ) : (
-                <RefreshCw className="w-4 h-4 text-amber-400 animate-spin" />
+                <RefreshCw className="w-4 h-4 text-white animate-spin" />
               )}
             </div>
             <div>
-              <h2 className="text-xs font-bold text-amber-300 uppercase tracking-wider">
+              <h2 className="text-xs font-bold text-white uppercase tracking-wider">
                 {peerCount === 0
-                  ? "Esperando conexión con pares de la red..."
-                  : `Sincronizando bloques (${syncStatus?.progressPercentage || 0}%)`}
+                  ? "[BUSCANDO PARES DE RED...]"
+                  : `[SINCRONIZANDO CADENA ${syncStatus?.progressPercentage || 0}%]`}
               </h2>
-              <p className="text-[11px] text-zinc-400 mt-0.5">
-                La minería requiere que la cadena esté sincronizada al 100% para evitar minar bloques obsoletos.
+              <p className="text-[11px] text-zinc-400 mt-0.5 font-sans">
+                La minería requiere sincronización al 100% para evitar bloques huérfanos.
               </p>
             </div>
           </div>
-          <span className="text-xs font-mono text-amber-400 px-2.5 py-1 bg-amber-950/60 rounded border border-amber-800/60">
-            En espera de Sync
+          <span className="text-xs font-mono text-zinc-400 px-2.5 py-1 bg-zinc-900 rounded-[2px] border border-white/10">
+            [SYNC PENDING]
           </span>
         </div>
       )}
 
       {feedback && (
-        <div className="p-3 bg-zinc-900 border border-zinc-700 text-xs font-mono text-zinc-300 rounded-lg flex items-center justify-between">
+        <div className="p-3 bg-[#0A0A0C] border border-white/15 text-xs font-mono text-zinc-300 rounded-[2px] flex items-center justify-between">
           <span>{feedback}</span>
           <button
             onClick={() => setFeedback(null)}
-            className="text-zinc-500 hover:text-zinc-300 text-[10px] ml-4 uppercase"
+            className="text-zinc-500 hover:text-white text-[10px] ml-4 uppercase"
           >
-            Cerrar
+            [CERRAR]
           </button>
         </div>
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Left Card: Internal CPU Miner Control */}
-        <div className="p-6 bg-zinc-900/40 border border-zinc-800 rounded-xl space-y-5 flex flex-col justify-between">
+        <div className="p-6 bg-[#0A0A0C] border border-white/10 rounded-[2px] space-y-5 flex flex-col justify-between">
           <div className="space-y-5">
-            <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
+            <div className="flex items-center justify-between pb-3 border-b border-white/10">
               <div className="flex items-center space-x-2">
-                <Cpu className="w-4 h-4 text-rose-500" />
-                <h2 className="text-sm font-bold text-white uppercase tracking-wider">
-                  Control de Minería CPU
+                <Cpu className="w-4 h-4 text-white" />
+                <h2 className="text-sm font-bold text-white uppercase tracking-wider font-mono">
+                  [CONTROL DE MINERÍA CPU]
                 </h2>
               </div>
               <span
-                className={`text-xs px-2.5 py-0.5 rounded font-mono ${
+                className={`text-xs px-2.5 py-0.5 rounded-[2px] font-mono ${
                   isMining
-                    ? "bg-emerald-950 text-emerald-300 border border-emerald-800"
-                    : "bg-zinc-800 text-zinc-400"
+                    ? "bg-white text-black font-bold"
+                    : "bg-black text-zinc-500 border border-white/10"
                 }`}
               >
-                {isMining ? "MINANDO EN SOLITARIO" : "DETENIDO"}
+                {isMining ? "[MINING SOLO]" : "[STOPPED]"}
               </span>
             </div>
 
             {/* Active Reward Address (Etherbase) */}
-            <div className="p-3 bg-zinc-950/70 rounded-lg border border-zinc-800/80 space-y-1">
+            <div className="p-3 bg-black rounded-[2px] border border-white/10 space-y-1">
               <div className="flex items-center justify-between text-[11px] text-zinc-400">
-                <span className="flex items-center space-x-1.5 font-semibold uppercase tracking-wider">
-                  <Wallet className="w-3.5 h-3.5 text-rose-400" />
-                  <span>Dirección Receptora (Etherbase)</span>
+                <span className="flex items-center space-x-1.5 font-semibold uppercase tracking-wider font-mono">
+                  <Wallet className="w-3.5 h-3.5 text-white" />
+                  <span>[DIRECCIÓN RECEPTORA]</span>
                 </span>
-                <span className="text-emerald-400 font-mono text-[10px]">Sincronización Automática</span>
+                <span className="text-white font-mono text-[10px]">[AUTOSYNC]</span>
               </div>
               <div className="font-mono text-xs text-zinc-200 truncate">
                 {activeRewardAddress || "Desbloquea tu billetera para asignar dirección"}
@@ -332,9 +333,9 @@ export const MiningView: React.FC<MiningViewProps> = ({
 
             {/* CPU Thread Profiles */}
             <div className="space-y-2.5">
-              <div className="flex justify-between text-xs font-semibold text-zinc-400 uppercase tracking-wider">
-                <span>Perfiles de Uso de CPU</span>
-                <span className="text-white font-mono">
+              <div className="flex justify-between text-xs font-semibold text-zinc-400 uppercase tracking-wider font-mono">
+                <span>[PERFILES DE HILOS CPU]</span>
+                <span className="text-white font-mono font-bold">
                   {threads} de {maxCores} Hilos ({Math.round((threads / maxCores) * 100)}%)
                 </span>
               </div>
@@ -343,45 +344,45 @@ export const MiningView: React.FC<MiningViewProps> = ({
                 <button
                   type="button"
                   onClick={() => selectProfile(0.25, "Bajo impacto (25%)")}
-                  className={`py-2 px-2 rounded-lg border text-xs font-medium transition flex flex-col items-center ${
+                  className={`py-2 px-2 rounded-[2px] border text-xs font-mono transition flex flex-col items-center ${
                     threads === Math.max(1, Math.round(maxCores * 0.25))
-                      ? "bg-emerald-500/15 border-emerald-500/60 text-emerald-300"
-                      : "bg-zinc-950 border-zinc-800 text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200"
+                      ? "bg-white text-black font-bold border-white"
+                      : "bg-black border-white/10 text-zinc-400 hover:border-white/30 hover:text-white"
                   }`}
                 >
-                  <span className="font-bold">Bajo Impacto</span>
+                  <span className="font-bold">25% HILOS</span>
                   <span className="text-[10px] opacity-80 font-mono">
-                    25% ({Math.max(1, Math.round(maxCores * 0.25))} hilos)
+                    ({Math.max(1, Math.round(maxCores * 0.25))} hilos)
                   </span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => selectProfile(0.5, "Equilibrado (50%)")}
-                  className={`py-2 px-2 rounded-lg border text-xs font-medium transition flex flex-col items-center ${
+                  className={`py-2 px-2 rounded-[2px] border text-xs font-mono transition flex flex-col items-center ${
                     threads === Math.max(1, Math.round(maxCores * 0.5))
-                      ? "bg-rose-500/15 border-rose-500/60 text-rose-300"
-                      : "bg-zinc-950 border-zinc-800 text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200"
+                      ? "bg-white text-black font-bold border-white"
+                      : "bg-black border-white/10 text-zinc-400 hover:border-white/30 hover:text-white"
                   }`}
                 >
-                  <span className="font-bold">Equilibrado</span>
+                  <span className="font-bold">50% HILOS</span>
                   <span className="text-[10px] opacity-80 font-mono">
-                    50% ({Math.max(1, Math.round(maxCores * 0.5))} hilos)
+                    ({Math.max(1, Math.round(maxCores * 0.5))} hilos)
                   </span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => selectProfile(0.75, "Máxima potencia (75%)")}
-                  className={`py-2 px-2 rounded-lg border text-xs font-medium transition flex flex-col items-center ${
+                  className={`py-2 px-2 rounded-[2px] border text-xs font-mono transition flex flex-col items-center ${
                     threads >= Math.max(1, Math.round(maxCores * 0.75))
-                      ? "bg-amber-500/15 border-amber-500/60 text-amber-300"
-                      : "bg-zinc-950 border-zinc-800 text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200"
+                      ? "bg-white text-black font-bold border-white"
+                      : "bg-black border-white/10 text-zinc-400 hover:border-white/30 hover:text-white"
                   }`}
                 >
-                  <span className="font-bold">Máxima Potencia</span>
+                  <span className="font-bold">75% HILOS</span>
                   <span className="text-[10px] opacity-80 font-mono">
-                    75% ({Math.max(1, Math.round(maxCores * 0.75))} hilos)
+                    ({Math.max(1, Math.round(maxCores * 0.75))} hilos)
                   </span>
                 </button>
               </div>
@@ -393,64 +394,64 @@ export const MiningView: React.FC<MiningViewProps> = ({
                   max={maxCores}
                   value={threads}
                   onChange={(e) => setThreads(parseInt(e.target.value, 10))}
-                  className="w-full accent-rose-500 cursor-pointer"
+                  className="w-full accent-white cursor-pointer"
                 />
                 <div className="flex justify-between text-[10px] font-mono text-zinc-500">
-                  <span>1 Hilo (Mínimo)</span>
+                  <span>1 Hilo</span>
                   <span>Ajuste fino manual</span>
-                  <span>{maxCores} Hilos (100%)</span>
+                  <span>{maxCores} Hilos</span>
                 </div>
               </div>
             </div>
 
-            {/* RandomX Memory Mode Selector (Light Mode default always) */}
+            {/* RandomX Memory Mode Selector */}
             <div className="space-y-2">
-              <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-wider">
-                Modo de Memoria RandomX
+              <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-wider font-mono">
+                [MODO DE MEMORIA RANDOMX]
               </label>
               <div className="grid grid-cols-2 gap-2.5">
                 <button
                   type="button"
                   onClick={() => handleModeChange(false)}
-                  className={`p-3 rounded-lg border text-left transition ${
+                  className={`p-3 rounded-[2px] border text-left transition font-mono ${
                     !fastMode
-                      ? "bg-rose-500/15 border-rose-500/60 text-white"
-                      : "bg-zinc-950/60 border-zinc-800 text-zinc-400 hover:bg-zinc-900"
+                      ? "bg-white/10 border-white text-white"
+                      : "bg-black border-white/10 text-zinc-400 hover:border-white/30"
                   }`}
                 >
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold">Light Mode</span>
-                    <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800">
-                      Por Defecto
+                    <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-[2px] bg-white text-black font-bold">
+                      DEFAULT
                     </span>
                   </div>
-                  <div className="text-[11px] font-mono text-zinc-400 mt-1">~256 MB RAM</div>
-                  <div className="text-[10px] text-zinc-500 mt-0.5">
-                    Seguro para todo computador casero sin afectar otras apps.
+                  <div className="text-[11px] font-mono text-zinc-300 mt-1">~256 MB RAM</div>
+                  <div className="text-[10px] text-zinc-500 mt-0.5 font-sans">
+                    Apto para todo equipo sin comprometer RAM.
                   </div>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => handleModeChange(true)}
-                  className={`p-3 rounded-lg border text-left transition ${
+                  className={`p-3 rounded-[2px] border text-left transition font-mono ${
                     fastMode
-                      ? "bg-rose-500/15 border-rose-500/60 text-white"
-                      : "bg-zinc-950/60 border-zinc-800 text-zinc-400 hover:bg-zinc-900"
+                      ? "bg-white/10 border-white text-white"
+                      : "bg-black border-white/10 text-zinc-400 hover:border-white/30"
                   }`}
                 >
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold flex items-center space-x-1">
-                      <Zap className="w-3 h-3 text-amber-400" />
+                      <Zap className="w-3 h-3 text-white" />
                       <span>Fast Mode</span>
                     </span>
-                    <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-300">
-                      Opcional
+                    <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-[2px] bg-zinc-800 text-zinc-300">
+                      2 GB
                     </span>
                   </div>
-                  <div className="text-[11px] font-mono text-zinc-400 mt-1">~2.08 GB RAM</div>
-                  <div className="text-[10px] text-zinc-500 mt-0.5">
-                    Dataset completo en RAM (~4x velocidad si tienes &gt;3 GB libres).
+                  <div className="text-[11px] font-mono text-zinc-300 mt-1">~2.08 GB RAM</div>
+                  <div className="text-[10px] text-zinc-500 mt-0.5 font-sans">
+                    Dataset completo en RAM (~4x velocidad).
                   </div>
                 </button>
               </div>
@@ -461,24 +462,24 @@ export const MiningView: React.FC<MiningViewProps> = ({
             <button
               onClick={handleToggleMining}
               disabled={!isMining && !isNetworkSynced}
-              className={`w-full flex items-center justify-center space-x-2 py-3 rounded-lg text-sm font-semibold transition ${
+              className={`w-full flex items-center justify-center space-x-2 py-3 rounded-[2px] text-xs font-mono uppercase tracking-wider font-bold transition ${
                 isMining
-                  ? "bg-red-900/80 hover:bg-red-800 border border-red-700 text-white"
+                  ? "bg-white/10 hover:bg-white/20 border border-white/40 text-white"
                   : !isNetworkSynced
-                  ? "bg-zinc-800 border border-zinc-700 text-zinc-500 cursor-not-allowed"
-                  : "bg-rose-600 hover:bg-rose-500 text-white shadow-md shadow-rose-950"
+                  ? "bg-zinc-900 border border-white/10 text-zinc-500 cursor-not-allowed"
+                  : "bg-white hover:bg-zinc-200 text-black shadow-[0_0_20px_rgba(255,255,255,0.15)]"
               }`}
             >
               {isMining ? (
                 <>
                   <Square className="w-4 h-4 fill-current" />
-                  <span>Detener Minería CPU</span>
+                  <span>[DETENER MINERÍA CPU]</span>
                 </>
               ) : (
                 <>
                   <Play className="w-4 h-4 fill-current" />
                   <span>
-                    {!isNetworkSynced ? "Esperando Sincronización..." : "Iniciar Minería en Solitario"}
+                    {!isNetworkSynced ? "[ESPERANDO SINCRONIZACIÓN...]" : "[INICIAR MINERÍA EN SOLITARIO]"}
                   </span>
                 </>
               )}
@@ -487,109 +488,95 @@ export const MiningView: React.FC<MiningViewProps> = ({
         </div>
 
         {/* Right Card: System Resources Diagnostic & Safe Hardware Advisor */}
-        <div className="p-6 bg-zinc-900/40 border border-zinc-800 rounded-xl space-y-5 flex flex-col justify-between">
+        <div className="p-6 bg-[#0A0A0C] border border-white/10 rounded-[2px] space-y-5 flex flex-col justify-between">
           <div className="space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
+            <div className="flex items-center justify-between pb-3 border-b border-white/10">
               <div className="flex items-center space-x-2">
-                <Activity className="w-4 h-4 text-cyan-400" />
-                <h2 className="text-sm font-bold text-white uppercase tracking-wider">
-                  Diagnóstico de Recursos del Sistema
+                <Activity className="w-4 h-4 text-white" />
+                <h2 className="text-sm font-bold text-white uppercase tracking-wider font-mono">
+                  [RECURSOS DEL SISTEMA]
                 </h2>
               </div>
               <button
                 type="button"
                 onClick={handleCheckSystemResources}
                 disabled={checkingSpecs}
-                className="flex items-center space-x-1.5 px-3 py-1 bg-cyan-950/70 hover:bg-cyan-900/80 border border-cyan-700/60 text-cyan-200 rounded-lg text-xs font-semibold transition"
+                className="flex items-center space-x-1.5 px-3 py-1 bg-black hover:bg-white/10 border border-white/20 text-white rounded-[2px] text-xs font-mono font-semibold transition"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${checkingSpecs ? "animate-spin" : ""}`} />
-                <span>{checkingSpecs ? "Analizando..." : "Verificar Recursos del Sistema"}</span>
+                <span>{checkingSpecs ? "Analizando..." : "Verificar Recursos"}</span>
               </button>
             </div>
 
-            <p className="text-xs text-zinc-400">
-              Verifica las capacidades de tu computador en tiempo real para elegir cuántos núcleos y cuánta memoria dedicar a la minería sin comprometer la fluidez ni la temperatura de tu equipo.
+            <p className="text-xs text-zinc-400 font-sans">
+              Verifica las capacidades de tu computador en tiempo real para elegir cuántos núcleos y cuánta memoria dedicar a la minería sin comprometer la fluidez de tu equipo.
             </p>
 
             {specs ? (
-              <div className="space-y-3">
+              <div className="space-y-3 font-mono">
                 {/* CPU Info Box */}
-                <div className="p-3.5 bg-zinc-950/70 border border-zinc-800 rounded-lg space-y-1.5">
+                <div className="p-3.5 bg-black border border-white/10 rounded-[2px] space-y-1.5">
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-zinc-400 font-semibold flex items-center space-x-1.5">
-                      <Cpu className="w-3.5 h-3.5 text-rose-400" />
+                      <Cpu className="w-3.5 h-3.5 text-white" />
                       <span>Procesador Detectado</span>
                     </span>
-                    <span className="font-mono text-white font-bold">
+                    <span className="text-white font-bold">
                       {specs.cpuCores} Núcleos Lógicos
                     </span>
                   </div>
-                  <div className="text-xs font-mono text-zinc-300 truncate">{specs.cpuModel}</div>
+                  <div className="text-xs text-zinc-300 truncate">{specs.cpuModel}</div>
                 </div>
 
                 {/* RAM Info Box */}
-                <div className="p-3.5 bg-zinc-950/70 border border-zinc-800 rounded-lg space-y-2">
+                <div className="p-3.5 bg-black border border-white/10 rounded-[2px] space-y-2">
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-zinc-400 font-semibold flex items-center space-x-1.5">
-                      <HardDrive className="w-3.5 h-3.5 text-cyan-400" />
+                      <HardDrive className="w-3.5 h-3.5 text-white" />
                       <span>Memoria RAM del Sistema</span>
                     </span>
-                    <span className="font-mono text-emerald-400 font-bold">
+                    <span className="text-white font-bold">
                       {(specs.availableRamMb / 1024).toFixed(1)} GB Libres /{" "}
                       {(specs.totalRamMb / 1024).toFixed(1)} GB Total
                     </span>
                   </div>
 
-                  <div className="w-full h-2 bg-zinc-800 rounded-full overflow-hidden">
+                  <div className="w-full h-1.5 bg-zinc-900 rounded-[1px] overflow-hidden border border-white/10">
                     <div
-                      className={`h-full transition-all duration-300 ${
-                        ramUsagePercent > 85 ? "bg-amber-500" : "bg-cyan-500"
-                      }`}
+                      className="h-full bg-white transition-all duration-300"
                       style={{ width: `${ramUsagePercent}%` }}
                     />
                   </div>
-                  <div className="flex justify-between text-[10px] font-mono text-zinc-500">
+                  <div className="flex justify-between text-[10px] text-zinc-500">
                     <span>En uso: {ramUsagePercent}%</span>
                     <span>Disponible: {specs.availableRamMb} MB</span>
                   </div>
                 </div>
 
                 {/* Safe Recommendation Box */}
-                <div className="p-3.5 bg-emerald-950/20 border border-emerald-800/40 rounded-lg space-y-2">
-                  <div className="flex items-center space-x-2 text-xs font-bold text-emerald-300">
-                    <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>Recomendación Segura para tu Computador</span>
+                <div className="p-3.5 bg-white/5 border border-white/15 rounded-[2px] space-y-2">
+                  <div className="flex items-center space-x-2 text-xs font-bold text-white">
+                    <ShieldCheck className="w-4 h-4 text-white shrink-0" />
+                    <span>[RECOMENDACIÓN SEGURA]</span>
                   </div>
-                  <ul className="text-[11px] text-zinc-300 space-y-1 pl-6 list-disc">
+                  <ul className="text-[11px] text-zinc-300 space-y-1 pl-4 list-disc font-sans">
                     <li>
                       <strong>Hilos recomendados:</strong>{" "}
-                      <span className="font-mono text-emerald-300">
+                      <span className="font-mono text-white font-bold">
                         {specs.recommendedThreads} hilos
                       </span>{" "}
-                      (deja {specs.cpuCores - specs.recommendedThreads} núcleos libres para uso diario y control térmico).
+                      (deja núcleos libres para uso diario).
                     </li>
                     <li>
-                      <strong>Modo de memoria por defecto:</strong>{" "}
-                      <span className="font-mono text-emerald-300">Light Mode (~256 MB)</span> activo para mínimo consumo.
-                    </li>
-                    <li>
-                      <strong>Soporte Fast Mode (2.08 GB):</strong>{" "}
-                      {specs.canRunFastMode ? (
-                        <span className="text-emerald-400">
-                          Tu equipo cuenta con suficiente RAM libre si deseas activarlo manualmente.
-                        </span>
-                      ) : (
-                        <span className="text-amber-400">
-                          Memoria libre ajustada; mantén Light Mode (256 MB) para máxima estabilidad.
-                        </span>
-                      )}
+                      <strong>Modo por defecto:</strong>{" "}
+                      <span className="font-mono text-white">Light Mode (~256 MB)</span> para estabilidad.
                     </li>
                   </ul>
                 </div>
               </div>
             ) : (
               <div className="p-8 text-center text-zinc-500 text-xs font-mono">
-                Haz clic en &quot;Verificar Recursos del Sistema&quot; para analizar tu hardware.
+                Haz clic en [Verificar Recursos] para analizar tu hardware.
               </div>
             )}
           </div>
@@ -599,10 +586,10 @@ export const MiningView: React.FC<MiningViewProps> = ({
               type="button"
               onClick={applyRecommendedSpecs}
               disabled={!specs}
-              className="w-full flex items-center justify-center space-x-2 py-2.5 bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 border border-zinc-700 text-zinc-200 rounded-lg text-xs font-semibold transition"
+              className="w-full flex items-center justify-center space-x-2 py-2.5 bg-black hover:bg-white/10 disabled:opacity-40 border border-white/20 text-white rounded-[2px] text-xs font-mono font-semibold transition"
             >
-              <ShieldCheck className="w-4 h-4 text-emerald-400" />
-              <span>Aplicar Configuración Segura Recomendada ({specs?.recommendedThreads || 2} Hilos + Light Mode)</span>
+              <ShieldCheck className="w-4 h-4 text-white" />
+              <span>Aplicar Configuración Segura ({specs?.recommendedThreads || 2} Hilos + Light Mode)</span>
             </button>
           </div>
         </div>

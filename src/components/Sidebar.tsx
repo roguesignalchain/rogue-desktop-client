@@ -19,7 +19,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onSelectTab }) => 
   ];
 
   return (
-    <aside className="w-56 border-r border-zinc-800 bg-zinc-950 flex flex-col justify-between p-3 select-none relative z-10 shrink-0">
+    <aside className="w-56 border-r border-white/10 bg-black flex flex-col justify-between p-3 select-none relative z-10 shrink-0">
       <nav className="space-y-1">
         {navItems.map((item) => {
           const Icon = item.icon;
@@ -28,13 +28,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onSelectTab }) => 
             <button
               key={item.id}
               onClick={() => onSelectTab(item.id as TabType)}
-              className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium transition ${
+              className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-[2px] text-xs font-mono uppercase tracking-wider transition ${
                 isActive
-                  ? "bg-rose-500/10 text-rose-400 border border-rose-500/30 shadow-sm"
-                  : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/60"
+                  ? "bg-white text-black font-bold shadow-[0_0_15px_rgba(255,255,255,0.15)]"
+                  : "text-zinc-400 hover:text-white hover:bg-white/5 border border-transparent"
               }`}
             >
-              <Icon className={`w-4 h-4 ${isActive ? "text-rose-400" : "text-zinc-400"}`} />
+              <Icon className={`w-4 h-4 ${isActive ? "text-black" : "text-zinc-400"}`} />
               <span>{item.label}</span>
             </button>
           );
@@ -42,26 +42,25 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onSelectTab }) => 
       </nav>
 
       {/* Network Specs Quick Info */}
-      <div className="p-3 bg-zinc-900/40 rounded-lg border border-zinc-800 text-[11px] text-zinc-400 space-y-1 font-mono">
-        <div className="text-zinc-500 font-sans font-semibold uppercase tracking-wider text-[10px]">Consensus Spec</div>
+      <div className="p-3 bg-[#0A0A0C] rounded-[2px] border border-white/10 text-[11px] text-zinc-400 space-y-1 font-mono">
+        <div className="text-zinc-500 uppercase tracking-widest text-[10px] font-bold">[CONSENSUS SPEC]</div>
         <div className="flex justify-between">
           <span>Algo:</span>
-          <span className="text-zinc-300">RandomX rx/0</span>
+          <span className="text-white font-bold">rx/0 (RandomX)</span>
         </div>
         <div className="flex justify-between">
           <span>DAA:</span>
-          <span className="text-zinc-300">LWMA-1 (N=60)</span>
+          <span className="text-white">LWMA-1 (N=60)</span>
         </div>
         <div className="flex justify-between">
           <span>Block Target:</span>
-          <span className="text-zinc-300">10s</span>
+          <span className="text-white">10s</span>
         </div>
         <div className="flex justify-between">
           <span>Reward:</span>
-          <span className="text-zinc-300">8 ROGUE (95/5)</span>
+          <span className="text-white">8 ROGUE (95/5)</span>
         </div>
       </div>
     </aside>
   );
 };
-

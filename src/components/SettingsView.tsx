@@ -174,10 +174,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
   return (
     <div className="space-y-6 max-w-3xl">
-      <div className="p-6 bg-zinc-900/40 border border-zinc-800 rounded-xl space-y-6">
+      <div className="p-6 bg-zinc-900/40 border border-zinc-800 rounded-[2px] space-y-6">
         <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
           <div className="flex items-center space-x-2">
-            <SettingsIcon className="w-5 h-5 text-rose-500" />
+            <SettingsIcon className="w-5 h-5 text-white" />
             <h1 className="text-sm font-bold text-white uppercase tracking-wider">
               Configuración de Cliente & Nodo
             </h1>
@@ -186,15 +186,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         </div>
 
         {/* Manual Node Control Section */}
-        <div className="p-4 bg-zinc-950/70 border border-zinc-800 rounded-xl flex items-center justify-between">
+        <div className="p-4 bg-zinc-950/70 border border-zinc-800 rounded-[2px] flex items-center justify-between">
           <div className="space-y-1">
             <div className="flex items-center space-x-2">
-              <Server className="w-4 h-4 text-rose-400" />
+              <Server className="w-4 h-4 text-white" />
               <span className="text-xs font-bold text-white">Control Manual del Proceso de Nodo</span>
             </div>
             <p className="text-[11px] text-zinc-400">
               Estado:{" "}
-              <span className={nodeStatus.running ? "text-emerald-400 font-bold" : "text-zinc-500"}>
+              <span className={nodeStatus.running ? "text-white font-bold" : "text-zinc-500"}>
                 {nodeStatus.running ? `En ejecución (PID: ${nodeStatus.pid})` : "Detenido"}
               </span>
             </p>
@@ -203,10 +203,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           <button
             type="button"
             onClick={handleManualToggleNode}
-            className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-xs font-semibold transition ${
+            className={`flex items-center space-x-2 px-4 py-2 rounded-[2px] text-xs font-semibold transition ${
               nodeStatus.running
                 ? "bg-red-950/80 hover:bg-red-900 text-red-200 border border-red-800"
-                : "bg-emerald-600 hover:bg-emerald-500 text-white"
+                : "bg-white hover:bg-zinc-200 text-black font-bold"
             }`}
           >
             {nodeStatus.running ? (
@@ -224,7 +224,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         </div>
 
         {actionMessage && (
-          <div className="p-3 bg-zinc-900 border border-zinc-700 text-xs font-mono text-zinc-300 rounded-lg">
+          <div className="p-3 bg-zinc-900 border border-zinc-700 text-xs font-mono text-zinc-300 rounded-[2px]">
             {actionMessage}
           </div>
         )}
@@ -232,7 +232,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         <form onSubmit={handleSave} className="space-y-6">
           {/* Subprocess Configuration */}
           <div className="space-y-4 pt-2">
-            <div className="flex items-center space-x-2 text-xs font-semibold text-rose-400">
+            <div className="flex items-center space-x-2 text-xs font-semibold text-white">
               <Server className="w-4 h-4" />
               <span>Red y Puertos del Nodo Core-Geth</span>
             </div>
@@ -245,7 +245,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   value={p2pPort}
                   onChange={(e) => setP2pPort(parseInt(e.target.value) || 38890)}
                   placeholder="38890"
-                  className="w-full bg-zinc-950 border border-zinc-800 focus:border-rose-500 rounded-lg px-3 py-2 text-xs font-mono text-white outline-none"
+                  className="w-full bg-zinc-950 border border-zinc-800 focus:border-white rounded-[2px] px-3 py-2 text-xs font-mono text-white outline-none"
                 />
                 <span className="text-[10px] text-zinc-500 mt-1 block">DevP2P Gossip (Por defecto: 38890)</span>
               </div>
@@ -260,7 +260,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     setHttpPort(port);
                   }}
                   placeholder="38849"
-                  className="w-full bg-zinc-950 border border-zinc-800 focus:border-rose-500 rounded-lg px-3 py-2 text-xs font-mono text-white outline-none"
+                  className="w-full bg-zinc-950 border border-zinc-800 focus:border-white rounded-[2px] px-3 py-2 text-xs font-mono text-white outline-none"
                 />
                 <span className="text-[10px] text-zinc-500 mt-1 block">API Local (Por defecto: 38849)</span>
               </div>
@@ -272,7 +272,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   value={wsPort}
                   onChange={(e) => setWsPort(parseInt(e.target.value) || 38850)}
                   placeholder="38850"
-                  className="w-full bg-zinc-950 border border-zinc-800 focus:border-rose-500 rounded-lg px-3 py-2 text-xs font-mono text-white outline-none"
+                  className="w-full bg-zinc-950 border border-zinc-800 focus:border-white rounded-[2px] px-3 py-2 text-xs font-mono text-white outline-none"
                 />
                 <span className="text-[10px] text-zinc-500 mt-1 block">Flujo de Eventos (Por defecto: 38850)</span>
               </div>
@@ -281,7 +281,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             {/* Datadir */}
             <div>
               <label className="text-[11px] font-medium text-zinc-400 block mb-1 flex items-center space-x-1.5">
-                <HardDrive className="w-3.5 h-3.5 text-cyan-400" />
+                <HardDrive className="w-3.5 h-3.5 text-white" />
                 <span>Directorio de Datos de la Blockchain (--datadir)</span>
               </label>
               <input
@@ -289,7 +289,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 value={datadir}
                 onChange={(e) => setDatadir(e.target.value)}
                 placeholder="./nodes-local/node-desktop"
-                className="w-full bg-zinc-950 border border-zinc-800 focus:border-cyan-500 rounded-lg px-3 py-2 text-xs font-mono text-white outline-none"
+                className="w-full bg-zinc-950 border border-zinc-800 focus:border-white rounded-[2px] px-3 py-2 text-xs font-mono text-white outline-none"
               />
               <span className="text-[10px] text-zinc-500 mt-1 block">
                 Ubicación del chaindata, keystore y logs del nodo de escritorio.
@@ -299,7 +299,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             {/* Bootnodes */}
             <div>
               <label className="text-[11px] font-medium text-zinc-400 block mb-1 flex items-center space-x-1.5">
-                <Network className="w-3.5 h-3.5 text-amber-400" />
+                <Network className="w-3.5 h-3.5 text-white" />
                 <span>Bootnodes de la Red (URLs Enode)</span>
               </label>
               <input
@@ -307,7 +307,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 value={bootnodes}
                 onChange={(e) => setBootnodes(e.target.value)}
                 placeholder="enode://..."
-                className="w-full bg-zinc-950 border border-zinc-800 focus:border-amber-500 rounded-lg px-3 py-2 text-xs font-mono text-white outline-none"
+                className="w-full bg-zinc-950 border border-zinc-800 focus:border-white rounded-[2px] px-3 py-2 text-xs font-mono text-white outline-none"
               />
               <span className="text-[10px] text-zinc-500 mt-1 block">
                 Enodes separados por comas para descubrir pares automáticamente al iniciar.
@@ -315,9 +315,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             </div>
 
             {/* Hardware Verification & Safe Resources Section */}
-            <div className="p-4 bg-zinc-950/70 border border-zinc-800 rounded-xl space-y-3 mt-2">
+            <div className="p-4 bg-zinc-950/70 border border-zinc-800 rounded-[2px] space-y-3 mt-2">
               <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2 text-xs font-semibold text-cyan-400">
+                <div className="flex items-center space-x-2 text-xs font-semibold text-white">
                   <Activity className="w-4 h-4" />
                   <span>Verificación de Recursos del Sistema (CPU y Memoria)</span>
                 </div>
@@ -325,7 +325,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   type="button"
                   onClick={handleCheckSystemResources}
                   disabled={checkingSpecs}
-                  className="flex items-center space-x-1.5 px-3 py-1.5 bg-cyan-950/70 hover:bg-cyan-900/80 border border-cyan-700/60 text-cyan-200 rounded-lg text-xs font-semibold transition"
+                  className="flex items-center space-x-1.5 px-3 py-1.5 bg-black hover:bg-white/10 border border-white/20 text-white rounded-[2px] text-xs font-mono font-semibold transition"
                 >
                   <RefreshCw className={`w-3.5 h-3.5 ${checkingSpecs ? "animate-spin" : ""}`} />
                   <span>{checkingSpecs ? "Verificando..." : "Verificar Recursos del Sistema"}</span>
@@ -338,7 +338,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
               {specs && (
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
-                  <div className="p-2.5 bg-zinc-900/80 border border-zinc-800 rounded-lg">
+                  <div className="p-2.5 bg-zinc-900/80 border border-zinc-800 rounded-[2px]">
                     <span className="text-[10px] text-zinc-400 uppercase block">CPU Detectada</span>
                     <span className="text-xs font-mono font-bold text-white block truncate">
                       {specs.cpuCores} Núcleos Lógicos
@@ -348,9 +348,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     </span>
                   </div>
 
-                  <div className="p-2.5 bg-zinc-900/80 border border-zinc-800 rounded-lg">
+                  <div className="p-2.5 bg-zinc-900/80 border border-zinc-800 rounded-[2px]">
                     <span className="text-[10px] text-zinc-400 uppercase block">Memoria RAM Disponible</span>
-                    <span className="text-xs font-mono font-bold text-emerald-400 block">
+                    <span className="text-xs font-mono font-bold text-white block">
                       {(specs.availableRamMb / 1024).toFixed(1)} GB Libres
                     </span>
                     <span className="text-[10px] font-mono text-zinc-400 block">
@@ -358,12 +358,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     </span>
                   </div>
 
-                  <div className="p-2.5 bg-emerald-950/20 border border-emerald-800/50 rounded-lg">
-                    <span className="text-[10px] text-emerald-300 uppercase font-semibold flex items-center space-x-1">
+                  <div className="p-2.5 bg-white/5 border border-white/15 rounded-[2px]">
+                    <span className="text-[10px] text-zinc-300 uppercase font-semibold flex items-center space-x-1">
                       <ShieldCheck className="w-3 h-3" />
                       <span>Ajuste Seguro Sugerido</span>
                     </span>
-                    <span className="text-xs font-mono font-bold text-emerald-400 block">
+                    <span className="text-xs font-mono font-bold text-white block">
                       {specs.recommendedThreads} Hilos / Caché {specs.recommendedCacheMb} MB
                     </span>
                     <span className="text-[10px] text-zinc-400 block">
@@ -378,13 +378,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2">
               <div>
                 <label className="text-[11px] font-medium text-zinc-400 block mb-1 flex items-center space-x-1">
-                  <Cpu className="w-3.5 h-3.5 text-rose-400" />
+                  <Cpu className="w-3.5 h-3.5 text-white" />
                   <span>Límite de Caché RAM</span>
                 </label>
                 <select
                   value={cache}
                   onChange={(e) => setCache(parseInt(e.target.value))}
-                  className="w-full bg-zinc-950 border border-zinc-800 focus:border-rose-500 rounded-lg px-3 py-2 text-xs font-mono text-white outline-none"
+                  className="w-full bg-zinc-950 border border-zinc-800 focus:border-white rounded-[2px] px-3 py-2 text-xs font-mono text-white outline-none"
                 >
                   <option value={256}>256 MB (Recomendado - Ligero)</option>
                   <option value={512}>512 MB (Equilibrado)</option>
@@ -397,7 +397,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 <select
                   value={syncmode}
                   onChange={(e) => setSyncmode(e.target.value as "full" | "snap")}
-                  className="w-full bg-zinc-950 border border-zinc-800 focus:border-rose-500 rounded-lg px-3 py-2 text-xs font-mono text-white outline-none"
+                  className="w-full bg-zinc-950 border border-zinc-800 focus:border-white rounded-[2px] px-3 py-2 text-xs font-mono text-white outline-none"
                 >
                   <option value="full">Full (Obligatorio - Validación Completa PoW RandomX)</option>
                   <option value="snap" disabled>Snap (Deshabilitado en redes PoW por riesgo de desincronización)</option>
@@ -412,7 +412,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 <select
                   value={verbosity}
                   onChange={(e) => setVerbosity(parseInt(e.target.value))}
-                  className="w-full bg-zinc-950 border border-zinc-800 focus:border-rose-500 rounded-lg px-3 py-2 text-xs font-mono text-white outline-none"
+                  className="w-full bg-zinc-950 border border-zinc-800 focus:border-white rounded-[2px] px-3 py-2 text-xs font-mono text-white outline-none"
                 >
                   <option value={2}>Nivel 2 (Solo Warnings/Errores)</option>
                   <option value={3}>Nivel 3 (Info - Estándar)</option>
@@ -427,13 +427,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2 text-xs font-semibold text-zinc-300">
-                  <Network className="w-4 h-4 text-cyan-400" />
+                  <Network className="w-4 h-4 text-white" />
                   <span>Endpoint RPC para el Dashboard</span>
                 </div>
                 <button
                   type="button"
                   onClick={syncRpcWithNodePort}
-                  className="text-[10px] text-cyan-400 hover:text-cyan-300 underline"
+                  className="text-[10px] text-white hover:text-zinc-300 underline"
                 >
                   Sincronizar con puerto local ({httpPort})
                 </button>
@@ -444,7 +444,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   value={localRpc}
                   onChange={(e) => setLocalRpc(e.target.value)}
                   placeholder="http://127.0.0.1:38849"
-                  className="w-full bg-zinc-950 border border-zinc-800 focus:border-cyan-500 rounded-lg px-3.5 py-2 text-xs font-mono text-white outline-none"
+                  className="w-full bg-zinc-950 border border-zinc-800 focus:border-white rounded-[2px] px-3.5 py-2 text-xs font-mono text-white outline-none"
                 />
               </div>
             </div>
@@ -452,13 +452,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             {/* Auto-Lock */}
             <div className="space-y-2 pt-2">
               <div className="flex items-center space-x-2 text-xs font-semibold text-zinc-300">
-                <Shield className="w-4 h-4 text-emerald-400" />
+                <Shield className="w-4 h-4 text-white" />
                 <span>Bloqueo Automático por Inactividad</span>
               </div>
               <select
                 value={localLock}
                 onChange={(e) => setLocalLock(parseInt(e.target.value))}
-                className="w-full bg-zinc-950 border border-zinc-800 focus:border-emerald-500 rounded-lg px-3 py-2 text-xs font-mono text-white outline-none"
+                className="w-full bg-zinc-950 border border-zinc-800 focus:border-white rounded-[2px] px-3 py-2 text-xs font-mono text-white outline-none"
               >
                 <option value={5}>5 minutos</option>
                 <option value={15}>15 minutos (Recomendado)</option>
@@ -471,7 +471,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           <div className="flex items-center space-x-3 pt-3 border-t border-zinc-800">
             <button
               type="submit"
-              className="flex items-center space-x-2 px-5 py-2.5 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-xs font-semibold shadow-md transition"
+              className="flex items-center space-x-2 px-5 py-2.5 bg-white hover:bg-zinc-200 text-black rounded-[2px] text-xs font-mono uppercase tracking-wider font-bold shadow-[0_0_15px_rgba(255,255,255,0.15)] transition"
             >
               <Save className="w-4 h-4" />
               <span>{saved ? "Guardado con Éxito" : "Guardar Cambios"}</span>
@@ -480,7 +480,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             <button
               type="button"
               onClick={handleResetDefaults}
-              className="flex items-center space-x-2 px-4 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg text-xs font-medium transition"
+              className="flex items-center space-x-2 px-4 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-[2px] text-xs font-medium transition"
             >
               <RotateCcw className="w-4 h-4" />
               <span>Restaurar Valores por Defecto</span>
@@ -502,12 +502,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             <button
               type="button"
               onClick={() => setShowDangerConfirm(true)}
-              className="px-4 py-2 bg-red-950/40 hover:bg-red-900/60 border border-red-800/80 text-red-300 rounded-lg text-xs font-semibold transition"
+              className="px-4 py-2 bg-red-950/40 hover:bg-red-900/60 border border-red-800/80 text-red-300 rounded-[2px] text-xs font-semibold transition"
             >
               Forzar Re-sincronización / Limpiar Chaindata
             </button>
           ) : (
-            <div className="p-4 bg-red-950/40 border border-red-800 rounded-lg space-y-3">
+            <div className="p-4 bg-red-950/40 border border-red-800 rounded-[2px] space-y-3">
               <p className="text-xs text-red-200 font-medium">
                 ¿Estás seguro de que deseas borrar los datos locales de la blockchain? Deberás descargar nuevamente todos los bloques de la red.
               </p>
@@ -516,7 +516,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   type="button"
                   disabled={isResettingDb}
                   onClick={handleConfirmCleanChaindata}
-                  className="flex items-center space-x-2 px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-lg text-xs font-bold transition disabled:opacity-50"
+                  className="flex items-center space-x-2 px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-[2px] text-xs font-bold transition disabled:opacity-50"
                 >
                   {isResettingDb ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : null}
                   <span>Sí, Borrar y Re-sincronizar</span>
@@ -524,7 +524,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowDangerConfirm(false)}
-                  className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg text-xs transition"
+                  className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-[2px] text-xs transition"
                 >
                   Cancelar
                 </button>

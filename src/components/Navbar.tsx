@@ -4,7 +4,6 @@ import {
   ShieldAlert,
   Radio,
   RefreshCw,
-  CheckCircle2,
   ChevronDown,
   ChevronRight,
   Wallet,
@@ -79,18 +78,20 @@ export const Navbar: React.FC<NavbarProps> = ({
   }, [activeWallet]);
 
   return (
-    <header className="h-14 border-b border-zinc-800 bg-zinc-950 px-6 flex items-center justify-between sticky top-0 z-30 select-none">
+    <header className="h-14 border-b border-white/10 bg-black px-6 flex items-center justify-between sticky top-0 z-30 select-none">
       {/* Brand & Network info */}
       <div className="flex items-center space-x-4">
         <div className="flex items-center space-x-2.5">
-          <img src="/icon.png" alt="Rogue Signal" className="w-6 h-6 rounded object-contain shadow-sm" />
-          <span className="font-black text-lg tracking-wider bg-gradient-to-r from-rose-500 to-amber-400 bg-clip-text text-transparent">
+          <div className="w-7 h-7 rounded-[2px] bg-black border border-white/20 p-0.5 flex items-center justify-center">
+            <img src="/logo.png" alt="Rogue Signal" className="w-full h-full object-contain" />
+          </div>
+          <span className="font-bold text-base tracking-wider text-white font-display">
             ROGUE SIGNAL
           </span>
         </div>
-        <div className="text-xs px-2.5 py-1 rounded bg-zinc-900 border border-zinc-800 text-zinc-400 flex items-center space-x-1.5 font-mono">
-          <Radio className="w-3.5 h-3.5 text-rose-400" />
-          <span>Chain ID: 800055</span>
+        <div className="text-xs px-2.5 py-0.5 rounded-[2px] bg-[#0A0A0C] border border-white/15 text-zinc-300 flex items-center space-x-1.5 font-mono">
+          <Radio className="w-3.5 h-3.5 text-white" />
+          <span>[CHAIN ID: 800055]</span>
         </div>
       </div>
 
@@ -98,41 +99,41 @@ export const Navbar: React.FC<NavbarProps> = ({
       <div className="flex items-center space-x-4">
         {/* Dynamic Network / Sync Badge */}
         {!rpcConnected && !nodeStatus.running ? (
-          <div className="flex items-center space-x-1.5 px-2.5 py-1 bg-red-950/30 border border-red-900/40 rounded-full text-xs font-mono text-red-400">
-            <span className="w-2 h-2 rounded-full bg-red-500" />
-            <span>Nodo Offline</span>
+          <div className="flex items-center space-x-1.5 px-2.5 py-0.5 bg-black border border-white/10 rounded-[2px] text-xs font-mono text-zinc-500">
+            <span className="w-2 h-2 rounded-full bg-zinc-600" />
+            <span>[NODO OFFLINE]</span>
           </div>
         ) : !rpcConnected ? (
-          <div className="flex items-center space-x-1.5 px-2.5 py-1 bg-cyan-950/30 border border-cyan-800/40 rounded-full text-xs font-mono text-cyan-300">
-            <RefreshCw className="w-3 h-3 text-cyan-400 animate-spin" />
-            <span>Conectando RPC...</span>
+          <div className="flex items-center space-x-1.5 px-2.5 py-0.5 bg-zinc-950 border border-white/20 rounded-[2px] text-xs font-mono text-zinc-300">
+            <RefreshCw className="w-3 h-3 text-white animate-spin" />
+            <span>[CONECTANDO RPC...]</span>
           </div>
         ) : peerCount === 0 ? (
-          <div className="flex items-center space-x-1.5 px-2.5 py-1 bg-amber-950/30 border border-amber-900/40 rounded-full text-xs font-mono text-amber-300">
-            <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
-            <span>Conectando Pares...</span>
+          <div className="flex items-center space-x-1.5 px-2.5 py-0.5 bg-zinc-950 border border-white/20 rounded-[2px] text-xs font-mono text-zinc-300">
+            <span className="w-2 h-2 rounded-full bg-zinc-400 animate-pulse" />
+            <span>[BUSCANDO PARES...]</span>
           </div>
         ) : syncStatus.isSyncing ? (
-          <div className="flex items-center space-x-1.5 px-2.5 py-1 bg-cyan-950/30 border border-cyan-800/40 rounded-full text-xs font-mono text-cyan-300">
-            <RefreshCw className="w-3 h-3 text-cyan-400 animate-spin" />
-            <span>{syncStatus.peersAhead ? "Verificando..." : `Syncing ${syncStatus.progressPercentage}%`}</span>
+          <div className="flex items-center space-x-1.5 px-2.5 py-0.5 bg-zinc-900 border border-white/30 rounded-[2px] text-xs font-mono text-white">
+            <RefreshCw className="w-3 h-3 text-white animate-spin" />
+            <span>{syncStatus.peersAhead ? "[VERIFICANDO...]" : `[SYNCING ${syncStatus.progressPercentage}%]`}</span>
           </div>
         ) : currentBlock === 0 ? (
-          <div className="flex items-center space-x-1.5 px-2.5 py-1 bg-amber-950/30 border border-amber-800/40 rounded-full text-xs font-mono text-amber-300">
-            <RefreshCw className="w-3 h-3 text-amber-400 animate-spin" />
-            <span>Iniciando Cadena #0</span>
+          <div className="flex items-center space-x-1.5 px-2.5 py-0.5 bg-zinc-950 border border-white/20 rounded-[2px] text-xs font-mono text-zinc-300">
+            <RefreshCw className="w-3 h-3 text-white animate-spin" />
+            <span>[INICIANDO CADENA #0]</span>
           </div>
         ) : (
-          <div className="flex items-center space-x-1.5 px-2.5 py-1 bg-emerald-950/40 border border-emerald-800/50 rounded-full text-xs font-mono text-emerald-300">
-            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Sincronizado</span>
+          <div className="flex items-center space-x-1.5 px-2.5 py-0.5 bg-white/10 border border-white/30 rounded-[2px] text-xs font-mono text-white font-bold">
+            <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
+            <span>[SYNCED]</span>
           </div>
         )}
 
         <div className="flex items-center space-x-2 text-xs font-mono">
-          <Activity className="w-4 h-4 text-cyan-400" />
+          <Activity className="w-4 h-4 text-white" />
           <span className="text-zinc-400">Bloque:</span>
-          <span className="text-cyan-400 font-bold">#{currentBlock}</span>
+          <span className="text-white font-bold">#{currentBlock}</span>
         </div>
 
         {/* Multi-Wallet Dropdown Selector */}
@@ -140,9 +141,9 @@ export const Navbar: React.FC<NavbarProps> = ({
           <div className="relative" ref={dropdownRef}>
             <button
               onClick={() => setDropdownOpen(!dropdownOpen)}
-              className="flex items-center space-x-2.5 px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700/80 hover:border-zinc-600 rounded-lg text-xs transition"
+              className="flex items-center space-x-2.5 px-3 py-1.5 bg-[#0A0A0C] hover:bg-zinc-900 border border-white/15 hover:border-white/40 rounded-[2px] text-xs transition"
             >
-              <div className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_6px_#34d399]" />
+              <div className="w-2 h-2 rounded-full bg-white shadow-[0_0_8px_rgba(255,255,255,0.4)]" />
               <div className="flex flex-col items-start leading-tight">
                 <div className="flex items-center space-x-1.5">
                   <span className="font-semibold text-white truncate max-w-[120px]">
@@ -152,7 +153,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     ({unlockedAddress.slice(0, 6)}...{unlockedAddress.slice(-4)})
                   </span>
                 </div>
-                <span className="font-mono text-[10px] text-amber-400 font-bold mt-0.5">
+                <span className="font-mono text-[10px] text-white font-bold mt-0.5">
                   {activeBalance} ROGUE
                 </span>
               </div>
@@ -161,13 +162,13 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             {/* Dropdown Menu */}
             {dropdownOpen && (
-              <div className="absolute right-0 mt-2 w-80 bg-zinc-950 border border-zinc-800 rounded-xl shadow-2xl overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-100">
-                <div className="p-3 border-b border-zinc-800 flex items-center justify-between bg-zinc-900/60">
+              <div className="absolute right-0 mt-2 w-80 bg-[#0A0A0C] border border-white/20 rounded-[2px] shadow-2xl overflow-hidden z-50 animate-in fade-in duration-100">
+                <div className="p-3 border-b border-white/10 flex items-center justify-between bg-black">
                   <div className="flex items-center space-x-1.5">
-                    <Wallet className="w-3.5 h-3.5 text-rose-400" />
-                    <span className="text-xs font-bold text-white uppercase tracking-wider">Billeteras Registradas</span>
+                    <Wallet className="w-3.5 h-3.5 text-white" />
+                    <span className="text-xs font-bold text-white uppercase tracking-wider">[BILLETERAS]</span>
                   </div>
-                  <span className="text-[10px] bg-zinc-800 text-zinc-400 px-1.5 py-0.5 rounded font-mono">
+                  <span className="text-[10px] bg-zinc-900 text-zinc-300 px-1.5 py-0.5 rounded-[2px] font-mono border border-white/10">
                     {allWallets.length} {allWallets.length === 1 ? "billetera" : "billeteras"}
                   </span>
                 </div>
@@ -181,10 +182,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                     return (
                       <div
                         key={w.id}
-                        className={`rounded-lg border transition ${
+                        className={`rounded-[2px] border transition ${
                           isWalletActive
-                            ? "bg-rose-950/15 border-rose-500/30"
-                            : "bg-zinc-900/40 border-zinc-800/80 hover:border-zinc-700"
+                            ? "bg-white/10 border-white/40"
+                            : "bg-black border-white/10 hover:border-white/25"
                         }`}
                       >
                         {/* Wallet Row Header */}
@@ -202,7 +203,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                                 e.stopPropagation();
                                 setExpandedWalletId(isExpanded ? null : w.id);
                               }}
-                              className="p-0.5 text-zinc-500 hover:text-zinc-200"
+                              className="p-0.5 text-zinc-400 hover:text-white"
                             >
                               {isExpanded ? (
                                 <ChevronDown className="w-3.5 h-3.5" />
@@ -214,12 +215,12 @@ export const Navbar: React.FC<NavbarProps> = ({
                               <div className="flex items-center space-x-1.5">
                                 <span className="text-xs font-bold text-white truncate">{w.name}</span>
                                 {isWalletActive && (
-                                  <span className="text-[9px] bg-rose-950 text-rose-300 border border-rose-800/60 px-1 rounded font-mono">
-                                    Activa
+                                  <span className="text-[9px] bg-white text-black font-bold px-1 rounded-[2px] font-mono">
+                                    ACTIVA
                                   </span>
                                 )}
                               </div>
-                              <span className="font-mono text-[10px] text-zinc-500 block truncate">
+                              <span className="font-mono text-[10px] text-zinc-400 block truncate">
                                 {w.primary_address}
                               </span>
                             </div>
@@ -237,10 +238,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                                   setWalletToDelete(w.id);
                                 }
                               }}
-                              className={`p-1.5 rounded transition ml-1.5 ${
+                              className={`p-1.5 rounded-[2px] transition ml-1.5 ${
                                 walletToDelete === w.id
-                                  ? "bg-rose-600 text-white"
-                                  : "text-zinc-500 hover:text-rose-400 hover:bg-zinc-800"
+                                  ? "bg-white text-black font-bold"
+                                  : "text-zinc-500 hover:text-white hover:bg-zinc-900"
                               }`}
                               title={walletToDelete === w.id ? "Clic para confirmar eliminación" : "Eliminar billetera"}
                             >
@@ -251,9 +252,9 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                         {/* Collapsible Derived Accounts of this Wallet */}
                         {isExpanded && isWalletActive && derivedAccounts.length > 0 && (
-                          <div className="px-3 pb-2.5 pt-1 space-y-1 border-t border-zinc-800/60 bg-zinc-950/40">
+                          <div className="px-3 pb-2.5 pt-1 space-y-1 border-t border-white/10 bg-black">
                             <span className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider block mb-1">
-                              Cuentas Derivadas ({derivedAccounts.length})
+                              [CUENTAS DERIVADAS ({derivedAccounts.length})]
                             </span>
                             {derivedAccounts.map((acc) => {
                               const isAccountActive = acc.address.toLowerCase() === unlockedAddress?.toLowerCase();
@@ -264,17 +265,17 @@ export const Navbar: React.FC<NavbarProps> = ({
                                     onSelectAddress(acc.address);
                                     setDropdownOpen(false);
                                   }}
-                                  className={`flex items-center justify-between p-1.5 rounded text-xs font-mono cursor-pointer transition ${
+                                  className={`flex items-center justify-between p-1.5 rounded-[2px] text-xs font-mono cursor-pointer transition ${
                                     isAccountActive
-                                      ? "bg-rose-500/10 text-rose-300 border border-rose-500/30"
-                                      : "text-zinc-400 hover:text-white hover:bg-zinc-800/60"
+                                      ? "bg-white text-black font-bold"
+                                      : "text-zinc-400 hover:text-white hover:bg-zinc-900"
                                   }`}
                                 >
                                   <div className="flex items-center space-x-1.5 truncate">
-                                    <span className="text-zinc-500 text-[10px]">#{acc.index + 1}</span>
+                                    <span className="text-[10px]">#{acc.index + 1}</span>
                                     <span className="truncate">{acc.name || `${acc.address.slice(0, 6)}...${acc.address.slice(-4)}`}</span>
                                   </div>
-                                  {isAccountActive && <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />}
+                                  {isAccountActive && <Check className="w-3.5 h-3.5 text-black shrink-0" />}
                                 </div>
                               );
                             })}
@@ -286,15 +287,15 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </div>
 
                 {/* Dropdown Actions */}
-                <div className="p-2 border-t border-zinc-800 bg-zinc-900/40 space-y-1">
+                <div className="p-2 border-t border-white/10 bg-black space-y-1">
                   <button
                     onClick={() => {
                       setDropdownOpen(false);
                       onOpenWalletModal("create");
                     }}
-                    className="w-full flex items-center space-x-2 px-2.5 py-1.5 rounded text-xs text-zinc-300 hover:text-white hover:bg-zinc-800 transition"
+                    className="w-full flex items-center space-x-2 px-2.5 py-1.5 rounded-[2px] text-xs text-zinc-300 hover:text-white hover:bg-white/10 transition"
                   >
-                    <Plus className="w-3.5 h-3.5 text-rose-400" />
+                    <Plus className="w-3.5 h-3.5 text-white" />
                     <span>Crear Nueva Billetera</span>
                   </button>
 
@@ -303,22 +304,22 @@ export const Navbar: React.FC<NavbarProps> = ({
                       setDropdownOpen(false);
                       onOpenWalletModal("import");
                     }}
-                    className="w-full flex items-center space-x-2 px-2.5 py-1.5 rounded text-xs text-zinc-300 hover:text-white hover:bg-zinc-800 transition"
+                    className="w-full flex items-center space-x-2 px-2.5 py-1.5 rounded-[2px] text-xs text-zinc-300 hover:text-white hover:bg-white/10 transition"
                   >
-                    <Download className="w-3.5 h-3.5 text-cyan-400" />
+                    <Download className="w-3.5 h-3.5 text-white" />
                     <span>Importar Mnemónico Existente</span>
                   </button>
 
-                  <div className="border-t border-zinc-800 my-1" />
+                  <div className="border-t border-white/10 my-1" />
 
                   <button
                     onClick={() => {
                       setDropdownOpen(false);
                       onLockWallet();
                     }}
-                    className="w-full flex items-center space-x-2 px-2.5 py-1.5 rounded text-xs text-rose-400 hover:text-rose-300 hover:bg-rose-950/40 transition"
+                    className="w-full flex items-center space-x-2 px-2.5 py-1.5 rounded-[2px] text-xs text-zinc-400 hover:text-white hover:bg-white/10 transition"
                   >
-                    <Lock className="w-3.5 h-3.5 text-rose-400" />
+                    <Lock className="w-3.5 h-3.5 text-white" />
                     <span>Bloquear Bóveda</span>
                   </button>
                 </div>
@@ -329,9 +330,9 @@ export const Navbar: React.FC<NavbarProps> = ({
           <div className="flex items-center space-x-2">
             <button
               onClick={() => onOpenWalletModal("unlock")}
-              className="flex items-center space-x-1.5 px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700/60 rounded-lg text-xs text-zinc-300 transition"
+              className="flex items-center space-x-1.5 px-3 py-1.5 bg-white text-black font-bold hover:bg-zinc-200 border border-white rounded-[2px] text-xs transition shadow-[0_0_15px_rgba(255,255,255,0.15)]"
             >
-              <ShieldAlert className="w-4 h-4 text-amber-400" />
+              <ShieldAlert className="w-4 h-4 text-black" />
               <span>Desbloquear Billetera</span>
             </button>
           </div>

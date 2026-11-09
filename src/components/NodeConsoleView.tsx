@@ -42,7 +42,7 @@ export const NodeConsoleView: React.FC<NodeConsoleViewProps> = ({ logs, onClearL
   return (
     <div className="space-y-6">
       {/* Interactive JSON-RPC Runner */}
-      <div className="p-6 bg-zinc-900/40 border border-zinc-800 rounded-xl space-y-4">
+      <div className="p-6 bg-zinc-900/40 border border-zinc-800 rounded-[2px] space-y-4">
         <div className="flex items-center space-x-2 pb-2 border-b border-zinc-800">
           <TerminalIcon className="w-4 h-4 text-purple-400" />
           <h2 className="text-xs font-bold text-white uppercase tracking-wider">JSON-RPC Command Interface</h2>
@@ -58,7 +58,7 @@ export const NodeConsoleView: React.FC<NodeConsoleViewProps> = ({ logs, onClearL
               value={method}
               onChange={(e) => setMethod(e.target.value.trim())}
               placeholder="eth_blockNumber"
-              className="w-full bg-zinc-950 border border-zinc-800 focus:border-purple-500 rounded-lg px-3 py-1.5 text-xs font-mono text-white outline-none"
+              className="w-full bg-zinc-950 border border-zinc-800 focus:border-purple-500 rounded-[2px] px-3 py-1.5 text-xs font-mono text-white outline-none"
               required
             />
           </div>
@@ -72,7 +72,7 @@ export const NodeConsoleView: React.FC<NodeConsoleViewProps> = ({ logs, onClearL
               value={paramsRaw}
               onChange={(e) => setParamsRaw(e.target.value)}
               placeholder='["latest", false]'
-              className="w-full bg-zinc-950 border border-zinc-800 focus:border-purple-500 rounded-lg px-3 py-1.5 text-xs font-mono text-white outline-none"
+              className="w-full bg-zinc-950 border border-zinc-800 focus:border-purple-500 rounded-[2px] px-3 py-1.5 text-xs font-mono text-white outline-none"
             />
           </div>
 
@@ -80,7 +80,7 @@ export const NodeConsoleView: React.FC<NodeConsoleViewProps> = ({ logs, onClearL
             <button
               type="submit"
               disabled={loading}
-              className="w-full flex items-center justify-center space-x-2 py-1.5 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white rounded-lg text-xs font-semibold transition"
+              className="w-full flex items-center justify-center space-x-2 py-1.5 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white rounded-[2px] text-xs font-semibold transition"
             >
               <Send className="w-3.5 h-3.5" />
               <span>{loading ? "Calling..." : "Execute RPC"}</span>
@@ -89,14 +89,14 @@ export const NodeConsoleView: React.FC<NodeConsoleViewProps> = ({ logs, onClearL
         </form>
 
         {rpcResponse && (
-          <div className="mt-2 bg-zinc-950 p-3 rounded-lg border border-zinc-800 font-mono text-xs text-purple-300 max-h-48 overflow-y-auto whitespace-pre-wrap">
+          <div className="mt-2 bg-zinc-950 p-3 rounded-[2px] border border-zinc-800 font-mono text-xs text-purple-300 max-h-48 overflow-y-auto whitespace-pre-wrap">
             {rpcResponse}
           </div>
         )}
       </div>
 
       {/* Real-time Streaming Logs */}
-      <div className="bg-zinc-950 border border-zinc-800 rounded-xl overflow-hidden font-mono text-xs">
+      <div className="bg-zinc-950 border border-zinc-800 rounded-[2px] overflow-hidden font-mono text-xs">
         <div className="p-3 bg-zinc-900/60 border-b border-zinc-800 flex items-center justify-between">
           <span className="text-zinc-400 font-bold uppercase text-[11px] tracking-wider">
             Standard Output & Error Stream ({logs.length} lines)
@@ -107,7 +107,7 @@ export const NodeConsoleView: React.FC<NodeConsoleViewProps> = ({ logs, onClearL
               onClick={handleCopyLogs}
               className="flex items-center space-x-1 px-2.5 py-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded text-[11px] transition"
             >
-              {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+              {copied ? <Check className="w-3.5 h-3.5 text-white" /> : <Copy className="w-3.5 h-3.5" />}
               <span>{copied ? "Copied" : "Copy"}</span>
             </button>
             <button

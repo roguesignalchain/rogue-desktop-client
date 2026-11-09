@@ -133,7 +133,7 @@ export const WalletModal: React.FC<WalletModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4">
-      <div className="w-full max-w-lg bg-zinc-950 border border-zinc-800 rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+      <div className="w-full max-w-lg bg-zinc-950 border border-zinc-800 rounded-[2px] shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
         {/* Modal Header & Tabs */}
         <div className="p-4 border-b border-zinc-800 flex items-center justify-between">
           <div className="flex space-x-1.5 overflow-x-auto">
@@ -143,9 +143,9 @@ export const WalletModal: React.FC<WalletModalProps> = ({
                   setMode("unlock");
                   setError(null);
                 }}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+                className={`px-3 py-1.5 rounded-[2px] text-xs font-semibold transition ${
                   mode === "unlock"
-                    ? "bg-rose-500/10 text-rose-400 border border-rose-500/30"
+                    ? "bg-white text-black font-bold border-white"
                     : "text-zinc-400 hover:text-white"
                 }`}
               >
@@ -159,9 +159,9 @@ export const WalletModal: React.FC<WalletModalProps> = ({
                 setError(null);
                 if (!mnemonic) handleGenerateMnemonic(wordCount);
               }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+              className={`px-3 py-1.5 rounded-[2px] text-xs font-semibold transition ${
                 mode === "create"
-                  ? "bg-rose-500/10 text-rose-400 border border-rose-500/30"
+                  ? "bg-white text-black font-bold border-white"
                   : "text-zinc-400 hover:text-white"
               }`}
             >
@@ -173,9 +173,9 @@ export const WalletModal: React.FC<WalletModalProps> = ({
                 setMode("import");
                 setError(null);
               }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+              className={`px-3 py-1.5 rounded-[2px] text-xs font-semibold transition ${
                 mode === "import"
-                  ? "bg-rose-500/10 text-rose-400 border border-rose-500/30"
+                  ? "bg-white text-black font-bold border-white"
                   : "text-zinc-400 hover:text-white"
               }`}
             >
@@ -194,8 +194,8 @@ export const WalletModal: React.FC<WalletModalProps> = ({
         {/* Modal Content */}
         <div className="p-6">
           {error && (
-            <div className="mb-4 p-3 bg-rose-950/40 border border-rose-800/60 rounded-lg flex items-start space-x-2 text-xs text-rose-300">
-              <AlertCircle className="w-4 h-4 shrink-0 text-rose-400 mt-0.5" />
+            <div className="mb-4 p-3 bg-white/5 border border-white/20 rounded-[2px] flex items-start space-x-2 text-xs font-mono text-zinc-300">
+              <AlertCircle className="w-4 h-4 shrink-0 text-white mt-0.5" />
               <span>{error}</span>
             </div>
           )}
@@ -203,7 +203,7 @@ export const WalletModal: React.FC<WalletModalProps> = ({
           {mode === "unlock" && (
             <form onSubmit={handleUnlock} className="space-y-4">
               <div className="flex items-center space-x-3 mb-2">
-                <div className="w-10 h-10 rounded-full bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400">
+                <div className="w-10 h-10 rounded-full bg-black border border-white/20 flex items-center justify-center text-white">
                   <Lock className="w-5 h-5" />
                 </div>
                 <div>
@@ -222,7 +222,7 @@ export const WalletModal: React.FC<WalletModalProps> = ({
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••••••"
-                    className="w-full bg-zinc-900 border border-zinc-800 focus:border-rose-500 rounded-lg px-3.5 py-2 text-sm text-white outline-none transition pl-10 font-mono"
+                    className="w-full bg-zinc-900 border border-zinc-800 focus:border-white rounded-[2px] px-3.5 py-2 text-sm text-white outline-none transition pl-10 font-mono"
                     autoFocus
                     required
                   />
@@ -233,7 +233,7 @@ export const WalletModal: React.FC<WalletModalProps> = ({
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-2.5 bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white rounded-lg text-sm font-semibold shadow-md transition flex items-center justify-center space-x-2"
+                className="w-full py-2.5 bg-white hover:bg-zinc-200 disabled:opacity-40 text-black rounded-[2px] text-xs font-mono uppercase tracking-wider font-bold shadow-[0_0_15px_rgba(255,255,255,0.15)] transition flex items-center justify-center space-x-2"
               >
                 <Key className="w-4 h-4" />
                 <span>{loading ? "Desbloqueando Bóveda..." : "Desbloquear Billetera"}</span>
@@ -244,7 +244,7 @@ export const WalletModal: React.FC<WalletModalProps> = ({
           {mode === "create" && (
             <form onSubmit={handleCreateOrAdd} className="space-y-4">
               <div className="flex items-center space-x-3 mb-2">
-                <div className="w-10 h-10 rounded-full bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+                <div className="w-10 h-10 rounded-full bg-black border border-white/20 flex items-center justify-center text-white">
                   <Sparkles className="w-5 h-5" />
                 </div>
                 <div>
@@ -264,7 +264,7 @@ export const WalletModal: React.FC<WalletModalProps> = ({
                   value={walletName}
                   onChange={(e) => setWalletName(e.target.value)}
                   placeholder="Ej. Billetera Minería, Ahorros, etc."
-                  className="w-full bg-zinc-900 border border-zinc-800 focus:border-rose-500 rounded-lg px-3.5 py-2 text-sm text-white outline-none transition"
+                  className="w-full bg-zinc-900 border border-zinc-800 focus:border-white rounded-[2px] px-3.5 py-2 text-sm text-white outline-none transition"
                 />
               </div>
 
@@ -281,7 +281,7 @@ export const WalletModal: React.FC<WalletModalProps> = ({
                         handleGenerateMnemonic(12);
                       }}
                       className={`px-2 py-0.5 text-[10px] font-mono rounded ${
-                        wordCount === 12 ? "bg-rose-600 text-white" : "text-zinc-400 hover:text-white"
+                        wordCount === 12 ? "bg-white text-black font-bold" : "text-zinc-400 hover:text-white"
                       }`}
                     >
                       12 palabras
@@ -293,7 +293,7 @@ export const WalletModal: React.FC<WalletModalProps> = ({
                         handleGenerateMnemonic(24);
                       }}
                       className={`px-2 py-0.5 text-[10px] font-mono rounded ${
-                        wordCount === 24 ? "bg-rose-600 text-white" : "text-zinc-400 hover:text-white"
+                        wordCount === 24 ? "bg-white text-black font-bold" : "text-zinc-400 hover:text-white"
                       }`}
                     >
                       24 palabras
@@ -301,10 +301,10 @@ export const WalletModal: React.FC<WalletModalProps> = ({
                   </div>
                 </div>
 
-                <div className="p-3 bg-zinc-900 border border-zinc-800 rounded-lg space-y-2">
+                <div className="p-3 bg-zinc-900 border border-zinc-800 rounded-[2px] space-y-2">
                   <div className="grid grid-cols-3 sm:grid-cols-4 gap-1.5 font-mono text-xs">
                     {mnemonic.split(" ").map((w, idx) => (
-                      <div key={idx} className="bg-zinc-950 px-2 py-1 rounded border border-zinc-800/80 text-amber-300">
+                      <div key={idx} className="bg-zinc-950 px-2 py-1 rounded border border-zinc-800/80 text-white font-mono">
                         <span className="text-zinc-600 mr-1 select-none">{idx + 1}.</span>
                         <span>{w}</span>
                       </div>
@@ -322,7 +322,7 @@ export const WalletModal: React.FC<WalletModalProps> = ({
                     <button
                       type="button"
                       onClick={handleCopyMnemonic}
-                      className="flex items-center space-x-1 text-rose-400 hover:text-rose-300 transition"
+                      className="flex items-center space-x-1 text-white hover:text-zinc-300 transition"
                     >
                       {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
                       <span>{copied ? "Copiada" : "Copiar frase"}</span>
@@ -342,7 +342,7 @@ export const WalletModal: React.FC<WalletModalProps> = ({
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder="••••••••••••"
-                      className="w-full bg-zinc-900 border border-zinc-800 focus:border-rose-500 rounded-lg px-3.5 py-2 text-sm text-white outline-none transition font-mono"
+                      className="w-full bg-zinc-900 border border-zinc-800 focus:border-white rounded-[2px] px-3.5 py-2 text-sm text-white outline-none transition font-mono"
                       required
                     />
                   </div>
@@ -356,7 +356,7 @@ export const WalletModal: React.FC<WalletModalProps> = ({
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
                       placeholder="••••••••••••"
-                      className="w-full bg-zinc-900 border border-zinc-800 focus:border-rose-500 rounded-lg px-3.5 py-2 text-sm text-white outline-none transition font-mono"
+                      className="w-full bg-zinc-900 border border-zinc-800 focus:border-white rounded-[2px] px-3.5 py-2 text-sm text-white outline-none transition font-mono"
                       required
                     />
                   </div>
@@ -366,7 +366,7 @@ export const WalletModal: React.FC<WalletModalProps> = ({
               <button
                 type="submit"
                 disabled={loading || !mnemonic}
-                className="w-full py-2.5 bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white rounded-lg text-sm font-semibold shadow-md transition flex items-center justify-center space-x-2"
+                className="w-full py-2.5 bg-white hover:bg-zinc-200 disabled:opacity-40 text-black rounded-[2px] text-xs font-mono uppercase tracking-wider font-bold shadow-[0_0_15px_rgba(255,255,255,0.15)] transition flex items-center justify-center space-x-2"
               >
                 <ShieldPlus className="w-4 h-4" />
                 <span>{loading ? "Creando Billetera..." : isVaultUnlocked ? "Guardar Billetera en Bóveda" : "Crear Bóveda y Guardar"}</span>
@@ -377,7 +377,7 @@ export const WalletModal: React.FC<WalletModalProps> = ({
           {mode === "import" && (
             <form onSubmit={handleCreateOrAdd} className="space-y-4">
               <div className="flex items-center space-x-3 mb-2">
-                <div className="w-10 h-10 rounded-full bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400">
+                <div className="w-10 h-10 rounded-full bg-black border border-white/20 flex items-center justify-center text-white">
                   <Download className="w-5 h-5" />
                 </div>
                 <div>
@@ -395,7 +395,7 @@ export const WalletModal: React.FC<WalletModalProps> = ({
                   value={walletName}
                   onChange={(e) => setWalletName(e.target.value)}
                   placeholder="Ej. Billetera Importada 1"
-                  className="w-full bg-zinc-900 border border-zinc-800 focus:border-rose-500 rounded-lg px-3.5 py-2 text-sm text-white outline-none transition"
+                  className="w-full bg-zinc-900 border border-zinc-800 focus:border-white rounded-[2px] px-3.5 py-2 text-sm text-white outline-none transition"
                 />
               </div>
 
@@ -413,7 +413,7 @@ export const WalletModal: React.FC<WalletModalProps> = ({
                   onChange={(e) => setImportMnemonicInput(e.target.value)}
                   placeholder="pega tus 12 o 24 palabras aquí separadas por espacio..."
                   rows={3}
-                  className="w-full bg-zinc-900 border border-zinc-800 focus:border-rose-500 rounded-lg p-3 text-xs text-white font-mono outline-none transition resize-none leading-relaxed"
+                  className="w-full bg-zinc-900 border border-zinc-800 focus:border-white rounded-[2px] p-3 text-xs text-white font-mono outline-none transition resize-none leading-relaxed"
                   required
                 />
                 <p className="text-[11px] text-zinc-500 mt-1">
@@ -432,7 +432,7 @@ export const WalletModal: React.FC<WalletModalProps> = ({
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder="••••••••••••"
-                      className="w-full bg-zinc-900 border border-zinc-800 focus:border-rose-500 rounded-lg px-3.5 py-2 text-sm text-white outline-none transition font-mono"
+                      className="w-full bg-zinc-900 border border-zinc-800 focus:border-white rounded-[2px] px-3.5 py-2 text-sm text-white outline-none transition font-mono"
                       required
                     />
                   </div>
@@ -446,7 +446,7 @@ export const WalletModal: React.FC<WalletModalProps> = ({
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
                       placeholder="••••••••••••"
-                      className="w-full bg-zinc-900 border border-zinc-800 focus:border-rose-500 rounded-lg px-3.5 py-2 text-sm text-white outline-none transition font-mono"
+                      className="w-full bg-zinc-900 border border-zinc-800 focus:border-white rounded-[2px] px-3.5 py-2 text-sm text-white outline-none transition font-mono"
                       required
                     />
                   </div>
@@ -456,7 +456,7 @@ export const WalletModal: React.FC<WalletModalProps> = ({
               <button
                 type="submit"
                 disabled={loading || !importMnemonicInput.trim()}
-                className="w-full py-2.5 bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-white rounded-lg text-sm font-semibold shadow-md transition flex items-center justify-center space-x-2"
+                className="w-full py-2.5 bg-white hover:bg-zinc-200 disabled:opacity-40 text-black rounded-[2px] text-xs font-mono uppercase tracking-wider font-bold shadow-[0_0_15px_rgba(255,255,255,0.15)] transition flex items-center justify-center space-x-2"
               >
                 <Download className="w-4 h-4" />
                 <span>{loading ? "Importando..." : isVaultUnlocked ? "Importar a la Bóveda Actual" : "Crear Bóveda con Mnemónico"}</span>
