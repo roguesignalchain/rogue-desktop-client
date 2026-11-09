@@ -25,13 +25,14 @@ Built with **Tauri v2**, **Rust**, **React 19**, **TypeScript**, and **Tailwind 
   * **Internal Solo CPU Miner**: Toggle internal multithreaded RandomX sealing directly from the UI with real-time thread presets (**25% Low Impact**, **50% Balanced**, **75% High Power**) and manual slider control.
   * **Interactive System Resource Diagnostics**: Built-in hardware inspector (`get_system_specs`) detecting logical CPU cores, total RAM, and available RAM to recommend safe mining parameters.
   * **Memory Profiles**: Defaults strictly to **Light Mode** (~256 MB RAM cache, safe for all home computers) with optional **Fast Mode** (~2.08 GB dataset for high-RAM machines).
-  * **Automatic Etherbase Synchronization**: Automatically routes 7.6 ROGUE miner block rewards to the active wallet address.
-* **EIP-1559 Gas Estimation & Transaction Engine**:
-  * Dynamic priority fee calculations (**Slow**, **Normal**, **Fast**) adhering to Rogue Signal's 60M block gas limit and 10s target block time.
+  * **Automatic Etherbase Synchronization**: Automatically routes **22.8 ROGUE** miner block rewards (95% of 24 ROGUE + 100% of block transaction fees) to the active wallet address.
+* **Gas Estimation & Transaction Engine**:
+  * Dynamic fee calculations (**Slow**, **Normal**, **Fast**) adhering to Rogue Signal's 60M block gas limit, `1 Gwei` mempool floor, and 30s target block time.
   * Real-time balance and gas tracking in native ROGUE (18 decimals).
-* **Mini On-Chain Explorer**:
-  * Live monitoring of recent blocks, LWMA-1 difficulty adjustments, miner coinbase payouts, and transaction throughput.
-* **Security & Inactivity Auto-Lock**:
+* **Mini On-Chain Explorer & Consensus Telemetry**:
+  * Live monitoring of recent blocks, LWMA-1 difficulty adjustments, miner coinbase payouts, RandomX epoch status (`randomx_getEpochInfo`), and active Anti-51% finality (`MaxReorgDepth = 90` + `ECBP-1100 MESS`).
+* **Security, RPC Lockdown & Inactivity Auto-Lock**:
+  * Restricts local node HTTP/WS CORS exclusively to `tauri://localhost` and `127.0.0.1:1420` (with `personal` RPC disabled).
   * Configurable auto-lock timers (5, 15, or 30 minutes) clearing decrypted secrets from RAM upon user inactivity.
 
 ---

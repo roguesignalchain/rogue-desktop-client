@@ -248,7 +248,7 @@ export const MiningView: React.FC<MiningViewProps> = ({
                 [BLOCKCHAIN SINCRONIZADA — MOTOR CPU LISTO]
               </h2>
               <p className="text-[11px] text-zinc-400 mt-0.5 font-sans">
-                Nodo conectado con {peerCount} {peerCount === 1 ? "par" : "pares"}. Recompensa de bloque: 7.6 ROGUE al minero.
+                Nodo conectado con {peerCount} {peerCount === 1 ? "par" : "pares"}. Recompensa de bloque: 22.8 ROGUE al minero (24 ROGUE total • 30s target • Protección MESS + Reorg≤90 activa).
               </p>
             </div>
           </div>

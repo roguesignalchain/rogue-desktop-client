@@ -155,7 +155,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   [NODO SINCRONIZADO]
                 </span>
                 <p className="text-[11px] text-zinc-400 truncate">
-                  {peerCount} {peerCount === 1 ? "par activo" : "pares activos"} • 10s target
+                  {peerCount} {peerCount === 1 ? "par activo" : "pares activos"} • 30s target • MESS + Finality 90
                 </p>
               </div>
             </div>

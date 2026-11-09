@@ -164,6 +164,14 @@ export const api = {
     }
   },
 
+  getConsensusStatus: async (rpcUrl: string): Promise<Record<string, unknown> | null> => {
+    try {
+      return await api.callRpc<Record<string, unknown>>(rpcUrl, "randomx_getConsensusStatus");
+    } catch {
+      return null;
+    }
+  },
+
   startMining: async (rpcUrl: string, threads: number, coinbase?: string, fastMode: boolean = false): Promise<void> => {
     try {
       await api.callRpc(rpcUrl, "randomx_setFastMode", [fastMode]);

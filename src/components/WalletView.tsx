@@ -1014,9 +1014,9 @@ export const WalletView: React.FC<WalletViewProps> = ({
             <div className="grid grid-cols-3 gap-3">
               {(
                 [
-                  { id: "slow", label: "Lento", fee: "1 Gwei", time: "~20s" },
-                  { id: "normal", label: "Normal", fee: "2 Gwei", time: "~10s" },
-                  { id: "fast", label: "Rápido", fee: "5 Gwei", time: "<10s" },
+                  { id: "slow", label: "Lento", fee: "1 Gwei", time: "~60s" },
+                  { id: "normal", label: "Normal", fee: "2 Gwei", time: "~30s" },
+                  { id: "fast", label: "Rápido", fee: "5 Gwei", time: "<30s" },
                 ] as const
               ).map((tier) => (
                 <div

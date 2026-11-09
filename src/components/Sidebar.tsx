@@ -54,11 +54,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onSelectTab }) => 
         </div>
         <div className="flex justify-between">
           <span>Block Target:</span>
-          <span className="text-white">10s</span>
+          <span className="text-white">30s</span>
         </div>
         <div className="flex justify-between">
           <span>Reward:</span>
-          <span className="text-white">8 ROGUE (95/5)</span>
+          <span className="text-white">24 ROGUE (95/5)</span>
+        </div>
+        <div className="flex justify-between">
+          <span>Security:</span>
+          <span className="text-white">MESS + Reorg≤90</span>
         </div>
       </div>
     </aside>
