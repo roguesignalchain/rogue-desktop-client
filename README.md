@@ -25,7 +25,7 @@ Built with **Tauri v2**, **Rust**, **React 19**, **TypeScript**, and **Tailwind 
   * **Internal Solo CPU Miner**: Toggle internal multithreaded RandomX sealing directly from the UI with real-time thread presets (**25% Low Impact**, **50% Balanced**, **75% High Power**) and manual slider control.
   * **Interactive System Resource Diagnostics**: Built-in hardware inspector (`get_system_specs`) detecting logical CPU cores, total RAM, and available RAM to recommend safe mining parameters.
   * **Memory Profiles**: Defaults strictly to **Light Mode** (~256 MB RAM cache, safe for all home computers) with optional **Fast Mode** (~2.08 GB dataset for high-RAM machines).
-  * **Automatic Etherbase Synchronization**: Automatically routes **22.8 ROGUE** miner block rewards (95% of 24 ROGUE + 100% of block transaction fees) to the active wallet address.
+  * **Automatic Etherbase Synchronization**: Automatically routes **23.75 ROGUE** miner block rewards (95% of 25 ROGUE + 100% of block transaction fees) to the active wallet address.
 * **Gas Estimation & Transaction Engine**:
   * Dynamic fee calculations (**Slow**, **Normal**, **Fast**) adhering to Rogue Signal's 60M block gas limit, `1 Gwei` mempool floor, and 30s target block time.
   * Real-time balance and gas tracking in native ROGUE (18 decimals).
