@@ -253,14 +253,16 @@ export const api = {
         const progressPercentage =
           total > 0 ? Math.min(100, Math.max(0, Math.round((progressed / total) * 100))) : 0;
 
-        return {
-          isSyncing: true,
-          startingBlock,
-          currentBlock,
-          highestBlock,
-          progressPercentage,
-          stage: "syncing",
-        };
+        if (highestBlock > 0 && highestBlock > currentBlock) {
+          return {
+            isSyncing: true,
+            startingBlock,
+            currentBlock,
+            highestBlock,
+            progressPercentage,
+            stage: "syncing",
+          };
+        }
       }
 
       // If eth_syncing is false, inspect peer total difficulty to verify if peers are ahead
