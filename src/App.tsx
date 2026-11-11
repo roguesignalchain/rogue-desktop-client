@@ -246,6 +246,18 @@ export const App: React.FC = () => {
     } catch {
       // Node might not be ready yet
     }
+    try {
+      const [bal, stats] = await Promise.all([
+        api.getBalance(rpcUrl, addr).catch(() => "0.0000"),
+        api.getMinerStats(rpcUrl, addr).catch(() => null),
+      ]);
+      setBalance(bal);
+      if (stats) {
+        setMinerStats(stats);
+      }
+    } catch {
+      // Handled in periodic poll
+    }
   };
 
   // Inactivity auto-lock listener
@@ -503,6 +515,7 @@ export const App: React.FC = () => {
         onSelectWallet={handleSwitchWalletRequest}
         onSelectAddress={handleSelectAddress}
         onRemoveWallet={handleRemoveWallet}
+        onRefreshMetrics={refreshMetrics}
       />
 
       <div className="flex flex-1 overflow-hidden">

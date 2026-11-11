@@ -29,6 +29,7 @@ interface NavbarProps {
   onSelectWallet: (walletId: string) => void;
   onSelectAddress: (address: string) => void;
   onRemoveWallet: (walletId: string) => void;
+  onRefreshMetrics?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -43,12 +44,21 @@ export const Navbar: React.FC<NavbarProps> = ({
   onSelectWallet,
   onSelectAddress,
   onRemoveWallet,
+  onRefreshMetrics,
 }) => {
   const { t } = useTranslation();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [expandedWalletId, setExpandedWalletId] = useState<string | null>(null);
   const [walletToDelete, setWalletToDelete] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const handleToggleDropdown = () => {
+    const next = !dropdownOpen;
+    setDropdownOpen(next);
+    if (next && onRefreshMetrics) {
+      onRefreshMetrics();
+    }
+  };
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -97,7 +107,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         {unlockedAddress ? (
           <div className="relative" ref={dropdownRef}>
             <button
-              onClick={() => setDropdownOpen(!dropdownOpen)}
+              onClick={handleToggleDropdown}
               className="flex items-center space-x-2.5 px-3 py-1.5 bg-[#0A0A0C] hover:bg-zinc-900 border border-white/15 hover:border-white/40 rounded-[2px] text-xs transition group"
             >
               {/* Dynamic Offline Voxel Bot Avatar & Current Level Medal */}
