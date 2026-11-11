@@ -131,7 +131,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     setWsPort(38850);
     setP2pPort(38890);
     setBootnodes(
-      "enode://3bfcd978ea35fc817c5573b03e7b76cb7367720d4ff7a1fdb7ddcb83ec2ad6cba997029305678d49e1dbfccc83a20ecea0d4920a483a8e4d86ebe212b06bcefc@127.0.0.1:38888"
+      "enode://5d505bf99dd8281ad884688ca9f0079622a1df4229ba30e59b0aeb0fd64977d2629cfd906d6600b1ef3ff4eb50881fd6d5c449cca34d511b5c34803e344e2285@127.0.0.1:38888"
     );
     setCache(256);
     setSyncmode("full");

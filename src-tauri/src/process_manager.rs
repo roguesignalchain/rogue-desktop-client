@@ -31,7 +31,7 @@ impl Default for NodeConfig {
             http_port: 38849,
             ws_port: 0,
             p2p_port: 38890,
-            bootnodes: Some("enode://3bfcd978ea35fc817c5573b03e7b76cb7367720d4ff7a1fdb7ddcb83ec2ad6cba997029305678d49e1dbfccc83a20ecea0d4920a483a8e4d86ebe212b06bcefc@127.0.0.1:38888".to_string()),
+            bootnodes: Some("enode://5d505bf99dd8281ad884688ca9f0079622a1df4229ba30e59b0aeb0fd64977d2629cfd906d6600b1ef3ff4eb50881fd6d5c449cca34d511b5c34803e344e2285@127.0.0.1:38888".to_string()),
             mine: false,
             miner_threads: 2,
             fast_mode: false,

@@ -18,7 +18,7 @@ const DEFAULT_WS_PORT = 0; // Disabled by default to avoid port collision with l
 const DEFAULT_P2P_PORT = 38890;
 const DEFAULT_DATADIR = "./nodes-local/node-desktop";
 const DEFAULT_BOOTNODES =
-  "enode://3bfcd978ea35fc817c5573b03e7b76cb7367720d4ff7a1fdb7ddcb83ec2ad6cba997029305678d49e1dbfccc83a20ecea0d4920a483a8e4d86ebe212b06bcefc@127.0.0.1:38888";
+  "enode://5d505bf99dd8281ad884688ca9f0079622a1df4229ba30e59b0aeb0fd64977d2629cfd906d6600b1ef3ff4eb50881fd6d5c449cca34d511b5c34803e344e2285@127.0.0.1:38888";
 
 export const App: React.FC = () => {
   const { t } = useTranslation();
