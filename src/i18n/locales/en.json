@@ -54,6 +54,7 @@
     "rank": "Rank",
     "level": "Level {{level}}",
     "xp": "XP Progress",
+    "rankRoadmap": "On-Chain Medal Progression",
     "blocksMined": "Blocks Mined",
     "nextLevelAt": "Next level at {{blocks}} blocks",
     "maxRankReached": "Max Rank Reached",

@@ -54,6 +54,7 @@
     "rank": "头衔等级",
     "level": "等级 {{level}}",
     "xp": "经验进度",
+    "rankRoadmap": "链上勋章晋级路线",
     "blocksMined": "已挖区块",
     "nextLevelAt": "升级需达到 {{blocks}} 个区块",
     "maxRankReached": "已达最高等级",

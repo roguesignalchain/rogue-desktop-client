@@ -54,6 +54,7 @@
     "rank": "Rango",
     "level": "Nivel {{level}}",
     "xp": "Progreso de XP",
+    "rankRoadmap": "Progresión de Medallas On-Chain",
     "blocksMined": "Bloques Minados",
     "nextLevelAt": "Siguiente nivel a los {{blocks}} bloques",
     "maxRankReached": "Rango Máximo Alcanzado",

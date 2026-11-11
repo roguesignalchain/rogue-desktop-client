@@ -100,12 +100,19 @@ export const Navbar: React.FC<NavbarProps> = ({
               onClick={() => setDropdownOpen(!dropdownOpen)}
               className="flex items-center space-x-2.5 px-3 py-1.5 bg-[#0A0A0C] hover:bg-zinc-900 border border-white/15 hover:border-white/40 rounded-[2px] text-xs transition group"
             >
-              {/* Dynamic Offline Voxel Bot Avatar */}
-              <div className="relative">
-                <VoxelAvatar seed={unlockedAddress} size={28} className="border border-white/20" />
-                <span className="absolute -bottom-1 -right-1 px-1 py-0.2 bg-white text-black font-extrabold text-[8px] rounded-[1px] font-mono leading-tight shadow">
-                  L{level}
-                </span>
+              {/* Dynamic Offline Voxel Bot Avatar & Current Level Medal */}
+              <div className="relative flex items-center space-x-1.5">
+                <div className="relative">
+                  <VoxelAvatar seed={unlockedAddress} size={28} className="border border-white/20" />
+                  <span className="absolute -bottom-1 -right-1 px-1 py-0.2 bg-white text-black font-extrabold text-[8px] rounded-[1px] font-mono leading-tight shadow">
+                    L{level}
+                  </span>
+                </div>
+                <img
+                  src={`/badges/lvl${Math.min(6, Math.max(0, level))}.png`}
+                  alt={`Level ${level}`}
+                  className="w-5 h-5 object-contain shrink-0 drop-shadow"
+                />
               </div>
 
               {/* User Identity & Gamified Rank */}
@@ -153,11 +160,25 @@ export const Navbar: React.FC<NavbarProps> = ({
                   </div>
 
                   <div className="flex items-center space-x-3">
-                    <VoxelAvatar seed={unlockedAddress} size={44} className="border border-white/30" />
+                    <div className="relative shrink-0">
+                      <VoxelAvatar seed={unlockedAddress} size={44} className="border border-white/30" />
+                      <img
+                        src={`/badges/lvl${Math.min(6, Math.max(0, level))}.png`}
+                        alt={`Level ${level}`}
+                        className="w-5 h-5 object-contain absolute -bottom-1 -right-1 drop-shadow"
+                      />
+                    </div>
                     <div className="min-w-0 flex-1">
-                      <h4 className="text-sm font-bold text-white truncate font-display tracking-wide">
-                        {rankTitle}
-                      </h4>
+                      <div className="flex items-center space-x-1.5">
+                        <h4 className="text-sm font-bold text-white truncate font-display tracking-wide">
+                          {rankTitle}
+                        </h4>
+                        <img
+                          src={`/badges/lvl${Math.min(6, Math.max(0, level))}.png`}
+                          alt=""
+                          className="w-4 h-4 object-contain shrink-0"
+                        />
+                      </div>
                       <p className="text-[11px] font-mono text-zinc-400 truncate">
                         {unlockedAddress}
                       </p>
@@ -186,6 +207,46 @@ export const Navbar: React.FC<NavbarProps> = ({
                       {level >= 6
                         ? t("gamification.maxRankReached")
                         : t("gamification.nextLevelAt", { blocks: minerStats?.nextLevelXP ?? 1 })}
+                    </div>
+                  </div>
+
+                  {/* All Levels Progression Roadmap (with grayed out locked tiers) */}
+                  <div className="pt-2 border-t border-white/10 space-y-1.5">
+                    <div className="flex items-center justify-between text-[9px] font-mono text-zinc-400 uppercase tracking-wider">
+                      <span>{t("gamification.rankRoadmap")}</span>
+                      <span className="text-zinc-500">Tier {level} / 6</span>
+                    </div>
+                    <div className="grid grid-cols-7 gap-1">
+                      {[0, 1, 2, 3, 4, 5, 6].map((tier) => {
+                        const isUnlocked = level >= tier;
+                        const isCurrent = level === tier;
+                        const thresholds = ["0", "1", "25", "100", "500", "2.5K", "10K+"];
+                        return (
+                          <div
+                            key={tier}
+                            className={`flex flex-col items-center p-1 rounded-[2px] transition ${
+                              isCurrent
+                                ? "bg-white/15 border border-white/40 shadow-[0_0_8px_rgba(255,255,255,0.2)]"
+                                : isUnlocked
+                                ? "bg-black border border-white/10"
+                                : "bg-black/60 border border-white/5 opacity-35 grayscale"
+                            }`}
+                            title={`Nivel ${tier}: ${thresholds[tier]} bloques`}
+                          >
+                            <img
+                              src={`/badges/lvl${tier}.png`}
+                              alt={`Tier ${tier}`}
+                              className="w-5 h-5 object-contain"
+                            />
+                            <span className="text-[8px] font-mono text-zinc-200 font-bold mt-0.5">
+                              L{tier}
+                            </span>
+                            <span className="text-[7px] font-mono text-zinc-500">
+                              {thresholds[tier]}
+                            </span>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 </div>
