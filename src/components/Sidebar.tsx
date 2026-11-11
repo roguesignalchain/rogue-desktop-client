@@ -103,7 +103,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <div className="p-2.5 bg-[#0A0A0C] rounded-[2px] border border-white/15 text-[10px] text-zinc-300 space-y-1.5 font-mono shadow-[0_0_10px_rgba(255,255,255,0.02)]">
           <div className="flex items-center justify-between">
             <span className="text-zinc-500 uppercase tracking-widest text-[9px] font-bold">
-              [SYNC & NETWORK]
+              {t("sidebar.syncAndNetwork")}
             </span>
             <div className="flex items-center space-x-1">
               <Activity className="w-3 h-3 text-white" />
@@ -134,7 +134,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   className="w-full text-[9px] py-0.5 bg-zinc-900 hover:bg-white/10 text-zinc-300 hover:text-white rounded-[1px] border border-white/15 transition flex items-center justify-center space-x-1"
                 >
                   <RefreshCw className="w-2.5 h-2.5" />
-                  <span>Retry Bootnodes</span>
+                  <span>{t("sidebar.retryBootnodes")}</span>
                 </button>
               )}
             </div>

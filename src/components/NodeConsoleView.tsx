@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Terminal as TerminalIcon, Send, Trash2, Copy, Check } from "lucide-react";
 import { api } from "../services/api";
 
@@ -9,6 +10,7 @@ interface NodeConsoleViewProps {
 }
 
 export const NodeConsoleView: React.FC<NodeConsoleViewProps> = ({ logs, onClearLogs, rpcUrl }) => {
+  const { t } = useTranslation();
   const [method, setMethod] = useState("web3_clientVersion");
   const [paramsRaw, setParamsRaw] = useState("[]");
   const [rpcResponse, setRpcResponse] = useState<string | null>(null);
@@ -45,13 +47,15 @@ export const NodeConsoleView: React.FC<NodeConsoleViewProps> = ({ logs, onClearL
       <div className="p-6 bg-zinc-900/40 border border-zinc-800 rounded-[2px] space-y-4">
         <div className="flex items-center space-x-2 pb-2 border-b border-zinc-800">
           <TerminalIcon className="w-4 h-4 text-purple-400" />
-          <h2 className="text-xs font-bold text-white uppercase tracking-wider">JSON-RPC Command Interface</h2>
+          <h2 className="text-xs font-bold text-white uppercase tracking-wider">
+            {t("console.title")}
+          </h2>
         </div>
 
         <form onSubmit={handleExecuteRpc} className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <div>
             <label className="block text-[11px] font-semibold text-zinc-400 uppercase tracking-wider mb-1 font-mono">
-              Method
+              {t("console.method")}
             </label>
             <input
               type="text"
@@ -65,7 +69,7 @@ export const NodeConsoleView: React.FC<NodeConsoleViewProps> = ({ logs, onClearL
 
           <div>
             <label className="block text-[11px] font-semibold text-zinc-400 uppercase tracking-wider mb-1 font-mono">
-              Params (JSON array)
+              {t("console.params")}
             </label>
             <input
               type="text"
@@ -83,7 +87,7 @@ export const NodeConsoleView: React.FC<NodeConsoleViewProps> = ({ logs, onClearL
               className="w-full flex items-center justify-center space-x-2 py-1.5 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white rounded-[2px] text-xs font-semibold transition"
             >
               <Send className="w-3.5 h-3.5" />
-              <span>{loading ? "Calling..." : "Execute RPC"}</span>
+              <span>{loading ? t("console.calling") : t("console.execute")}</span>
             </button>
           </div>
         </form>
@@ -99,7 +103,7 @@ export const NodeConsoleView: React.FC<NodeConsoleViewProps> = ({ logs, onClearL
       <div className="bg-zinc-950 border border-zinc-800 rounded-[2px] overflow-hidden font-mono text-xs">
         <div className="p-3 bg-zinc-900/60 border-b border-zinc-800 flex items-center justify-between">
           <span className="text-zinc-400 font-bold uppercase text-[11px] tracking-wider">
-            Standard Output & Error Stream ({logs.length} lines)
+            {t("console.streamTitle", { count: logs.length })}
           </span>
 
           <div className="flex items-center space-x-2">
@@ -108,14 +112,14 @@ export const NodeConsoleView: React.FC<NodeConsoleViewProps> = ({ logs, onClearL
               className="flex items-center space-x-1 px-2.5 py-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded text-[11px] transition"
             >
               {copied ? <Check className="w-3.5 h-3.5 text-white" /> : <Copy className="w-3.5 h-3.5" />}
-              <span>{copied ? "Copied" : "Copy"}</span>
+              <span>{copied ? t("common.copied") : t("common.copy")}</span>
             </button>
             <button
               onClick={onClearLogs}
               className="flex items-center space-x-1 px-2.5 py-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded text-[11px] transition"
             >
               <Trash2 className="w-3.5 h-3.5" />
-              <span>Clear</span>
+              <span>{t("common.clear")}</span>
             </button>
           </div>
         </div>
@@ -129,7 +133,7 @@ export const NodeConsoleView: React.FC<NodeConsoleViewProps> = ({ logs, onClearL
             ))
           ) : (
             <div className="text-zinc-600 text-center py-16">
-              Awaiting node engine startup logs...
+              {t("console.awaitingLogs")}
             </div>
           )}
         </div>
@@ -137,4 +141,3 @@ export const NodeConsoleView: React.FC<NodeConsoleViewProps> = ({ logs, onClearL
     </div>
   );
 };
-

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { X, Key, ShieldPlus, Lock, Copy, Check, AlertCircle, Download, Sparkles } from "lucide-react";
 import { api } from "../services/api";
 import { WalletSummary } from "../types";
@@ -18,6 +19,7 @@ export const WalletModal: React.FC<WalletModalProps> = ({
   initialMode = "unlock",
   isVaultUnlocked = false,
 }) => {
+  const { t } = useTranslation();
   const [mode, setMode] = useState<"unlock" | "create" | "import">(initialMode);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -48,7 +50,7 @@ export const WalletModal: React.FC<WalletModalProps> = ({
       const phrase = await api.generateMnemonic(words);
       setMnemonic(phrase);
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Error al generar mnemónico.");
+      setError(e instanceof Error ? e.message : t("walletModal.errors.generateMnemonic"));
     } finally {
       setLoading(false);
     }
@@ -67,7 +69,7 @@ export const WalletModal: React.FC<WalletModalProps> = ({
       setLoading(true);
       const wallets = await api.unlockWallet(password);
       if (wallets.length === 0) {
-        throw new Error("No se encontraron billeteras en la bóveda.");
+        throw new Error(t("walletModal.errors.noWalletsFound"));
       }
       onWalletUnlocked(wallets[0], wallets);
       setPassword("");
@@ -87,17 +89,17 @@ export const WalletModal: React.FC<WalletModalProps> = ({
     const words = phrase ? phrase.split(/\s+/) : [];
 
     if (words.length !== 12 && words.length !== 24) {
-      setError("La frase mnemónica debe contener exactamente 12 o 24 palabras.");
+      setError(t("walletModal.errors.wordsLength"));
       return;
     }
 
     if (!isVaultUnlocked) {
       if (password.length < 8) {
-        setError("La contraseña maestra debe tener al menos 8 caracteres.");
+        setError(t("walletModal.errors.passwordMinLength"));
         return;
       }
       if (password !== confirmPassword) {
-        setError("Las contraseñas no coinciden.");
+        setError(t("walletModal.errors.passwordMismatch"));
         return;
       }
     }
@@ -149,7 +151,7 @@ export const WalletModal: React.FC<WalletModalProps> = ({
                     : "text-zinc-400 hover:text-white"
                 }`}
               >
-                Desbloquear Bóveda
+                {t("walletModal.unlockVault")}
               </button>
             )}
 
@@ -165,7 +167,7 @@ export const WalletModal: React.FC<WalletModalProps> = ({
                   : "text-zinc-400 hover:text-white"
               }`}
             >
-              {isVaultUnlocked ? "+ Nueva Billetera" : "Crear Bóveda"}
+              {isVaultUnlocked ? t("walletModal.newWallet") : t("walletModal.createVault")}
             </button>
 
             <button
@@ -179,7 +181,7 @@ export const WalletModal: React.FC<WalletModalProps> = ({
                   : "text-zinc-400 hover:text-white"
               }`}
             >
-              Importar Mnemónico
+              {t("walletModal.importMnemonic")}
             </button>
           </div>
 
@@ -207,14 +209,14 @@ export const WalletModal: React.FC<WalletModalProps> = ({
                   <Lock className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-white">Desbloquear Bóveda de Billeteras</h3>
-                  <p className="text-xs text-zinc-400">Ingresa tu contraseña maestra para acceder a todas tus cuentas</p>
+                  <h3 className="text-sm font-bold text-white">{t("walletModal.unlockTitle")}</h3>
+                  <p className="text-xs text-zinc-400">{t("walletModal.unlockSubtitle")}</p>
                 </div>
               </div>
 
               <div>
                 <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1">
-                  Contraseña Maestra
+                  {t("walletModal.masterPassword")}
                 </label>
                 <div className="relative">
                   <input
@@ -236,7 +238,7 @@ export const WalletModal: React.FC<WalletModalProps> = ({
                 className="w-full py-2.5 bg-white hover:bg-zinc-200 disabled:opacity-40 text-black rounded-[2px] text-xs font-mono uppercase tracking-wider font-bold shadow-[0_0_15px_rgba(255,255,255,0.15)] transition flex items-center justify-center space-x-2"
               >
                 <Key className="w-4 h-4" />
-                <span>{loading ? "Desbloqueando Bóveda..." : "Desbloquear Billetera"}</span>
+                <span>{loading ? t("walletModal.unlocking") : t("walletModal.unlockBtn")}</span>
               </button>
             </form>
           )}
@@ -249,21 +251,21 @@ export const WalletModal: React.FC<WalletModalProps> = ({
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-white">
-                    {isVaultUnlocked ? "Crear Nueva Billetera" : "Crear Bóveda y Generar Semilla"}
+                    {isVaultUnlocked ? t("walletModal.createTitleNew") : t("walletModal.createTitleInit")}
                   </h3>
-                  <p className="text-xs text-zinc-400">Genera una frase mnemónica BIP-39 determinista criptográficamente segura</p>
+                  <p className="text-xs text-zinc-400">{t("walletModal.createSubtitle")}</p>
                 </div>
               </div>
 
               <div>
                 <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1">
-                  Nombre o Alias de la Billetera (Opcional)
+                  {t("walletModal.walletNameLabel")}
                 </label>
                 <input
                   type="text"
                   value={walletName}
                   onChange={(e) => setWalletName(e.target.value)}
-                  placeholder="Ej. Billetera Minería, Ahorros, etc."
+                  placeholder={t("walletModal.walletNamePlaceholder")}
                   className="w-full bg-zinc-900 border border-zinc-800 focus:border-white rounded-[2px] px-3.5 py-2 text-sm text-white outline-none transition"
                 />
               </div>
@@ -271,7 +273,7 @@ export const WalletModal: React.FC<WalletModalProps> = ({
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
-                    Longitud de Frase Semilla
+                    {t("walletModal.seedLength")}
                   </label>
                   <div className="flex space-x-1 bg-zinc-900 p-0.5 rounded border border-zinc-800">
                     <button
@@ -284,7 +286,7 @@ export const WalletModal: React.FC<WalletModalProps> = ({
                         wordCount === 12 ? "bg-white text-black font-bold" : "text-zinc-400 hover:text-white"
                       }`}
                     >
-                      12 palabras
+                      {t("walletModal.words12")}
                     </button>
                     <button
                       type="button"
@@ -296,7 +298,7 @@ export const WalletModal: React.FC<WalletModalProps> = ({
                         wordCount === 24 ? "bg-white text-black font-bold" : "text-zinc-400 hover:text-white"
                       }`}
                     >
-                      24 palabras
+                      {t("walletModal.words24")}
                     </button>
                   </div>
                 </div>
@@ -317,7 +319,7 @@ export const WalletModal: React.FC<WalletModalProps> = ({
                       onClick={() => handleGenerateMnemonic(wordCount)}
                       className="text-zinc-400 hover:text-white transition"
                     >
-                      Regenerar frase
+                      {t("walletModal.regeneratePhrase")}
                     </button>
                     <button
                       type="button"
@@ -325,7 +327,7 @@ export const WalletModal: React.FC<WalletModalProps> = ({
                       className="flex items-center space-x-1 text-white hover:text-zinc-300 transition"
                     >
                       {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                      <span>{copied ? "Copiada" : "Copiar frase"}</span>
+                      <span>{copied ? t("common.copied") : t("walletModal.copyPhrase")}</span>
                     </button>
                   </div>
                 </div>
@@ -335,7 +337,7 @@ export const WalletModal: React.FC<WalletModalProps> = ({
                 <>
                   <div>
                     <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1">
-                      Contraseña Maestra (mínimo 8 caracteres)
+                      {t("walletModal.passwordMin8")}
                     </label>
                     <input
                       type="password"
@@ -349,7 +351,7 @@ export const WalletModal: React.FC<WalletModalProps> = ({
 
                   <div>
                     <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1">
-                      Confirmar Contraseña
+                      {t("walletModal.confirmPassword")}
                     </label>
                     <input
                       type="password"
@@ -369,7 +371,13 @@ export const WalletModal: React.FC<WalletModalProps> = ({
                 className="w-full py-2.5 bg-white hover:bg-zinc-200 disabled:opacity-40 text-black rounded-[2px] text-xs font-mono uppercase tracking-wider font-bold shadow-[0_0_15px_rgba(255,255,255,0.15)] transition flex items-center justify-center space-x-2"
               >
                 <ShieldPlus className="w-4 h-4" />
-                <span>{loading ? "Creando Billetera..." : isVaultUnlocked ? "Guardar Billetera en Bóveda" : "Crear Bóveda y Guardar"}</span>
+                <span>
+                  {loading
+                    ? t("walletModal.creating")
+                    : isVaultUnlocked
+                    ? t("walletModal.saveToVault")
+                    : t("walletModal.createAndSave")}
+                </span>
               </button>
             </form>
           )}
@@ -381,20 +389,20 @@ export const WalletModal: React.FC<WalletModalProps> = ({
                   <Download className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-white">Importar Mnemónico Existente</h3>
-                  <p className="text-xs text-zinc-400">Restaura una billetera existente ingresando su semilla de 12 o 24 palabras</p>
+                  <h3 className="text-sm font-bold text-white">{t("walletModal.importTitle")}</h3>
+                  <p className="text-xs text-zinc-400">{t("walletModal.importSubtitle")}</p>
                 </div>
               </div>
 
               <div>
                 <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1">
-                  Nombre o Alias de la Billetera (Opcional)
+                  {t("walletModal.walletNameLabel")}
                 </label>
                 <input
                   type="text"
                   value={walletName}
                   onChange={(e) => setWalletName(e.target.value)}
-                  placeholder="Ej. Billetera Importada 1"
+                  placeholder={t("walletModal.importNamePlaceholder")}
                   className="w-full bg-zinc-900 border border-zinc-800 focus:border-white rounded-[2px] px-3.5 py-2 text-sm text-white outline-none transition"
                 />
               </div>
@@ -402,22 +410,24 @@ export const WalletModal: React.FC<WalletModalProps> = ({
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
-                    Frase Mnemónica (12 o 24 palabras separadas por espacio)
+                    {t("walletModal.mnemonicLabel")}
                   </label>
                   <span className="text-[11px] font-mono text-zinc-500">
-                    {importMnemonicInput.trim() ? importMnemonicInput.trim().split(/\s+/).length : 0} palabras
+                    {t("walletModal.wordsCount", {
+                      count: importMnemonicInput.trim() ? importMnemonicInput.trim().split(/\s+/).length : 0,
+                    })}
                   </span>
                 </div>
                 <textarea
                   value={importMnemonicInput}
                   onChange={(e) => setImportMnemonicInput(e.target.value)}
-                  placeholder="pega tus 12 o 24 palabras aquí separadas por espacio..."
+                  placeholder={t("walletModal.mnemonicPlaceholder")}
                   rows={3}
                   className="w-full bg-zinc-900 border border-zinc-800 focus:border-white rounded-[2px] p-3 text-xs text-white font-mono outline-none transition resize-none leading-relaxed"
                   required
                 />
                 <p className="text-[11px] text-zinc-500 mt-1">
-                  Se normalizan automáticamente espacios múltiples, mayúsculas y saltos de línea.
+                  {t("walletModal.mnemonicHint")}
                 </p>
               </div>
 
@@ -425,7 +435,7 @@ export const WalletModal: React.FC<WalletModalProps> = ({
                 <>
                   <div>
                     <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1">
-                      Contraseña Maestra (mínimo 8 caracteres)
+                      {t("walletModal.passwordMin8")}
                     </label>
                     <input
                       type="password"
@@ -439,7 +449,7 @@ export const WalletModal: React.FC<WalletModalProps> = ({
 
                   <div>
                     <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1">
-                      Confirmar Contraseña
+                      {t("walletModal.confirmPassword")}
                     </label>
                     <input
                       type="password"
@@ -459,7 +469,13 @@ export const WalletModal: React.FC<WalletModalProps> = ({
                 className="w-full py-2.5 bg-white hover:bg-zinc-200 disabled:opacity-40 text-black rounded-[2px] text-xs font-mono uppercase tracking-wider font-bold shadow-[0_0_15px_rgba(255,255,255,0.15)] transition flex items-center justify-center space-x-2"
               >
                 <Download className="w-4 h-4" />
-                <span>{loading ? "Importando..." : isVaultUnlocked ? "Importar a la Bóveda Actual" : "Crear Bóveda con Mnemónico"}</span>
+                <span>
+                  {loading
+                    ? t("walletModal.importing")
+                    : isVaultUnlocked
+                    ? t("walletModal.importToVault")
+                    : t("walletModal.createWithMnemonic")}
+                </span>
               </button>
             </form>
           )}

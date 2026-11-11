@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Send,
   Copy,
@@ -47,6 +48,8 @@ export const WalletView: React.FC<WalletViewProps> = ({
   onSelectAddress,
   onWalletRenamed,
 }) => {
+  const { t } = useTranslation();
+
   // Mnemonic State
   const [mnemonic, setMnemonic] = useState<string>("");
   const [showMnemonic, setShowMnemonic] = useState<boolean>(false);
@@ -95,14 +98,15 @@ export const WalletView: React.FC<WalletViewProps> = ({
     const catKey = `rogue_categories_${activeWallet.id}`;
     const savedCats = localStorage.getItem(catKey);
     let currentCats: WalletCategory[];
+    const defaultCatName = t("wallet.defaultCategory");
     if (savedCats) {
       try {
         currentCats = JSON.parse(savedCats);
       } catch {
-        currentCats = [{ id: "cat_default", name: "General", order: 0 }];
+        currentCats = [{ id: "cat_default", name: defaultCatName, order: 0 }];
       }
     } else {
-      currentCats = [{ id: "cat_default", name: "General", order: 0 }];
+      currentCats = [{ id: "cat_default", name: defaultCatName, order: 0 }];
       localStorage.setItem(catKey, JSON.stringify(currentCats));
     }
     setCategories(currentCats);
@@ -139,7 +143,7 @@ export const WalletView: React.FC<WalletViewProps> = ({
           }
 
           const meta = metaMap[acc.address.toLowerCase()] || {
-            name: acc.index === 0 ? "Cuenta Principal" : `Cuenta #${acc.index + 1}`,
+            name: acc.index === 0 ? t("wallet.mainAccount") : t("wallet.accountNumber", { index: acc.index + 1 }),
             categoryId: defaultCatId,
             order: acc.index,
           };
@@ -243,7 +247,7 @@ export const WalletView: React.FC<WalletViewProps> = ({
           return {
             ...acc,
             balance: bal,
-            name: `Cuenta #${acc.index + 1}`,
+            name: t("wallet.accountNumber", { index: acc.index + 1 }),
             categoryId: defaultCatId,
             order: acc.index,
           };
@@ -400,22 +404,22 @@ export const WalletView: React.FC<WalletViewProps> = ({
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!unlockedAddress) {
-      setStatusMsg({ type: "error", text: "Por favor desbloquea la billetera primero." });
+      setStatusMsg({ type: "error", text: t("wallet.errors.unlockFirst") });
       return;
     }
     if (!recipient.startsWith("0x") || recipient.length !== 42) {
-      setStatusMsg({ type: "error", text: "Dirección de destino inválida (debe iniciar con 0x y tener 42 caracteres)." });
+      setStatusMsg({ type: "error", text: t("wallet.errors.invalidRecipient") });
       return;
     }
     const parsedAmount = parseFloat(amount);
     if (isNaN(parsedAmount) || parsedAmount <= 0) {
-      setStatusMsg({ type: "error", text: "Ingresa un monto válido de ROGUE." });
+      setStatusMsg({ type: "error", text: t("wallet.errors.invalidAmount") });
       return;
     }
 
     try {
       setSending(true);
-      setStatusMsg({ type: "info", text: "Estimando gas y enviando transacción a la red..." });
+      setStatusMsg({ type: "info", text: t("wallet.status.sending") });
 
       const wei = BigInt(Math.floor(parsedAmount * 1e6)) * BigInt(10 ** 12);
       const valueHex = "0x" + wei.toString(16);
@@ -434,7 +438,7 @@ export const WalletView: React.FC<WalletViewProps> = ({
       const txHash = await api.callRpc<string>(rpcUrl, "eth_sendTransaction", [txParams]);
       setStatusMsg({
         type: "success",
-        text: `¡Transacción transmitida exitosamente! TxHash: ${txHash}`,
+        text: t("wallet.status.success", { txHash }),
       });
       setRecipient("");
       setAmount("");
@@ -442,7 +446,7 @@ export const WalletView: React.FC<WalletViewProps> = ({
       if (activeWallet) loadAccounts(activeWallet.id, categories);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : JSON.stringify(err);
-      setStatusMsg({ type: "error", text: `Error al enviar transacción: ${msg}` });
+      setStatusMsg({ type: "error", text: t("wallet.errors.sendFailed", { error: msg }) });
     } finally {
       setSending(false);
     }
@@ -454,15 +458,15 @@ export const WalletView: React.FC<WalletViewProps> = ({
         <div className="w-16 h-16 rounded-full bg-black border border-white/20 flex items-center justify-center text-white">
           <Shield className="w-8 h-8" />
         </div>
-        <h2 className="text-xl font-bold text-white">Billetera Bloqueada o No Inicializada</h2>
+        <h2 className="text-xl font-bold text-white">{t("wallet.lockedTitle")}</h2>
         <p className="text-sm text-zinc-400 max-w-md">
-          Tu billetera determinista BIP-39 está cifrada de forma segura con Argon2id y AES-256-GCM. Desbloquea tu bóveda o crea una nueva para enviar y recibir ROGUE.
+          {t("wallet.lockedDesc")}
         </p>
         <button
           onClick={() => onOpenWalletModal("unlock")}
           className="px-6 py-2.5 bg-white hover:bg-zinc-200 text-black rounded-[2px] text-xs font-mono uppercase tracking-wider font-bold transition shadow-[0_0_15px_rgba(255,255,255,0.15)]"
         >
-          Desbloquear / Inicializar Bóveda
+          {t("wallet.unlockInitBtn")}
         </button>
       </div>
     );
@@ -490,13 +494,13 @@ export const WalletView: React.FC<WalletViewProps> = ({
                     onClick={handleSaveWalletName}
                     className="text-xs bg-white text-black font-bold px-2 py-0.5 rounded text-white font-semibold"
                   >
-                    Guardar
+                    {t("common.save")}
                   </button>
                   <button
                     onClick={() => setEditingWalletName(false)}
                     className="text-xs text-zinc-400 hover:text-white"
                   >
-                    Cancelar
+                    {t("common.cancel")}
                   </button>
                 </div>
               ) : (
@@ -505,26 +509,26 @@ export const WalletView: React.FC<WalletViewProps> = ({
                   <button
                     onClick={() => setEditingWalletName(true)}
                     className="p-1 text-zinc-500 hover:text-zinc-200"
-                    title="Renombrar billetera"
+                    title={t("wallet.renameWallet")}
                   >
                     <Pencil className="w-3.5 h-3.5" />
                   </button>
                 </div>
               )}
               <span className="px-2 py-0.5 rounded-full text-[10px] bg-rose-950/60 text-zinc-200 border border-rose-800/60 font-mono">
-                Billetera Activa
+                {t("wallet.activeWalletBadge")}
               </span>
             </div>
 
             <div className="flex items-center space-x-2 font-mono text-sm text-white pt-1">
-              <span className="text-zinc-400 text-xs font-sans font-semibold">Dirección seleccionada:</span>
+              <span className="text-zinc-400 text-xs font-sans font-semibold">{t("wallet.selectedAddress")}</span>
               <span className="bg-zinc-950 px-2.5 py-1 rounded-[2px] border border-zinc-800 text-xs">
                 {unlockedAddress}
               </span>
               <button
                 onClick={() => handleCopyAddress(unlockedAddress)}
                 className="p-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white rounded-[2px] transition"
-                title="Copiar dirección activa"
+                title={t("wallet.copyActiveAddress")}
               >
                 {copiedAddress === unlockedAddress ? (
                   <Check className="w-3.5 h-3.5 text-white" />
@@ -534,12 +538,12 @@ export const WalletView: React.FC<WalletViewProps> = ({
               </button>
             </div>
             <div className="text-[11px] text-zinc-500 font-mono">
-              BIP-44 Estándar EVM • Toda la minería y envíos operan sobre la dirección seleccionada
+              {t("wallet.bip44Notice")}
             </div>
           </div>
 
           <div className="text-right">
-            <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Saldo de la Dirección</span>
+            <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">{t("wallet.addressBalance")}</span>
             <div className="text-3xl font-black text-white font-mono mt-1">
               {balance} <span className="text-sm font-bold text-zinc-400">ROGUE</span>
             </div>
@@ -554,10 +558,10 @@ export const WalletView: React.FC<WalletViewProps> = ({
             <Key className="w-5 h-5 text-white" />
             <div>
               <h2 className="text-sm font-bold text-white uppercase tracking-wider">
-                Frase Semilla Mnemónica de "{activeWallet.name}"
+                {t("wallet.seedTitle", { name: activeWallet.name })}
               </h2>
               <p className="text-xs text-zinc-400 mt-0.5">
-                BIP-39 determinista para restaurar esta billetera y todas sus cuentas derivadas
+                {t("wallet.seedSubtitle")}
               </p>
             </div>
           </div>
@@ -569,7 +573,7 @@ export const WalletView: React.FC<WalletViewProps> = ({
               className="flex items-center space-x-1.5 px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium rounded-[2px] transition"
             >
               {showMnemonic ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              <span>{showMnemonic ? "Ocultar Frase" : "Ver Frase Semilla"}</span>
+              <span>{showMnemonic ? t("wallet.hidePhrase") : t("wallet.revealPhrase")}</span>
             </button>
 
             <button
@@ -579,12 +583,12 @@ export const WalletView: React.FC<WalletViewProps> = ({
               {copiedMnemonic ? (
                 <>
                   <Check className="w-4 h-4 text-white" />
-                  <span className="text-white">¡Copiada!</span>
+                  <span className="text-white">{t("common.copied")}</span>
                 </>
               ) : (
                 <>
                   <Copy className="w-4 h-4" />
-                  <span>Copiar Frase</span>
+                  <span>{t("wallet.copyPhrase")}</span>
                 </>
               )}
             </button>
@@ -610,7 +614,7 @@ export const WalletView: React.FC<WalletViewProps> = ({
             <div className="flex items-start space-x-2 p-3 bg-white/5 border border-white/15 rounded-[2px] text-xs text-zinc-200">
               <AlertTriangle className="w-4 h-4 text-white shrink-0 mt-0.5" />
               <span>
-                <strong>Seguridad Crítica:</strong> Mantén esta frase mnemónica en secreto. Da control irrestricto sobre todas las direcciones derivadas de {activeWallet.name}.
+                <strong>{t("wallet.criticalSecurity")}</strong> {t("wallet.securityNotice", { name: activeWallet.name })}
               </span>
             </div>
           </div>
@@ -618,9 +622,9 @@ export const WalletView: React.FC<WalletViewProps> = ({
           <div className="p-4 bg-zinc-950/60 border border-zinc-800/80 rounded-[2px] flex items-center justify-between text-xs text-zinc-400">
             <div className="flex items-center space-x-2 font-mono">
               <span className="tracking-widest text-zinc-600">•••••••• •••••••• •••••••• ••••••••</span>
-              <span className="text-zinc-500 text-[11px]">(Frase protegida)</span>
+              <span className="text-zinc-500 text-[11px]">{t("wallet.phraseProtected")}</span>
             </div>
-            <span className="text-zinc-500 text-[11px]">Haz clic en "Ver Frase Semilla" para revelarla</span>
+            <span className="text-zinc-500 text-[11px]">{t("wallet.clickToReveal")}</span>
           </div>
         )}
       </div>
@@ -633,14 +637,14 @@ export const WalletView: React.FC<WalletViewProps> = ({
             <div>
               <div className="flex items-center space-x-2">
                 <h2 className="text-sm font-bold text-white uppercase tracking-wider">
-                  Direcciones y Categorías ({activeWallet.name})
+                  {t("wallet.addressesAndCategories", { name: activeWallet.name })}
                 </h2>
                 <span className="text-xs font-mono px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 border border-zinc-700">
-                  {accounts.length} {accounts.length === 1 ? "cuenta" : "cuentas"}
+                  {accounts.length} {accounts.length === 1 ? t("wallet.accountCount_one", { count: accounts.length }) : t("wallet.accountCount_other", { count: accounts.length })}
                 </span>
               </div>
               <p className="text-xs text-zinc-400 mt-0.5">
-                Organiza tus direcciones arrastrando entre categorías. Asigna nombres y propósitos personalizados.
+                {t("wallet.categoriesDesc")}
               </p>
             </div>
           </div>
@@ -651,7 +655,7 @@ export const WalletView: React.FC<WalletViewProps> = ({
               className="flex items-center space-x-1.5 px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-[2px] text-xs font-semibold transition"
             >
               <FolderPlus className="w-4 h-4 text-white" />
-              <span>Nueva Categoría</span>
+              <span>{t("wallet.newCategory")}</span>
             </button>
 
             <button
@@ -660,7 +664,7 @@ export const WalletView: React.FC<WalletViewProps> = ({
               className="flex items-center space-x-1.5 px-3.5 py-1.5 bg-white hover:bg-zinc-200 disabled:opacity-40 text-black rounded-[2px] text-xs font-mono uppercase tracking-wider font-bold shadow-[0_0_15px_rgba(255,255,255,0.15)] transition"
             >
               <Plus className="w-4 h-4" />
-              <span>+ Agregar Dirección Derivada</span>
+              <span>{t("wallet.addDerivedAddress")}</span>
             </button>
           </div>
         </div>
@@ -672,7 +676,7 @@ export const WalletView: React.FC<WalletViewProps> = ({
               type="text"
               value={newCategoryName}
               onChange={(e) => setNewCategoryName(e.target.value)}
-              placeholder="Nombre de la nueva categoría (ej. Pagos, Staking, Vaults)..."
+              placeholder={t("wallet.newCategoryPlaceholder")}
               className="flex-1 bg-zinc-900 border border-zinc-800 focus:border-white rounded px-3 py-1.5 text-xs text-white outline-none"
               autoFocus
             />
@@ -680,13 +684,13 @@ export const WalletView: React.FC<WalletViewProps> = ({
               onClick={handleAddCategory}
               className="px-3 py-1.5 bg-white hover:bg-zinc-200 text-black text-xs font-mono uppercase tracking-wider font-bold rounded-[2px] transition"
             >
-              Crear
+              {t("common.create")}
             </button>
             <button
               onClick={() => setShowAddCategory(false)}
               className="px-2 py-1.5 text-zinc-400 hover:text-white text-xs"
             >
-              Cancelar
+              {t("common.cancel")}
             </button>
           </div>
         )}
@@ -731,13 +735,13 @@ export const WalletView: React.FC<WalletViewProps> = ({
                           onClick={handleSaveCategoryName}
                           className="text-[10px] bg-white text-black font-bold text-white px-2 py-0.5 rounded font-semibold"
                         >
-                          Guardar
+                          {t("common.save")}
                         </button>
                         <button
                           onClick={() => setEditingCategory(null)}
                           className="text-[10px] text-zinc-400 hover:text-white"
                         >
-                          Cancelar
+                          {t("common.cancel")}
                         </button>
                       </div>
                     ) : (
@@ -752,7 +756,7 @@ export const WalletView: React.FC<WalletViewProps> = ({
                             setEditingCategory({ id: cat.id, name: cat.name });
                           }}
                           className="p-1 text-zinc-500 hover:text-zinc-200"
-                          title="Renombrar categoría"
+                          title={t("wallet.renameCategory")}
                         >
                           <Pencil className="w-3 h-3" />
                         </button>
@@ -764,7 +768,7 @@ export const WalletView: React.FC<WalletViewProps> = ({
                     <button
                       onClick={() => handleDeleteCategory(cat.id)}
                       className="p-1 text-zinc-600 hover:text-white transition"
-                      title="Eliminar categoría (las cuentas se moverán a la categoría principal)"
+                      title={t("wallet.deleteCategoryTooltip")}
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
@@ -775,7 +779,7 @@ export const WalletView: React.FC<WalletViewProps> = ({
                 <div className="p-3 space-y-2.5 min-h-[50px]">
                   {catAccounts.length === 0 ? (
                     <div className="p-4 text-center text-xs text-zinc-600 border border-dashed border-zinc-800/80 rounded-[2px]">
-                      Arrastra direcciones aquí para organizarlas en esta categoría.
+                      {t("wallet.dragAddressesHere")}
                     </div>
                   ) : (
                     catAccounts.map((acc) => {
@@ -815,13 +819,13 @@ export const WalletView: React.FC<WalletViewProps> = ({
                                         onClick={() => handleSaveAccountName(acc.address)}
                                         className="text-[10px] bg-white text-black font-bold text-white px-1.5 py-0.5 rounded font-semibold"
                                       >
-                                        Guardar
+                                        {t("common.save")}
                                       </button>
                                       <button
                                         onClick={() => setEditingAccountAddress(null)}
                                         className="text-[10px] text-zinc-400 hover:text-white"
                                       >
-                                        Cancelar
+                                        {t("common.cancel")}
                                       </button>
                                     </div>
                                   ) : (
@@ -833,7 +837,7 @@ export const WalletView: React.FC<WalletViewProps> = ({
                                           setAccountNameInput(acc.name);
                                         }}
                                         className="p-0.5 text-zinc-500 hover:text-zinc-200"
-                                        title="Renombrar dirección"
+                                        title={t("wallet.renameAddress")}
                                       >
                                         <Pencil className="w-2.5 h-2.5" />
                                       </button>
@@ -847,7 +851,7 @@ export const WalletView: React.FC<WalletViewProps> = ({
                                   {isActive ? (
                                     <span className="flex items-center space-x-1 text-[10px] text-white bg-white/10 border border-white/20 px-1.5 py-0.5 rounded-full font-mono font-semibold">
                                       <CheckCircle2 className="w-3 h-3 text-white" />
-                                      <span>Activa</span>
+                                      <span>{t("common.active")}</span>
                                     </span>
                                   ) : (
                                     onSelectAddress && (
@@ -855,7 +859,7 @@ export const WalletView: React.FC<WalletViewProps> = ({
                                         onClick={() => onSelectAddress(acc.address)}
                                         className="text-[10px] text-zinc-400 hover:text-white bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 px-2 py-0.5 rounded transition"
                                       >
-                                        Usar como Activa
+                                        {t("wallet.useAsActive")}
                                       </button>
                                     )
                                   )}
@@ -868,7 +872,7 @@ export const WalletView: React.FC<WalletViewProps> = ({
                                   <button
                                     onClick={() => handleCopyAddress(acc.address)}
                                     className="p-1 hover:bg-zinc-800 rounded text-zinc-400 hover:text-white transition shrink-0"
-                                    title="Copiar dirección"
+                                    title={t("wallet.copyAddress")}
                                   >
                                     {copiedAddress === acc.address ? (
                                       <Check className="w-3.5 h-3.5 text-white" />
@@ -883,7 +887,7 @@ export const WalletView: React.FC<WalletViewProps> = ({
                             {/* Balance & Private Key actions */}
                             <div className="flex items-center justify-between lg:justify-end space-x-4 shrink-0 pt-2 lg:pt-0 border-t lg:border-t-0 border-zinc-800/60">
                               <div className="text-right">
-                                <div className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold">Saldo</div>
+                                <div className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold">{t("common.balance")}</div>
                                 <div className="text-sm font-bold font-mono text-white">
                                   {acc.balance} <span className="text-[10px] text-zinc-400">ROGUE</span>
                                 </div>
@@ -893,17 +897,17 @@ export const WalletView: React.FC<WalletViewProps> = ({
                                 <button
                                   onClick={() => handleCopyPrivateKey(acc.index)}
                                   className="flex items-center space-x-1 px-2.5 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium rounded-[2px] transition"
-                                  title="Copiar llave privada"
+                                  title={t("wallet.copyPrivKey")}
                                 >
                                   {copiedPrivKey === acc.index ? (
                                     <>
                                       <Check className="w-3.5 h-3.5 text-white" />
-                                      <span className="text-white text-[11px]">¡Copiada!</span>
+                                      <span className="text-white text-[11px]">{t("common.copied")}</span>
                                     </>
                                   ) : (
                                     <>
                                       <Key className="w-3.5 h-3.5 text-white" />
-                                      <span className="text-[11px]">Copiar PrivKey</span>
+                                      <span className="text-[11px]">{t("wallet.copyPrivKey")}</span>
                                     </>
                                   )}
                                 </button>
@@ -911,7 +915,7 @@ export const WalletView: React.FC<WalletViewProps> = ({
                                 <button
                                   onClick={() => handleToggleRevealPrivateKey(acc.index)}
                                   className="p-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white rounded-[2px] transition"
-                                  title={isPrivKeyRevealed ? "Ocultar llave privada" : "Ver llave privada"}
+                                  title={isPrivKeyRevealed ? t("wallet.hidePrivKey") : t("wallet.revealPrivKey")}
                                 >
                                   {isPrivKeyRevealed ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                                 </button>
@@ -925,9 +929,9 @@ export const WalletView: React.FC<WalletViewProps> = ({
                               <div className="flex items-center justify-between text-[11px] text-zinc-400">
                                 <span className="font-semibold text-white flex items-center space-x-1">
                                   <Key className="w-3 h-3 text-white" />
-                                  <span>Llave Privada (ECDSA secp256k1) de {acc.name}</span>
+                                  <span>{t("wallet.privKeyTitle", { name: acc.name })}</span>
                                 </span>
-                                <span className="text-[10px] text-zinc-500">Hexadecimal 64 caracteres</span>
+                                <span className="text-[10px] text-zinc-500">{t("wallet.hex64")}</span>
                               </div>
 
                               <div className="flex items-center space-x-2 p-2 bg-zinc-900 border border-rose-900/40 rounded-[2px]">
@@ -937,7 +941,7 @@ export const WalletView: React.FC<WalletViewProps> = ({
                                 <button
                                   onClick={() => handleCopyPrivateKey(acc.index)}
                                   className="p-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white rounded transition shrink-0"
-                                  title="Copiar llave privada"
+                                  title={t("wallet.copyPrivKey")}
                                 >
                                   {copiedPrivKey === acc.index ? (
                                     <Check className="w-3.5 h-3.5 text-white" />
@@ -963,13 +967,13 @@ export const WalletView: React.FC<WalletViewProps> = ({
       <div className="p-6 bg-zinc-900/40 border border-zinc-800 rounded-[2px]">
         <div className="flex items-center space-x-2 pb-4 border-b border-zinc-800">
           <Send className="w-4 h-4 text-white" />
-          <h2 className="text-sm font-bold text-white uppercase tracking-wider">Transferir ROGUE (EIP-1559)</h2>
+          <h2 className="text-sm font-bold text-white uppercase tracking-wider">{t("wallet.transferTitle")}</h2>
         </div>
 
         <form onSubmit={handleSend} className="mt-6 space-y-4 max-w-xl">
           <div>
             <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1">
-              Dirección de Destino
+              {t("wallet.recipientAddress")}
             </label>
             <input
               type="text"
@@ -983,8 +987,8 @@ export const WalletView: React.FC<WalletViewProps> = ({
 
           <div>
             <div className="flex justify-between text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1">
-              <span>Monto a Transferir (ROGUE)</span>
-              <span>Disponible: {balance} ROGUE</span>
+              <span>{t("wallet.transferAmount")}</span>
+              <span>{t("wallet.availableBalance", { balance })}</span>
             </div>
             <div className="relative">
               <input
@@ -1001,7 +1005,7 @@ export const WalletView: React.FC<WalletViewProps> = ({
                 onClick={() => setAmount(balance)}
                 className="absolute right-2 top-1.5 px-2.5 py-1 bg-zinc-800 hover:bg-zinc-700 text-xs text-zinc-300 rounded font-mono transition"
               >
-                Max
+                {t("wallet.max")}
               </button>
             </div>
           </div>
@@ -1009,14 +1013,14 @@ export const WalletView: React.FC<WalletViewProps> = ({
           {/* EIP-1559 Gas Presets */}
           <div>
             <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">
-              Velocidad de Red / Tarifa de Prioridad (EIP-1559)
+              {t("wallet.gasSpeedTitle")}
             </label>
             <div className="grid grid-cols-3 gap-3">
               {(
                 [
-                  { id: "slow", label: "Lento", fee: "1 Gwei", time: "~60s" },
-                  { id: "normal", label: "Normal", fee: "2 Gwei", time: "~30s" },
-                  { id: "fast", label: "Rápido", fee: "5 Gwei", time: "<30s" },
+                  { id: "slow", label: t("wallet.gas.slow"), fee: "1 Gwei", time: "~60s" },
+                  { id: "normal", label: t("wallet.gas.normal"), fee: "2 Gwei", time: "~30s" },
+                  { id: "fast", label: t("wallet.gas.fast"), fee: "5 Gwei", time: "<30s" },
                 ] as const
               ).map((tier) => (
                 <div
@@ -1056,7 +1060,7 @@ export const WalletView: React.FC<WalletViewProps> = ({
             className="w-full flex items-center justify-center space-x-2 py-2.5 bg-white text-black font-bold hover:bg-rose-500 disabled:opacity-50 text-white rounded-[2px] text-sm font-semibold shadow-md transition"
           >
             <Send className="w-4 h-4" />
-            <span>{sending ? "Transmitiendo Transacción..." : "Enviar ROGUE"}</span>
+            <span>{sending ? t("wallet.transmitting") : t("wallet.sendRogue")}</span>
           </button>
         </form>
       </div>

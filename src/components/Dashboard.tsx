@@ -1,4 +1,5 @@
 import React from "react";
+import { useTranslation } from "react-i18next";
 import {
   Coins,
   HardDrive,
@@ -26,15 +27,21 @@ export const Dashboard: React.FC<DashboardProps> = ({
   recentBlocks,
   onNavigate,
 }) => {
+  const { t } = useTranslation();
+
   return (
     <div className="space-y-6">
-      {/* Top Banner (Clean, without the sync block which is now in the sidebar) */}
+      {/* Top Banner */}
       <div className="p-6 bg-[#0A0A0C] border border-white/10 rounded-[2px] relative overflow-hidden">
         <div className="max-w-2xl">
-          <div className="text-[10px] font-mono text-zinc-400 uppercase tracking-widest mb-1">[LOCAL CORE-GETH NODE]</div>
-          <h1 className="text-2xl font-bold text-white tracking-wide font-display">Rogue Signal Node Dashboard</h1>
+          <div className="text-[10px] font-mono text-zinc-400 uppercase tracking-widest mb-1">
+            {t("dashboard.badge")}
+          </div>
+          <h1 className="text-2xl font-bold text-white tracking-wide font-display">
+            {t("dashboard.title")}
+          </h1>
           <p className="text-sm text-zinc-400 mt-1 font-sans">
-            Tu nodo local Core-Geth se ejecuta automáticamente en segundo plano para mantener la blockchain sincronizada sin interrumpir tus operaciones.
+            {t("dashboard.description")}
           </p>
         </div>
       </div>
@@ -47,7 +54,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
           className="p-5 bg-[#0A0A0C] hover:bg-zinc-900 border border-white/10 hover:border-white/30 rounded-[2px] transition cursor-pointer group"
         >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-zinc-400 uppercase tracking-wider font-mono">[WALLET BALANCE]</span>
+            <span className="text-xs font-medium text-zinc-400 uppercase tracking-wider font-mono">
+              {t("dashboard.walletBalance")}
+            </span>
             <Coins className="w-5 h-5 text-white" />
           </div>
           <div className="mt-3 flex items-baseline space-x-1.5 font-mono">
@@ -55,7 +64,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
             <span className="text-xs font-bold text-zinc-300">ROGUE</span>
           </div>
           <div className="mt-2 text-xs text-zinc-500 flex items-center group-hover:text-white transition font-mono">
-            <span>Manage wallet & txs</span>
+            <span>{t("dashboard.manageWallet")}</span>
             <ArrowUpRight className="w-3.5 h-3.5 ml-1" />
           </div>
         </div>
@@ -66,12 +75,14 @@ export const Dashboard: React.FC<DashboardProps> = ({
           className="p-5 bg-[#0A0A0C] hover:bg-zinc-900 border border-white/10 hover:border-white/30 rounded-[2px] transition cursor-pointer group"
         >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-zinc-400 uppercase tracking-wider font-mono">[BLOCK HEIGHT]</span>
+            <span className="text-xs font-medium text-zinc-400 uppercase tracking-wider font-mono">
+              {t("dashboard.blockHeight")}
+            </span>
             <HardDrive className="w-5 h-5 text-white" />
           </div>
           <div className="mt-3 text-2xl font-black text-white font-mono">#{currentBlock}</div>
           <div className="mt-2 text-xs text-zinc-500 flex items-center group-hover:text-white transition font-mono">
-            <span>View recent blocks</span>
+            <span>{t("dashboard.viewRecentBlocks")}</span>
             <ArrowUpRight className="w-3.5 h-3.5 ml-1" />
           </div>
         </div>
@@ -82,7 +93,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
           className="p-5 bg-[#0A0A0C] hover:bg-zinc-900 border border-white/10 hover:border-white/30 rounded-[2px] transition cursor-pointer group"
         >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-zinc-400 uppercase tracking-wider font-mono">[ACTIVE HASHRATE]</span>
+            <span className="text-xs font-medium text-zinc-400 uppercase tracking-wider font-mono">
+              {t("dashboard.activeHashrate")}
+            </span>
             <Cpu className="w-5 h-5 text-white" />
           </div>
           <div className="mt-3 flex items-baseline space-x-1.5 font-mono">
@@ -90,7 +103,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
             <span className="text-xs font-bold text-zinc-300">{hashrate > 0 ? "kH/s" : "H/s"}</span>
           </div>
           <div className="mt-2 text-xs text-zinc-500 flex items-center group-hover:text-white transition font-mono">
-            <span>Mining settings</span>
+            <span>{t("dashboard.miningSettings")}</span>
             <ArrowUpRight className="w-3.5 h-3.5 ml-1" />
           </div>
         </div>
@@ -98,11 +111,13 @@ export const Dashboard: React.FC<DashboardProps> = ({
         {/* Peers Card */}
         <div className="p-5 bg-[#0A0A0C] border border-white/10 rounded-[2px]">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-zinc-400 uppercase tracking-wider font-mono">[P2P PEERS]</span>
+            <span className="text-xs font-medium text-zinc-400 uppercase tracking-wider font-mono">
+              {t("dashboard.p2pPeers")}
+            </span>
             <Users className="w-5 h-5 text-white" />
           </div>
           <div className="mt-3 text-2xl font-black text-white font-mono">{peerCount}</div>
-          <div className="mt-2 text-xs text-zinc-500 font-mono">Port :38890 (DevP2P)</div>
+          <div className="mt-2 text-xs text-zinc-500 font-mono">{t("dashboard.devp2pPort")}</div>
         </div>
       </div>
 
@@ -111,13 +126,15 @@ export const Dashboard: React.FC<DashboardProps> = ({
         <div className="p-4 border-b border-white/10 flex items-center justify-between bg-black">
           <div className="flex items-center space-x-2">
             <Zap className="w-4 h-4 text-white" />
-            <h2 className="text-sm font-semibold text-white font-display uppercase tracking-wider">[LATEST BLOCKS]</h2>
+            <h2 className="text-sm font-semibold text-white font-display uppercase tracking-wider">
+              {t("dashboard.latestBlocks")}
+            </h2>
           </div>
           <button
             onClick={() => onNavigate("explorer")}
             className="text-xs font-mono text-zinc-400 hover:text-white transition"
           >
-            [SEE ALL →]
+            {t("dashboard.seeAll")}
           </button>
         </div>
 
@@ -125,11 +142,11 @@ export const Dashboard: React.FC<DashboardProps> = ({
           <table className="w-full text-left text-xs font-mono">
             <thead className="bg-black text-zinc-400 border-b border-white/10 uppercase tracking-wider">
               <tr>
-                <th className="py-2.5 px-4">Height</th>
-                <th className="py-2.5 px-4">Hash</th>
-                <th className="py-2.5 px-4">Miner (Coinbase)</th>
-                <th className="py-2.5 px-4">Gas Used / Limit</th>
-                <th className="py-2.5 px-4">Txs</th>
+                <th className="py-2.5 px-4">{t("dashboard.table.height")}</th>
+                <th className="py-2.5 px-4">{t("dashboard.table.hash")}</th>
+                <th className="py-2.5 px-4">{t("dashboard.table.miner")}</th>
+                <th className="py-2.5 px-4">{t("dashboard.table.gas")}</th>
+                <th className="py-2.5 px-4">{t("dashboard.table.txs")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5 text-zinc-300">
@@ -148,7 +165,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
               ) : (
                 <tr>
                   <td colSpan={5} className="py-8 text-center text-zinc-500 font-mono">
-                    No blocks received yet. The node is actively looking for peers to synchronize.
+                    {t("dashboard.noBlocks")}
                   </td>
                 </tr>
               )}

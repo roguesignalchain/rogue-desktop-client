@@ -84,7 +84,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           <img src="/icon.png" alt="Rogue Signal" className="w-full h-full object-contain" />
         </div>
         <span className="font-bold text-base tracking-wider text-white font-display">
-          ROGUE SIGNAL
+          {t("common.appName")}
         </span>
       </div>
 
@@ -231,7 +231,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                                 ? "bg-black border border-white/10"
                                 : "bg-black/60 border border-white/5 opacity-35 grayscale"
                             }`}
-                            title={`Nivel ${tier}: ${thresholds[tier]} bloques`}
+                            title={t("gamification.tierTooltip", { tier, blocks: thresholds[tier] })}
                           >
                             <img
                               src={`/badges/lvl${tier}.png`}
@@ -332,7 +332,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                                   ? "bg-white text-black font-bold"
                                   : "text-zinc-500 hover:text-white hover:bg-zinc-900"
                               }`}
-                              title={walletToDelete === w.id ? "Click to confirm delete" : "Delete"}
+                              title={walletToDelete === w.id ? t("common.confirmDelete") : t("common.delete")}
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>

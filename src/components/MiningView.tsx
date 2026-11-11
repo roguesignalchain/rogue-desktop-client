@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Pickaxe,
   Cpu,
@@ -37,6 +38,8 @@ export const MiningView: React.FC<MiningViewProps> = ({
   peerCount = 0,
   recentBlocks = [],
 }) => {
+  const { t } = useTranslation();
+
   // Light Mode (~256 MB) is strictly the default at all times
   const [fastMode, setFastMode] = useState<boolean>(false);
   const [threads, setThreads] = useState<number>(2);
@@ -99,13 +102,14 @@ export const MiningView: React.FC<MiningViewProps> = ({
       const res = await api.getSystemSpecs();
       setSpecs(res);
       setFeedback(
-        `Diagnóstico completado: ${res.cpuCores} núcleos lógicos detectados y ${(
-          res.availableRamMb / 1024
-        ).toFixed(1)} GB de RAM libre disponible.`
+        t("mining.feedback.diagnosticDone", {
+          cores: res.cpuCores,
+          ram: (res.availableRamMb / 1024).toFixed(1),
+        })
       );
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      setFeedback(`Error al verificar recursos del sistema: ${msg}`);
+      setFeedback(t("mining.feedback.diagnosticError", { msg }));
     } finally {
       setCheckingSpecs(false);
     }
@@ -116,7 +120,7 @@ export const MiningView: React.FC<MiningViewProps> = ({
     setThreads(specs.recommendedThreads);
     setFastMode(false); // Always default to Light Mode for safety
     setFeedback(
-      `Configuración recomendada aplicada: ${specs.recommendedThreads} hilos CPU (Perfil Equilibrado 50%) y Light Mode (~256 MB RAM).`
+      t("mining.feedback.recommendedApplied", { threads: specs.recommendedThreads })
     );
   };
 
@@ -125,22 +129,22 @@ export const MiningView: React.FC<MiningViewProps> = ({
   const selectProfile = (ratio: number, label: string) => {
     const calculated = Math.max(1, Math.round(maxCores * ratio));
     setThreads(calculated);
-    setFeedback(`Perfil '${label}' seleccionado: ${calculated} de ${maxCores} hilos lógicos.`);
+    setFeedback(
+      t("mining.feedback.profileSelected", { label, calculated, maxCores })
+    );
   };
 
   const handleModeChange = async (useFast: boolean) => {
     if (useFast && specs && !specs.canRunFastMode) {
-      setFeedback(
-        "⚠️ Atención: Tu sistema tiene menos de 3 GB de RAM libre. Se recomienda mantener Light Mode (256 MB) para evitar lentitud."
-      );
+      setFeedback(t("mining.feedback.lowRamWarning"));
     }
     setFastMode(useFast);
     if (isMining) {
       await api.setFastMode(rpcUrl, useFast);
       setFeedback(
-        `Modo de memoria actualizado a ${
-          useFast ? "Fast Mode (~2.08 GB RAM)" : "Light Mode (~256 MB RAM)"
-        }.`
+        t("mining.feedback.modeUpdated", {
+          mode: useFast ? "Fast Mode (~2.08 GB RAM)" : "Light Mode (~256 MB RAM)",
+        })
       );
     }
   };
@@ -149,17 +153,13 @@ export const MiningView: React.FC<MiningViewProps> = ({
     try {
       if (!isMining) {
         if (!isNetworkSynced) {
-          setFeedback(
-            "⚠️ No es posible iniciar la minería mientras la blockchain se esté sincronizando o no tenga pares conectados."
-          );
+          setFeedback(t("mining.feedback.cannotStartNotSynced"));
           return;
         }
 
         let payoutAddr = unlockedAddress || coinbaseAddr;
         if (!payoutAddr) {
-          setFeedback(
-            "⚠️ Desbloquea tu billetera primero en la pestaña Wallet para sincronizar automáticamente tu dirección receptora de recompensas."
-          );
+          setFeedback(t("mining.feedback.unlockWalletFirst"));
           return;
         }
 
@@ -167,18 +167,20 @@ export const MiningView: React.FC<MiningViewProps> = ({
         setIsMining(true);
         setCoinbaseAddr(payoutAddr);
         setFeedback(
-          `Minería CPU activa con ${threads} hilos (${
-            fastMode ? "Fast Mode 2GB" : "Light Mode 256MB"
-          }). Recompensas sincronizadas a: ${payoutAddr}`
+          t("mining.feedback.miningStarted", {
+            threads,
+            mode: fastMode ? "Fast Mode 2GB" : "Light Mode 256MB",
+            address: payoutAddr,
+          })
         );
       } else {
         await api.stopMining(rpcUrl);
         setIsMining(false);
-        setFeedback("Minería CPU detenida manualmente. El nodo continúa validando bloques en modo pasivo.");
+        setFeedback(t("mining.feedback.miningStopped"));
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : JSON.stringify(err);
-      setFeedback(`Error en control de minería: ${msg}`);
+      setFeedback(t("mining.feedback.controlError", { msg }));
     }
   };
 
@@ -204,20 +206,22 @@ export const MiningView: React.FC<MiningViewProps> = ({
       {/* Top Banner */}
       <div className="p-6 bg-[#0A0A0C] border border-white/10 rounded-[2px] flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <div className="text-[10px] font-mono text-zinc-400 uppercase tracking-widest mb-1">[CONSENSUS ENGINE: RANDOMX RX/0]</div>
+          <div className="text-[10px] font-mono text-zinc-400 uppercase tracking-widest mb-1">
+            {t("mining.consensusEngine")}
+          </div>
           <h1 className="text-xl font-bold text-white flex items-center space-x-2 font-display">
             <Pickaxe className="w-5 h-5 text-white" />
-            <span>Minería Doméstica CPU — RandomX (rx/0)</span>
+            <span>{t("mining.title")}</span>
           </h1>
           <p className="text-xs text-zinc-400 mt-1 font-sans">
-            Minería en solitario (Solo Mining) integrada directamente en el nodo para computadores caseros. 1 CPU = 1 Voto.
+            {t("mining.description")}
           </p>
         </div>
 
         <div className="flex items-center space-x-6">
           <div className="text-right font-mono">
             <span className="text-[10px] text-zinc-400 uppercase tracking-wider block">
-              [MIS BLOQUES MINADOS]
+              {t("mining.myMinedBlocks")}
             </span>
             <span className="text-xl font-black text-white flex items-center justify-end space-x-1">
               <Award className="w-4 h-4 text-white" />
@@ -229,7 +233,7 @@ export const MiningView: React.FC<MiningViewProps> = ({
 
           <div className="text-right font-mono">
             <span className="text-[10px] text-zinc-400 uppercase tracking-wider block">
-              [HASHRATE CPU LOCAL]
+              {t("mining.localHashrate")}
             </span>
             <span className="text-2xl font-black text-white">{formatHashrate(hashrate)}</span>
           </div>
@@ -245,15 +249,18 @@ export const MiningView: React.FC<MiningViewProps> = ({
             </div>
             <div>
               <h2 className="text-xs font-bold text-white uppercase tracking-wider">
-                [BLOCKCHAIN SINCRONIZADA — MOTOR CPU LISTO]
+                {t("mining.syncedTitle")}
               </h2>
               <p className="text-[11px] text-zinc-400 mt-0.5 font-sans">
-                Nodo conectado con {peerCount} {peerCount === 1 ? "par" : "pares"}. Recompensa de bloque: 23.75 ROGUE al minero (25 ROGUE total • 30s target • Protección MESS + Reorg≤90 activa).
+                {t("mining.syncedDesc", {
+                  count: peerCount,
+                  peers: peerCount === 1 ? t("mining.peerSingle") : t("mining.peerPlural"),
+                })}
               </p>
             </div>
           </div>
           <span className="text-xs font-mono text-white px-2.5 py-1 bg-white/10 rounded-[2px] border border-white/30 font-bold">
-            [SYNCED]
+            {t("sync.synced")}
           </span>
         </div>
       ) : (
@@ -269,16 +276,16 @@ export const MiningView: React.FC<MiningViewProps> = ({
             <div>
               <h2 className="text-xs font-bold text-white uppercase tracking-wider">
                 {peerCount === 0
-                  ? "[BUSCANDO PARES DE RED...]"
-                  : `[SINCRONIZANDO CADENA ${syncStatus?.progressPercentage || 0}%]`}
+                  ? t("mining.searchingPeers")
+                  : t("mining.syncingChain", { progress: syncStatus?.progressPercentage || 0 })}
               </h2>
               <p className="text-[11px] text-zinc-400 mt-0.5 font-sans">
-                La minería requiere sincronización al 100% para evitar bloques huérfanos.
+                {t("mining.syncPendingDesc")}
               </p>
             </div>
           </div>
           <span className="text-xs font-mono text-zinc-400 px-2.5 py-1 bg-zinc-900 rounded-[2px] border border-white/10">
-            [SYNC PENDING]
+            {t("mining.syncPendingBadge")}
           </span>
         </div>
       )}
@@ -290,7 +297,7 @@ export const MiningView: React.FC<MiningViewProps> = ({
             onClick={() => setFeedback(null)}
             className="text-zinc-500 hover:text-white text-[10px] ml-4 uppercase"
           >
-            [CERRAR]
+            {t("common.close")}
           </button>
         </div>
       )}
@@ -303,7 +310,7 @@ export const MiningView: React.FC<MiningViewProps> = ({
               <div className="flex items-center space-x-2">
                 <Cpu className="w-4 h-4 text-white" />
                 <h2 className="text-sm font-bold text-white uppercase tracking-wider font-mono">
-                  [CONTROL DE MINERÍA CPU]
+                  {t("mining.controlTitle")}
                 </h2>
               </div>
               <span
@@ -313,7 +320,7 @@ export const MiningView: React.FC<MiningViewProps> = ({
                     : "bg-black text-zinc-500 border border-white/10"
                 }`}
               >
-                {isMining ? "[MINING SOLO]" : "[STOPPED]"}
+                {isMining ? t("mining.miningSoloBadge") : t("mining.stoppedBadge")}
               </span>
             </div>
 
@@ -322,67 +329,77 @@ export const MiningView: React.FC<MiningViewProps> = ({
               <div className="flex items-center justify-between text-[11px] text-zinc-400">
                 <span className="flex items-center space-x-1.5 font-semibold uppercase tracking-wider font-mono">
                   <Wallet className="w-3.5 h-3.5 text-white" />
-                  <span>[DIRECCIÓN RECEPTORA]</span>
+                  <span>{t("mining.rewardAddress")}</span>
                 </span>
                 <span className="text-white font-mono text-[10px]">[AUTOSYNC]</span>
               </div>
               <div className="font-mono text-xs text-zinc-200 truncate">
-                {activeRewardAddress || "Desbloquea tu billetera para asignar dirección"}
+                {activeRewardAddress || t("mining.unlockToAssign")}
               </div>
             </div>
 
             {/* CPU Thread Profiles */}
             <div className="space-y-2.5">
               <div className="flex justify-between text-xs font-semibold text-zinc-400 uppercase tracking-wider font-mono">
-                <span>[PERFILES DE HILOS CPU]</span>
+                <span>{t("mining.threadProfiles")}</span>
                 <span className="text-white font-mono font-bold">
-                  {threads} de {maxCores} Hilos ({Math.round((threads / maxCores) * 100)}%)
+                  {t("mining.threadsInfo", {
+                    threads,
+                    maxCores,
+                    pct: Math.round((threads / maxCores) * 100),
+                  })}
                 </span>
               </div>
 
               <div className="grid grid-cols-3 gap-2">
                 <button
                   type="button"
-                  onClick={() => selectProfile(0.25, "Bajo impacto (25%)")}
+                  onClick={() => selectProfile(0.25, "25%")}
                   className={`py-2 px-2 rounded-[2px] border text-xs font-mono transition flex flex-col items-center ${
                     threads === Math.max(1, Math.round(maxCores * 0.25))
                       ? "bg-white text-black font-bold border-white"
                       : "bg-black border-white/10 text-zinc-400 hover:border-white/30 hover:text-white"
                   }`}
                 >
-                  <span className="font-bold">25% HILOS</span>
+                  <span className="font-bold">{t("mining.threads25")}</span>
                   <span className="text-[10px] opacity-80 font-mono">
-                    ({Math.max(1, Math.round(maxCores * 0.25))} hilos)
+                    {t("mining.threadsCount", {
+                      threads: Math.max(1, Math.round(maxCores * 0.25)),
+                    })}
                   </span>
                 </button>
 
                 <button
                   type="button"
-                  onClick={() => selectProfile(0.5, "Equilibrado (50%)")}
+                  onClick={() => selectProfile(0.5, "50%")}
                   className={`py-2 px-2 rounded-[2px] border text-xs font-mono transition flex flex-col items-center ${
                     threads === Math.max(1, Math.round(maxCores * 0.5))
                       ? "bg-white text-black font-bold border-white"
                       : "bg-black border-white/10 text-zinc-400 hover:border-white/30 hover:text-white"
                   }`}
                 >
-                  <span className="font-bold">50% HILOS</span>
+                  <span className="font-bold">{t("mining.threads50")}</span>
                   <span className="text-[10px] opacity-80 font-mono">
-                    ({Math.max(1, Math.round(maxCores * 0.5))} hilos)
+                    {t("mining.threadsCount", {
+                      threads: Math.max(1, Math.round(maxCores * 0.5)),
+                    })}
                   </span>
                 </button>
 
                 <button
                   type="button"
-                  onClick={() => selectProfile(0.75, "Máxima potencia (75%)")}
+                  onClick={() => selectProfile(0.75, "75%")}
                   className={`py-2 px-2 rounded-[2px] border text-xs font-mono transition flex flex-col items-center ${
                     threads >= Math.max(1, Math.round(maxCores * 0.75))
                       ? "bg-white text-black font-bold border-white"
                       : "bg-black border-white/10 text-zinc-400 hover:border-white/30 hover:text-white"
                   }`}
                 >
-                  <span className="font-bold">75% HILOS</span>
+                  <span className="font-bold">{t("mining.threads75")}</span>
                   <span className="text-[10px] opacity-80 font-mono">
-                    ({Math.max(1, Math.round(maxCores * 0.75))} hilos)
+                    {t("mining.threadsCount", {
+                      threads: Math.max(1, Math.round(maxCores * 0.75)),
+                    })}
                   </span>
                 </button>
               </div>
@@ -397,9 +414,9 @@ export const MiningView: React.FC<MiningViewProps> = ({
                   className="w-full accent-white cursor-pointer"
                 />
                 <div className="flex justify-between text-[10px] font-mono text-zinc-500">
-                  <span>1 Hilo</span>
-                  <span>Ajuste fino manual</span>
-                  <span>{maxCores} Hilos</span>
+                  <span>{t("mining.oneThread")}</span>
+                  <span>{t("mining.manualTuning")}</span>
+                  <span>{t("mining.maxThreads", { maxCores })}</span>
                 </div>
               </div>
             </div>
@@ -407,7 +424,7 @@ export const MiningView: React.FC<MiningViewProps> = ({
             {/* RandomX Memory Mode Selector */}
             <div className="space-y-2">
               <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-wider font-mono">
-                [MODO DE MEMORIA RANDOMX]
+                {t("mining.memoryMode")}
               </label>
               <div className="grid grid-cols-2 gap-2.5">
                 <button
@@ -427,7 +444,7 @@ export const MiningView: React.FC<MiningViewProps> = ({
                   </div>
                   <div className="text-[11px] font-mono text-zinc-300 mt-1">~256 MB RAM</div>
                   <div className="text-[10px] text-zinc-500 mt-0.5 font-sans">
-                    Apto para todo equipo sin comprometer RAM.
+                    {t("mining.lightModeDesc")}
                   </div>
                 </button>
 
@@ -451,7 +468,7 @@ export const MiningView: React.FC<MiningViewProps> = ({
                   </div>
                   <div className="text-[11px] font-mono text-zinc-300 mt-1">~2.08 GB RAM</div>
                   <div className="text-[10px] text-zinc-500 mt-0.5 font-sans">
-                    Dataset completo en RAM (~4x velocidad).
+                    {t("mining.fastModeDesc")}
                   </div>
                 </button>
               </div>
@@ -473,13 +490,13 @@ export const MiningView: React.FC<MiningViewProps> = ({
               {isMining ? (
                 <>
                   <Square className="w-4 h-4 fill-current" />
-                  <span>[DETENER MINERÍA CPU]</span>
+                  <span>{t("mining.stopMiningBtn")}</span>
                 </>
               ) : (
                 <>
                   <Play className="w-4 h-4 fill-current" />
                   <span>
-                    {!isNetworkSynced ? "[ESPERANDO SINCRONIZACIÓN...]" : "[INICIAR MINERÍA EN SOLITARIO]"}
+                    {!isNetworkSynced ? t("mining.waitingSyncBtn") : t("mining.startMiningBtn")}
                   </span>
                 </>
               )}
@@ -494,7 +511,7 @@ export const MiningView: React.FC<MiningViewProps> = ({
               <div className="flex items-center space-x-2">
                 <Activity className="w-4 h-4 text-white" />
                 <h2 className="text-sm font-bold text-white uppercase tracking-wider font-mono">
-                  [RECURSOS DEL SISTEMA]
+                  {t("mining.systemResources")}
                 </h2>
               </div>
               <button
@@ -504,12 +521,12 @@ export const MiningView: React.FC<MiningViewProps> = ({
                 className="flex items-center space-x-1.5 px-3 py-1 bg-black hover:bg-white/10 border border-white/20 text-white rounded-[2px] text-xs font-mono font-semibold transition"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${checkingSpecs ? "animate-spin" : ""}`} />
-                <span>{checkingSpecs ? "Analizando..." : "Verificar Recursos"}</span>
+                <span>{checkingSpecs ? t("mining.analyzing") : t("mining.verifyResources")}</span>
               </button>
             </div>
 
             <p className="text-xs text-zinc-400 font-sans">
-              Verifica las capacidades de tu computador en tiempo real para elegir cuántos núcleos y cuánta memoria dedicar a la minería sin comprometer la fluidez de tu equipo.
+              {t("mining.resourcesDesc")}
             </p>
 
             {specs ? (
@@ -519,10 +536,10 @@ export const MiningView: React.FC<MiningViewProps> = ({
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-zinc-400 font-semibold flex items-center space-x-1.5">
                       <Cpu className="w-3.5 h-3.5 text-white" />
-                      <span>Procesador Detectado</span>
+                      <span>{t("mining.detectedCpu")}</span>
                     </span>
                     <span className="text-white font-bold">
-                      {specs.cpuCores} Núcleos Lógicos
+                      {t("mining.logicalCores", { cores: specs.cpuCores })}
                     </span>
                   </div>
                   <div className="text-xs text-zinc-300 truncate">{specs.cpuModel}</div>
@@ -533,11 +550,13 @@ export const MiningView: React.FC<MiningViewProps> = ({
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-zinc-400 font-semibold flex items-center space-x-1.5">
                       <HardDrive className="w-3.5 h-3.5 text-white" />
-                      <span>Memoria RAM del Sistema</span>
+                      <span>{t("mining.systemRam")}</span>
                     </span>
                     <span className="text-white font-bold">
-                      {(specs.availableRamMb / 1024).toFixed(1)} GB Libres /{" "}
-                      {(specs.totalRamMb / 1024).toFixed(1)} GB Total
+                      {t("mining.ramStats", {
+                        free: (specs.availableRamMb / 1024).toFixed(1),
+                        total: (specs.totalRamMb / 1024).toFixed(1),
+                      })}
                     </span>
                   </div>
 
@@ -548,8 +567,8 @@ export const MiningView: React.FC<MiningViewProps> = ({
                     />
                   </div>
                   <div className="flex justify-between text-[10px] text-zinc-500">
-                    <span>En uso: {ramUsagePercent}%</span>
-                    <span>Disponible: {specs.availableRamMb} MB</span>
+                    <span>{t("mining.ramInUse", { pct: ramUsagePercent })}</span>
+                    <span>{t("mining.ramAvailable", { mb: specs.availableRamMb })}</span>
                   </div>
                 </div>
 
@@ -557,26 +576,26 @@ export const MiningView: React.FC<MiningViewProps> = ({
                 <div className="p-3.5 bg-white/5 border border-white/15 rounded-[2px] space-y-2">
                   <div className="flex items-center space-x-2 text-xs font-bold text-white">
                     <ShieldCheck className="w-4 h-4 text-white shrink-0" />
-                    <span>[RECOMENDACIÓN SEGURA]</span>
+                    <span>{t("mining.safeRecommendation")}</span>
                   </div>
                   <ul className="text-[11px] text-zinc-300 space-y-1 pl-4 list-disc font-sans">
                     <li>
-                      <strong>Hilos recomendados:</strong>{" "}
+                      <strong>{t("mining.recommendedThreadsLabel")}</strong>{" "}
                       <span className="font-mono text-white font-bold">
-                        {specs.recommendedThreads} hilos
+                        {t("mining.threadsCount", { threads: specs.recommendedThreads })}
                       </span>{" "}
-                      (deja núcleos libres para uso diario).
+                      {t("mining.recommendedThreadsHint")}
                     </li>
                     <li>
-                      <strong>Modo por defecto:</strong>{" "}
-                      <span className="font-mono text-white">Light Mode (~256 MB)</span> para estabilidad.
+                      <strong>{t("mining.defaultModeLabel")}</strong>{" "}
+                      <span className="font-mono text-white">Light Mode (~256 MB)</span> {t("mining.forStability")}
                     </li>
                   </ul>
                 </div>
               </div>
             ) : (
               <div className="p-8 text-center text-zinc-500 text-xs font-mono">
-                Haz clic en [Verificar Recursos] para analizar tu hardware.
+                {t("mining.clickToVerify")}
               </div>
             )}
           </div>
@@ -589,7 +608,7 @@ export const MiningView: React.FC<MiningViewProps> = ({
               className="w-full flex items-center justify-center space-x-2 py-2.5 bg-black hover:bg-white/10 disabled:opacity-40 border border-white/20 text-white rounded-[2px] text-xs font-mono font-semibold transition"
             >
               <ShieldCheck className="w-4 h-4 text-white" />
-              <span>Aplicar Configuración Segura ({specs?.recommendedThreads || 2} Hilos + Light Mode)</span>
+              <span>{t("mining.applySafeConfig", { threads: specs?.recommendedThreads || 2 })}</span>
             </button>
           </div>
         </div>

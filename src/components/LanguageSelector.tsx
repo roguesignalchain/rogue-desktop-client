@@ -11,7 +11,7 @@ const languages = [
 ] as const;
 
 export const LanguageSelector: React.FC = () => {
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -36,7 +36,7 @@ export const LanguageSelector: React.FC = () => {
       <button
         onClick={() => setOpen(!open)}
         className="flex items-center space-x-2 px-2.5 py-1.5 bg-[#0A0A0C] hover:bg-zinc-900 border border-white/15 hover:border-white/30 rounded-[2px] text-zinc-300 hover:text-white transition"
-        title="Select Language / Seleccionar Idioma"
+        title={t("common.selectLanguage")}
       >
         <currentLang.Flag className="w-4 h-3 rounded-[1px] object-cover" />
         <span className="font-semibold uppercase text-[11px]">{currentLang.code}</span>
@@ -62,7 +62,7 @@ export const LanguageSelector: React.FC = () => {
                 }`}
               >
                 <FlagIcon className="w-4 h-3 rounded-[1px] object-cover shrink-0" />
-                <span className="text-[11px] truncate">{lang.label}</span>
+                <span className="text-[11px] truncate">{t(`languages.${lang.code}`)}</span>
               </button>
             );
           })}

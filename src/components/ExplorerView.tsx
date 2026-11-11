@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Compass, Search, RefreshCw, Layers } from "lucide-react";
 import { Block } from "../types";
 
@@ -9,6 +10,7 @@ interface ExplorerViewProps {
 }
 
 export const ExplorerView: React.FC<ExplorerViewProps> = ({ blocks, onRefresh, loading }) => {
+  const { t } = useTranslation();
   const [searchTerm, setSearchTerm] = useState("");
 
   const filteredBlocks = blocks.filter(
@@ -26,10 +28,10 @@ export const ExplorerView: React.FC<ExplorerViewProps> = ({ blocks, onRefresh, l
           <div>
             <h1 className="text-xl font-bold text-white flex items-center space-x-2">
               <Compass className="w-5 h-5 text-white" />
-              <span>Rogue Signal Mini Explorer</span>
+              <span>{t("explorer.title")}</span>
             </h1>
             <p className="text-xs text-zinc-400 mt-1">
-              Inspect on-chain blocks, transactions, LWMA-1 difficulty adjustments, and gas metrics.
+              {t("explorer.subtitle")}
             </p>
           </div>
 
@@ -39,7 +41,7 @@ export const ExplorerView: React.FC<ExplorerViewProps> = ({ blocks, onRefresh, l
             className="flex items-center space-x-1.5 px-3 py-2 bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 text-white rounded-[2px] text-xs font-mono transition"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin text-white" : ""}`} />
-            <span>Refresh</span>
+            <span>{t("common.refresh")}</span>
           </button>
         </div>
 
@@ -49,7 +51,7 @@ export const ExplorerView: React.FC<ExplorerViewProps> = ({ blocks, onRefresh, l
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value.trim())}
-            placeholder="Search by block height, hash, or miner address..."
+            placeholder={t("explorer.searchPlaceholder")}
             className="w-full bg-zinc-950 border border-zinc-800 focus:border-white rounded-[2px] pl-10 pr-4 py-2 text-xs font-mono text-white outline-none transition"
           />
         </div>
@@ -60,7 +62,9 @@ export const ExplorerView: React.FC<ExplorerViewProps> = ({ blocks, onRefresh, l
         <div className="p-4 border-b border-zinc-800 flex items-center justify-between">
           <div className="flex items-center space-x-2">
             <Layers className="w-4 h-4 text-white" />
-            <h2 className="text-xs font-bold text-white uppercase tracking-wider">Recent Blocks ({filteredBlocks.length})</h2>
+            <h2 className="text-xs font-bold text-white uppercase tracking-wider">
+              {t("explorer.recentBlocks", { count: filteredBlocks.length })}
+            </h2>
           </div>
         </div>
 
@@ -81,30 +85,30 @@ export const ExplorerView: React.FC<ExplorerViewProps> = ({ blocks, onRefresh, l
                       <span className="text-zinc-500 text-[11px]">{date}</span>
                     </div>
                     <div className="text-[11px] px-2 py-0.5 rounded bg-zinc-950 border border-zinc-800 text-zinc-400">
-                      Difficulty: {parseInt(b.difficulty, 16).toLocaleString()}
+                      {t("explorer.difficulty")} {parseInt(b.difficulty, 16).toLocaleString()}
                     </div>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-zinc-400 text-[11px]">
                     <div className="truncate">
-                      <span className="text-zinc-500">Hash: </span>
+                      <span className="text-zinc-500">{t("explorer.hash")} </span>
                       <span className="text-zinc-300">{b.hash}</span>
                     </div>
                     <div className="truncate">
-                      <span className="text-zinc-500">Miner: </span>
+                      <span className="text-zinc-500">{t("explorer.miner")} </span>
                       <span className="text-zinc-300">{b.miner}</span>
                     </div>
                   </div>
 
                   <div className="flex items-center justify-between text-[11px] text-zinc-500 pt-1">
                     <div>
-                      <span>Gas Used: </span>
+                      <span>{t("explorer.gasUsed")} </span>
                       <span className="text-zinc-300">
                         {gasUsed.toLocaleString()} ({gasPct}%)
                       </span>
                     </div>
                     <div>
-                      <span>Transactions: </span>
+                      <span>{t("explorer.transactions")} </span>
                       <span className="text-white font-bold">{b.transactions.length}</span>
                     </div>
                   </div>
@@ -113,7 +117,7 @@ export const ExplorerView: React.FC<ExplorerViewProps> = ({ blocks, onRefresh, l
             })
           ) : (
             <div className="p-8 text-center text-zinc-500 text-xs">
-              No blocks found matching criteria or node still bootstrapping.
+              {t("explorer.noBlocksFound")}
             </div>
           )}
         </div>

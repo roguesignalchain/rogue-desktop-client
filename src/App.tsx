@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { Navbar } from "./components/Navbar";
 import { Sidebar, TabType } from "./components/Sidebar";
 import { Dashboard } from "./components/Dashboard";
@@ -20,6 +21,7 @@ const DEFAULT_BOOTNODES =
   "enode://3bfcd978ea35fc817c5573b03e7b76cb7367720d4ff7a1fdb7ddcb83ec2ad6cba997029305678d49e1dbfccc83a20ecea0d4920a483a8e4d86ebe212b06bcefc@127.0.0.1:38888";
 
 export const App: React.FC = () => {
+  const { t } = useTranslation();
   const [currentTab, setCurrentTab] = useState<TabType>("dashboard");
   const [rpcUrl, setRpcUrl] = useState<string>(() => {
     return localStorage.getItem("rogue_rpc_url") || `http://127.0.0.1:${DEFAULT_HTTP_PORT}`;
@@ -170,7 +172,7 @@ export const App: React.FC = () => {
     setActiveWallet(null);
     setAllWallets([]);
     setDerivedAccounts([]);
-    setLogs((prev) => [...prev, "[Wallet] Bóveda bloqueada exitosamente."]);
+    setLogs((prev) => [...prev, t("logs.vaultLocked")]);
   };
 
   const handleWalletUnlocked = async (actWallet: WalletSummary, walletsList: WalletSummary[]) => {
@@ -180,7 +182,7 @@ export const App: React.FC = () => {
     setActiveWallet(found);
     setUnlockedAddress(found.primary_address);
     await loadActiveWalletAccounts(found.id);
-    setLogs((prev) => [...prev, `[Wallet] Bóveda desbloqueada: ${found.name} (${found.primary_address})`]);
+    setLogs((prev) => [...prev, t("logs.vaultUnlocked", { name: found.name, address: found.primary_address })]);
   };
 
   const handleSwitchWalletRequest = async (walletId: string) => {
@@ -199,7 +201,7 @@ export const App: React.FC = () => {
     try {
       if (stopMining) {
         await api.stopMining(rpcUrl);
-        setLogs((prev) => [...prev, "[Mining] Minería detenida automáticamente al cambiar de billetera activa."]);
+        setLogs((prev) => [...prev, t("logs.miningStoppedAuto")]);
       }
 
       const summary = await api.setActiveWallet(walletId);
@@ -207,7 +209,7 @@ export const App: React.FC = () => {
       setUnlockedAddress(summary.primary_address);
       localStorage.setItem("rogue_active_wallet_id", walletId);
       await loadActiveWalletAccounts(walletId);
-      setLogs((prev) => [...prev, `[Wallet] Billetera activa cambiada a: ${summary.name} (${summary.primary_address})`]);
+      setLogs((prev) => [...prev, t("logs.walletSwitched", { name: summary.name, address: summary.primary_address })]);
     } catch (err) {
       console.error("Error switching wallet:", err);
     } finally {
@@ -223,7 +225,7 @@ export const App: React.FC = () => {
       if (activeWallet?.id === walletId && updated.length > 0) {
         await executeWalletSwitch(updated[0].id);
       }
-      setLogs((prev) => [...prev, "[Wallet] Billetera eliminada de la bóveda."]);
+      setLogs((prev) => [...prev, t("logs.walletRemoved")]);
     } catch (err) {
       console.error("Error removing wallet:", err);
     }
@@ -238,7 +240,7 @@ export const App: React.FC = () => {
 
   const handleSelectAddress = async (addr: string) => {
     setUnlockedAddress(addr);
-    setLogs((prev) => [...prev, `[Wallet] Dirección activa seleccionada: ${addr}`]);
+    setLogs((prev) => [...prev, t("logs.addressSelected", { address: addr })]);
     try {
       await api.setEtherbase(rpcUrl, addr);
     } catch {
@@ -260,7 +262,7 @@ export const App: React.FC = () => {
         const elapsed = (Date.now() - lastActivityRef.current) / 1000 / 60;
         if (elapsed >= autoLockMinutes) {
           handleLockWallet();
-          setLogs((prev) => [...prev, "[Security] Wallet automatically locked due to inactivity."]);
+          setLogs((prev) => [...prev, t("logs.autoLockedInactivity")]);
         }
       }
     }, 15000);
@@ -613,13 +615,13 @@ export const App: React.FC = () => {
                 <AlertTriangle className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="text-sm font-bold text-white">Minería RandomX en Ejecución</h3>
-                <p className="text-xs text-zinc-300">Cambio de billetera requiere pausar la minería</p>
+                <h3 className="text-sm font-bold text-white">{t("mining.switchConfirm.title")}</h3>
+                <p className="text-xs text-zinc-300">{t("mining.switchConfirm.subtitle")}</p>
               </div>
             </div>
 
             <p className="text-xs text-zinc-400 leading-relaxed">
-              Actualmente estás minando bloques con la billetera activa anterior. Si cambias de billetera ahora, la minería local se detendrá automáticamente para evitar pagos a una dirección no deseada.
+              {t("mining.switchConfirm.description")}
             </p>
 
             <div className="flex items-center justify-end space-x-2 pt-2 border-t border-zinc-800">
@@ -630,7 +632,7 @@ export const App: React.FC = () => {
                 }}
                 className="px-3.5 py-1.5 text-xs text-zinc-400 hover:text-white rounded-lg transition"
               >
-                Cancelar
+                {t("common.cancel")}
               </button>
               <button
                 onClick={() => {
@@ -640,7 +642,7 @@ export const App: React.FC = () => {
                 }}
                 className="px-4 py-1.5 bg-white hover:bg-zinc-200 text-black text-xs font-mono uppercase tracking-wider font-bold rounded-[2px] shadow-[0_0_15px_rgba(255,255,255,0.15)] transition"
               >
-                Detener Minería y Cambiar
+                {t("mining.switchConfirm.stopAndSwitch")}
               </button>
             </div>
           </div>
@@ -654,14 +656,14 @@ export const App: React.FC = () => {
             <Loader2 className="w-8 h-8 text-white animate-spin" />
           </div>
           <h2 className="text-xl font-bold text-white tracking-wide">
-            Cerrando el nodo y guardando la base de datos...
+            {t("shutdown.title")}
           </h2>
           <p className="text-sm text-zinc-400 max-w-md mt-2">
-            Core-Geth está sincronizando el estado de LevelDB a disco de forma segura. Por favor no desconectes el equipo para evitar la corrupción de la blockchain.
+            {t("shutdown.description")}
           </p>
           <div className="mt-6 flex items-center space-x-2 text-xs font-mono text-white bg-white/10 border border-white/20 px-3 py-1.5 rounded-[2px]">
             <ShieldAlert className="w-4 h-4 text-white" />
-            <span>Apagado ordenado en curso</span>
+            <span>{t("shutdown.badge")}</span>
           </div>
         </div>
       )}
