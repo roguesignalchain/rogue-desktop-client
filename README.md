@@ -31,6 +31,11 @@ Built with **Tauri v2**, **Rust**, **React 19**, **TypeScript**, and **Tailwind 
   * Real-time balance and gas tracking in native ROGUE (18 decimals).
 * **Mini On-Chain Explorer & Consensus Telemetry**:
   * Live monitoring of recent blocks, LWMA-1 difficulty adjustments, miner coinbase payouts, RandomX epoch status (`randomx_getEpochInfo`), and active Anti-51% finality (`MaxReorgDepth = 90` + `ECBP-1100 MESS`).
+* **Protocol Gamification & Cyberpunk Miner Identity**:
+  * Deterministic procedural avatars generated 100% offline via `@dicebear/core` and `@dicebear/collection` seeded by the active wallet address.
+  * Interactive miner card querying the node's `rogue_getMinerStats` endpoint: renders real-time cyberpunk medals, rank badges, current XP, and next-tier progress bar.
+  * Native tracking of all 7 on-chain tiers persisted in `StateDB` under contract `0x0000000000000000000000000000000000000020`.
+  * Comprehensive i18n localization (English, Spanish, Chinese) with selector flags from `country-flag-icons`.
 * **Security, RPC Lockdown & Inactivity Auto-Lock**:
   * Restricts local node HTTP/WS CORS exclusively to `tauri://localhost` and `127.0.0.1:1420` (with `personal` RPC disabled).
   * Configurable auto-lock timers (5, 15, or 30 minutes) clearing decrypted secrets from RAM upon user inactivity.
@@ -87,6 +92,22 @@ Private keys are never stored in plaintext or exposed to the JavaScript frontend
 |                   (Default: Light Mode ~256 MB RAM)                   |
 +-----------------------------------------------------------------------+
 ```
+
+---
+
+## 🎖️ Cyberpunk Miner Tiers & Medals Showcase
+
+The desktop client renders real-time cyberpunk medals corresponding to the miner's canonical block count queried from `rogue_getMinerStats`:
+
+| Level | Rank Title | Blocks Mined | Target XP | Badge Asset | Tier Status |
+| :---: | :--- | :---: | :---: | :---: | :---: |
+| **Lv.0** | **Unranked Runner** | `0` | `1` | `lvl0.png` | `Standard` |
+| **Lv.1** | **Recon Runner** | `1 – 24` | `25` | `lvl1.png` | `Standard` |
+| **Lv.2** | **Signal Scraper** | `25 – 99` | `100` | `lvl2.png` | `Elevated` |
+| **Lv.3** | **Hash Warden** | `100 – 499` | `500` | `lvl3.png` | `Hardened` |
+| **Lv.4** | **Cipher Architect** | `500 – 2,499` | `2,500` | `lvl4.png` | `Elite` |
+| **Lv.5** | **Apex Operator** | `2,500 – 9,999` | `10,000` | `lvl5.png` | `Master` |
+| **Lv.6** | **Rogue Singularity** | `10,000+` | `MAX` | `lvl6.png` | `Legendary` |
 
 ---
 
