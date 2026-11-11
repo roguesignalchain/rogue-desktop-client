@@ -27,6 +27,7 @@ interface MiningViewProps {
   peerCount?: number;
   recentBlocks?: Block[];
   currentBlock?: number;
+  onMiningStopped?: () => void;
 }
 
 export const MiningView: React.FC<MiningViewProps> = ({
@@ -37,6 +38,7 @@ export const MiningView: React.FC<MiningViewProps> = ({
   syncStatus,
   peerCount = 0,
   recentBlocks = [],
+  onMiningStopped,
 }) => {
   const { t } = useTranslation();
 
@@ -176,6 +178,9 @@ export const MiningView: React.FC<MiningViewProps> = ({
       } else {
         await api.stopMining(rpcUrl);
         setIsMining(false);
+        if (onMiningStopped) {
+          onMiningStopped();
+        }
         setFeedback(t("mining.feedback.miningStopped"));
       }
     } catch (err: unknown) {

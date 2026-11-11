@@ -155,11 +155,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 />
               </div>
             </div>
-          ) : currentBlock === 0 ? (
-            <div className="flex items-center space-x-2 py-1 px-1.5 bg-zinc-950 border border-white/20 rounded-[1px] text-zinc-300">
-              <RefreshCw className="w-3 h-3 text-white animate-spin shrink-0" />
-              <span className="truncate">{t("sync.startingChain")}</span>
-            </div>
           ) : (
             <div className="flex items-center justify-between py-1 px-1.5 bg-white/10 border border-white/30 rounded-[1px] text-white font-bold">
               <div className="flex items-center space-x-1.5 truncate">

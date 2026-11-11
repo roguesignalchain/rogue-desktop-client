@@ -568,6 +568,7 @@ export const App: React.FC = () => {
               peerCount={peerCount}
               recentBlocks={recentBlocks}
               currentBlock={currentBlock}
+              onMiningStopped={() => setHashrate(0)}
             />
           )}
 
