@@ -222,7 +222,7 @@ pub async fn start_node(app: AppHandle, config: NodeConfig) -> Result<String, St
         .arg("--http.port")
         .arg(config.http_port.to_string())
         .arg("--http.api")
-        .arg("eth,net,web3,miner,txpool,admin,randomx")
+        .arg("eth,net,web3,miner,txpool,admin,randomx,rogue")
         .arg("--http.corsdomain")
         .arg("tauri://localhost,http://tauri.localhost,http://localhost:1420,http://127.0.0.1:1420");
 
@@ -233,7 +233,7 @@ pub async fn start_node(app: AppHandle, config: NodeConfig) -> Result<String, St
             .arg("--ws.port")
             .arg(config.ws_port.to_string())
             .arg("--ws.api")
-            .arg("eth,net,web3,miner,admin,randomx")
+            .arg("eth,net,web3,miner,admin,randomx,rogue")
             .arg("--ws.origins")
             .arg("tauri://localhost,http://tauri.localhost,http://localhost:1420,http://127.0.0.1:1420");
     }

@@ -1,0 +1,76 @@
+{
+  "common": {
+    "appName": "ROGUE SIGNAL",
+    "dashboard": "仪表板",
+    "wallet": "钱包",
+    "mining": "CPU 挖矿",
+    "explorer": "迷你浏览器",
+    "console": "节点控制台",
+    "settings": "设置",
+    "block": "区块",
+    "status": "状态",
+    "active": "当前活跃",
+    "wallets": "钱包列表",
+    "unlocked": "已解锁",
+    "locked": "已锁定",
+    "lockVault": "锁定保险库",
+    "unlockWallet": "解锁钱包",
+    "createNewWallet": "创建新钱包",
+    "importMnemonic": "导入现有助记词",
+    "derivedAccounts": "衍生账户",
+    "balance": "余额",
+    "hashrate": "算力",
+    "peers": "节点对等数",
+    "network": "网络",
+    "connected": "已连接",
+    "offline": "离线"
+  },
+  "sync": {
+    "nodeOffline": "[节点离线]",
+    "connectingRpc": "[连接 RPC 中...]",
+    "searchingPeers": "[搜索对等节点...]",
+    "syncing": "[同步中 {{progress}}%]",
+    "verifying": "[验证区块中...]",
+    "startingChain": "[初始化创世链 #0]",
+    "synced": "[已同步]",
+    "highestBlock": "最高区块",
+    "currentHeight": "当前高度"
+  },
+  "consensus": {
+    "title": "[共识规范]",
+    "algo": "算法:",
+    "algoValue": "rx/0 (RandomX)",
+    "daa": "难度调整:",
+    "daaValue": "LWMA-1 (N=60)",
+    "blockTarget": "出块时间:",
+    "blockTargetValue": "30秒",
+    "reward": "出块奖励:",
+    "rewardValue": "25 ROGUE (95/5)",
+    "security": "安全防护:",
+    "securityValue": "MESS + 回滚≤90"
+  },
+  "gamification": {
+    "profileTitle": "链上矿工档案",
+    "rank": "头衔等级",
+    "level": "等级 {{level}}",
+    "xp": "经验进度",
+    "blocksMined": "已挖区块",
+    "nextLevelAt": "升级需达到 {{blocks}} 个区块",
+    "maxRankReached": "已达最高等级",
+    "titles": {
+      "level0": "Unranked Runner",
+      "level1": "Recon Runner",
+      "level2": "Signal Scraper",
+      "level3": "Hash Warden",
+      "level4": "Cipher Architect",
+      "level5": "Apex Operator",
+      "level6": "Rogue Singularity"
+    }
+  },
+  "languages": {
+    "en": "English",
+    "es": "Español",
+    "zh": "中文"
+  }
+}
+

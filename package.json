@@ -11,6 +11,9 @@
     "tauri:watch": "tauri dev"
   },
   "dependencies": {
+    "@dicebear/collection": "^9.4.2",
+    "@dicebear/core": "^9.4.3",
+    "@dicebear/styles": "^10.6.0",
     "@tauri-apps/api": "^2.0.0",
     "@tauri-apps/plugin-dialog": "^2.0.0",
     "@tauri-apps/plugin-fs": "^2.0.0",
@@ -19,9 +22,12 @@
     "@tauri-apps/plugin-shell": "^2.0.0",
     "@tauri-apps/plugin-store": "^2.0.0",
     "clsx": "^2.1.1",
+    "country-flag-icons": "^1.6.20",
+    "i18next": "^27.1.1",
     "lucide-react": "^0.460.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-i18next": "^18.0.1",
     "tailwind-merge": "^2.6.0",
     "viem": "^2.21.0"
   },
@@ -38,4 +44,3 @@
     "vite": "^6.0.0"
   }
 }
-

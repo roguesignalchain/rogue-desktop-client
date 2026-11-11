@@ -1,0 +1,76 @@
+{
+  "common": {
+    "appName": "ROGUE SIGNAL",
+    "dashboard": "Dashboard",
+    "wallet": "Wallet",
+    "mining": "CPU Mining",
+    "explorer": "Mini Explorer",
+    "console": "Node Console",
+    "settings": "Settings",
+    "block": "Block",
+    "status": "Status",
+    "active": "ACTIVE",
+    "wallets": "Wallets",
+    "unlocked": "Unlocked",
+    "locked": "Locked",
+    "lockVault": "Lock Vault",
+    "unlockWallet": "Unlock Wallet",
+    "createNewWallet": "Create New Wallet",
+    "importMnemonic": "Import Existing Mnemonic",
+    "derivedAccounts": "Derived Accounts",
+    "balance": "Balance",
+    "hashrate": "Hashrate",
+    "peers": "Peers",
+    "network": "Network",
+    "connected": "Connected",
+    "offline": "Offline"
+  },
+  "sync": {
+    "nodeOffline": "[NODE OFFLINE]",
+    "connectingRpc": "[CONNECTING RPC...]",
+    "searchingPeers": "[FINDING PEERS...]",
+    "syncing": "[SYNCING {{progress}}%]",
+    "verifying": "[VERIFYING...]",
+    "startingChain": "[STARTING CHAIN #0]",
+    "synced": "[SYNCED]",
+    "highestBlock": "Highest Block",
+    "currentHeight": "Current Height"
+  },
+  "consensus": {
+    "title": "[CONSENSUS SPEC]",
+    "algo": "Algo:",
+    "algoValue": "rx/0 (RandomX)",
+    "daa": "DAA:",
+    "daaValue": "LWMA-1 (N=60)",
+    "blockTarget": "Block Target:",
+    "blockTargetValue": "30s",
+    "reward": "Reward:",
+    "rewardValue": "25 ROGUE (95/5)",
+    "security": "Security:",
+    "securityValue": "MESS + Reorg≤90"
+  },
+  "gamification": {
+    "profileTitle": "ON-CHAIN MINER PROFILE",
+    "rank": "Rank",
+    "level": "Level {{level}}",
+    "xp": "XP Progress",
+    "blocksMined": "Blocks Mined",
+    "nextLevelAt": "Next level at {{blocks}} blocks",
+    "maxRankReached": "Max Rank Reached",
+    "titles": {
+      "level0": "Unranked Runner",
+      "level1": "Recon Runner",
+      "level2": "Signal Scraper",
+      "level3": "Hash Warden",
+      "level4": "Cipher Architect",
+      "level5": "Apex Operator",
+      "level6": "Rogue Singularity"
+    }
+  },
+  "languages": {
+    "en": "English",
+    "es": "Español",
+    "zh": "中文"
+  }
+}
+

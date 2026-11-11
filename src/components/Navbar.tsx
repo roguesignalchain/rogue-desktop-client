@@ -1,9 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import {
-  Activity,
   ShieldAlert,
-  Radio,
-  RefreshCw,
   ChevronDown,
   ChevronRight,
   Wallet,
@@ -12,20 +10,20 @@ import {
   Lock,
   Trash2,
   Check,
+  Award,
+  Zap,
 } from "lucide-react";
-import { NodeStatus, SyncStatus, WalletSummary, AccountInfo } from "../types";
+import { WalletSummary, AccountInfo, MinerGamificationStats } from "../types";
+import { VoxelAvatar } from "./VoxelAvatar";
+import { LanguageSelector } from "./LanguageSelector";
 
 interface NavbarProps {
-  nodeStatus: NodeStatus;
-  syncStatus: SyncStatus;
-  rpcConnected: boolean;
-  peerCount: number;
-  currentBlock: number;
   unlockedAddress: string | null;
   activeWallet: WalletSummary | null;
   allWallets: WalletSummary[];
   derivedAccounts: AccountInfo[];
   activeBalance: string;
+  minerStats: MinerGamificationStats | null;
   onOpenWalletModal: (mode?: "unlock" | "create" | "import") => void;
   onLockWallet: () => void;
   onSelectWallet: (walletId: string) => void;
@@ -34,22 +32,19 @@ interface NavbarProps {
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
-  nodeStatus,
-  syncStatus,
-  rpcConnected,
-  peerCount,
-  currentBlock,
   unlockedAddress,
   activeWallet,
   allWallets,
   derivedAccounts,
   activeBalance,
+  minerStats,
   onOpenWalletModal,
   onLockWallet,
   onSelectWallet,
   onSelectAddress,
   onRemoveWallet,
 }) => {
+  const { t } = useTranslation();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [expandedWalletId, setExpandedWalletId] = useState<string | null>(null);
   const [walletToDelete, setWalletToDelete] = useState<string | null>(null);
@@ -77,104 +72,139 @@ export const Navbar: React.FC<NavbarProps> = ({
     }
   }, [activeWallet]);
 
+  const level = minerStats?.level ?? 0;
+  const rankTitle = minerStats?.title ?? t("gamification.titles.level0");
+  const progressPercent = minerStats?.progressPercent ?? 0;
+
   return (
     <header className="h-14 border-b border-white/10 bg-black px-6 flex items-center justify-between sticky top-0 z-30 select-none">
-      {/* Brand & Network info */}
-      <div className="flex items-center space-x-4">
-        <div className="flex items-center space-x-2.5">
-          <div className="w-7 h-7 rounded-[2px] bg-black border border-white/20 p-0.5 flex items-center justify-center">
-            <img src="/icon.png" alt="Rogue Signal" className="w-full h-full object-contain" />
-          </div>
-          <span className="font-bold text-base tracking-wider text-white font-display">
-            ROGUE SIGNAL
-          </span>
+      {/* Brand: Logo & Title only (Clean, no Chain ID, no sync widgets) */}
+      <div className="flex items-center space-x-2.5">
+        <div className="w-8 h-8 rounded-[2px] bg-black border border-white/20 p-0.5 flex items-center justify-center shadow-[0_0_10px_rgba(255,255,255,0.05)]">
+          <img src="/icon.png" alt="Rogue Signal" className="w-full h-full object-contain" />
         </div>
-        <div className="text-xs px-2.5 py-0.5 rounded-[2px] bg-[#0A0A0C] border border-white/15 text-zinc-300 flex items-center space-x-1.5 font-mono">
-          <Radio className="w-3.5 h-3.5 text-white" />
-          <span>[CHAIN ID: 800055]</span>
-        </div>
+        <span className="font-bold text-base tracking-wider text-white font-display">
+          ROGUE SIGNAL
+        </span>
       </div>
 
-      {/* Dynamic Sync Status & Block tracker */}
-      <div className="flex items-center space-x-4">
-        {/* Dynamic Network / Sync Badge */}
-        {!rpcConnected && !nodeStatus.running ? (
-          <div className="flex items-center space-x-1.5 px-2.5 py-0.5 bg-black border border-white/10 rounded-[2px] text-xs font-mono text-zinc-500">
-            <span className="w-2 h-2 rounded-full bg-zinc-600" />
-            <span>[NODO OFFLINE]</span>
-          </div>
-        ) : !rpcConnected ? (
-          <div className="flex items-center space-x-1.5 px-2.5 py-0.5 bg-zinc-950 border border-white/20 rounded-[2px] text-xs font-mono text-zinc-300">
-            <RefreshCw className="w-3 h-3 text-white animate-spin" />
-            <span>[CONECTANDO RPC...]</span>
-          </div>
-        ) : peerCount === 0 ? (
-          <div className="flex items-center space-x-1.5 px-2.5 py-0.5 bg-zinc-950 border border-white/20 rounded-[2px] text-xs font-mono text-zinc-300">
-            <span className="w-2 h-2 rounded-full bg-zinc-400 animate-pulse" />
-            <span>[BUSCANDO PARES...]</span>
-          </div>
-        ) : syncStatus.isSyncing ? (
-          <div className="flex items-center space-x-1.5 px-2.5 py-0.5 bg-zinc-900 border border-white/30 rounded-[2px] text-xs font-mono text-white">
-            <RefreshCw className="w-3 h-3 text-white animate-spin" />
-            <span>{syncStatus.peersAhead ? "[VERIFICANDO...]" : `[SYNCING ${syncStatus.progressPercentage}%]`}</span>
-          </div>
-        ) : currentBlock === 0 ? (
-          <div className="flex items-center space-x-1.5 px-2.5 py-0.5 bg-zinc-950 border border-white/20 rounded-[2px] text-xs font-mono text-zinc-300">
-            <RefreshCw className="w-3 h-3 text-white animate-spin" />
-            <span>[INICIANDO CADENA #0]</span>
-          </div>
-        ) : (
-          <div className="flex items-center space-x-1.5 px-2.5 py-0.5 bg-white/10 border border-white/30 rounded-[2px] text-xs font-mono text-white font-bold">
-            <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
-            <span>[SYNCED]</span>
-          </div>
-        )}
+      {/* Right Side: Language Selector + Gamified User Card */}
+      <div className="flex items-center space-x-3">
+        {/* Language Selector (EN, ES, ZH with Flags) */}
+        <LanguageSelector />
 
-        <div className="flex items-center space-x-2 text-xs font-mono">
-          <Activity className="w-4 h-4 text-white" />
-          <span className="text-zinc-400">Bloque:</span>
-          <span className="text-white font-bold">#{currentBlock}</span>
-        </div>
-
-        {/* Multi-Wallet Dropdown Selector */}
+        {/* Gamified User Card */}
         {unlockedAddress ? (
           <div className="relative" ref={dropdownRef}>
             <button
               onClick={() => setDropdownOpen(!dropdownOpen)}
-              className="flex items-center space-x-2.5 px-3 py-1.5 bg-[#0A0A0C] hover:bg-zinc-900 border border-white/15 hover:border-white/40 rounded-[2px] text-xs transition"
+              className="flex items-center space-x-2.5 px-3 py-1.5 bg-[#0A0A0C] hover:bg-zinc-900 border border-white/15 hover:border-white/40 rounded-[2px] text-xs transition group"
             >
-              <div className="w-2 h-2 rounded-full bg-white shadow-[0_0_8px_rgba(255,255,255,0.4)]" />
-              <div className="flex flex-col items-start leading-tight">
-                <div className="flex items-center space-x-1.5">
-                  <span className="font-semibold text-white truncate max-w-[120px]">
-                    {activeWallet?.name || "Billetera"}
-                  </span>
-                  <span className="font-mono text-[11px] text-zinc-400">
-                    ({unlockedAddress.slice(0, 6)}...{unlockedAddress.slice(-4)})
-                  </span>
-                </div>
-                <span className="font-mono text-[10px] text-white font-bold mt-0.5">
-                  {activeBalance} ROGUE
+              {/* Dynamic Offline Voxel Bot Avatar */}
+              <div className="relative">
+                <VoxelAvatar seed={unlockedAddress} size={28} className="border border-white/20" />
+                <span className="absolute -bottom-1 -right-1 px-1 py-0.2 bg-white text-black font-extrabold text-[8px] rounded-[1px] font-mono leading-tight shadow">
+                  L{level}
                 </span>
               </div>
-              <ChevronDown className={`w-3.5 h-3.5 text-zinc-400 transition-transform ${dropdownOpen ? "rotate-180" : ""}`} />
+
+              {/* User Identity & Gamified Rank */}
+              <div className="flex flex-col items-start leading-tight">
+                <div className="flex items-center space-x-1.5">
+                  <span className="font-bold text-white text-[11px] group-hover:text-zinc-200 transition">
+                    [{rankTitle}]
+                  </span>
+                  <span className="font-mono text-[10px] text-zinc-400">
+                    {unlockedAddress.slice(0, 6)}...{unlockedAddress.slice(-4)}
+                  </span>
+                </div>
+                <div className="flex items-center space-x-2 mt-0.5">
+                  <span className="font-mono text-[10px] text-zinc-300 font-bold">
+                    {activeBalance} ROGUE
+                  </span>
+                  {minerStats && (
+                    <span className="text-[9px] font-mono text-zinc-400">
+                      • {minerStats.blocksMined} {t("gamification.blocksMined").toLowerCase()}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <ChevronDown
+                className={`w-3.5 h-3.5 text-zinc-400 transition-transform ${
+                  dropdownOpen ? "rotate-180" : ""
+                }`}
+              />
             </button>
 
-            {/* Dropdown Menu */}
+            {/* Dropdown Menu: Gamification Stats + Multi-Wallet Management */}
             {dropdownOpen && (
-              <div className="absolute right-0 mt-2 w-80 bg-[#0A0A0C] border border-white/20 rounded-[2px] shadow-2xl overflow-hidden z-50 animate-in fade-in duration-100">
-                <div className="p-3 border-b border-white/10 flex items-center justify-between bg-black">
+              <div className="absolute right-0 mt-2 w-88 bg-[#0A0A0C] border border-white/20 rounded-[2px] shadow-2xl overflow-hidden z-50 animate-in fade-in duration-100">
+                {/* Gamified Profile Header */}
+                <div className="p-3.5 bg-zinc-950 border-b border-white/10 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-1.5 text-zinc-400 font-mono text-[10px] uppercase tracking-wider">
+                      <Award className="w-3.5 h-3.5 text-white" />
+                      <span>{t("gamification.profileTitle")}</span>
+                    </div>
+                    <span className="px-1.5 py-0.5 bg-white text-black font-extrabold text-[10px] rounded-[1px] font-mono uppercase">
+                      {t("gamification.level", { level })}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center space-x-3">
+                    <VoxelAvatar seed={unlockedAddress} size={44} className="border border-white/30" />
+                    <div className="min-w-0 flex-1">
+                      <h4 className="text-sm font-bold text-white truncate font-display tracking-wide">
+                        {rankTitle}
+                      </h4>
+                      <p className="text-[11px] font-mono text-zinc-400 truncate">
+                        {unlockedAddress}
+                      </p>
+                      <div className="text-[10px] font-mono text-zinc-300 mt-0.5 flex items-center space-x-1">
+                        <Zap className="w-3 h-3 text-white" />
+                        <span>
+                          {minerStats?.blocksMined ?? 0} {t("gamification.blocksMined")}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* XP Progress Bar */}
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-[10px] font-mono text-zinc-400">
+                      <span>{t("gamification.xp")}</span>
+                      <span className="text-white font-bold">{progressPercent.toFixed(1)}%</span>
+                    </div>
+                    <div className="w-full bg-zinc-900 border border-white/10 h-2 rounded-[1px] overflow-hidden">
+                      <div
+                        className="bg-white h-full transition-all duration-300"
+                        style={{ width: `${progressPercent}%` }}
+                      />
+                    </div>
+                    <div className="text-[9px] font-mono text-zinc-500 text-right">
+                      {level >= 6
+                        ? t("gamification.maxRankReached")
+                        : t("gamification.nextLevelAt", { blocks: minerStats?.nextLevelXP ?? 1 })}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Wallets Title Bar */}
+                <div className="p-2.5 border-b border-white/10 flex items-center justify-between bg-black">
                   <div className="flex items-center space-x-1.5">
                     <Wallet className="w-3.5 h-3.5 text-white" />
-                    <span className="text-xs font-bold text-white uppercase tracking-wider">[BILLETERAS]</span>
+                    <span className="text-[11px] font-bold text-white uppercase tracking-wider font-mono">
+                      [{t("common.wallets")}]
+                    </span>
                   </div>
                   <span className="text-[10px] bg-zinc-900 text-zinc-300 px-1.5 py-0.5 rounded-[2px] font-mono border border-white/10">
-                    {allWallets.length} {allWallets.length === 1 ? "billetera" : "billeteras"}
+                    {allWallets.length}
                   </span>
                 </div>
 
                 {/* Wallets & Derived Accounts List */}
-                <div className="max-h-72 overflow-y-auto p-2 space-y-1.5">
+                <div className="max-h-64 overflow-y-auto p-2 space-y-1.5">
                   {allWallets.map((w) => {
                     const isWalletActive = activeWallet?.id === w.id;
                     const isExpanded = expandedWalletId === w.id;
@@ -188,8 +218,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                             : "bg-black border-white/10 hover:border-white/25"
                         }`}
                       >
-                        {/* Wallet Row Header */}
-                        <div className="p-2.5 flex items-center justify-between">
+                        <div className="p-2 flex items-center justify-between">
                           <div
                             onClick={() => {
                               onSelectWallet(w.id);
@@ -215,8 +244,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                               <div className="flex items-center space-x-1.5">
                                 <span className="text-xs font-bold text-white truncate">{w.name}</span>
                                 {isWalletActive && (
-                                  <span className="text-[9px] bg-white text-black font-bold px-1 rounded-[2px] font-mono">
-                                    ACTIVA
+                                  <span className="text-[9px] bg-white text-black font-bold px-1 rounded-[1px] font-mono">
+                                    {t("common.active")}
                                   </span>
                                 )}
                               </div>
@@ -226,7 +255,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                             </div>
                           </div>
 
-                          {/* Delete button (if more than 1 wallet) */}
                           {allWallets.length > 1 && (
                             <button
                               onClick={(e) => {
@@ -243,21 +271,21 @@ export const Navbar: React.FC<NavbarProps> = ({
                                   ? "bg-white text-black font-bold"
                                   : "text-zinc-500 hover:text-white hover:bg-zinc-900"
                               }`}
-                              title={walletToDelete === w.id ? "Clic para confirmar eliminación" : "Eliminar billetera"}
+                              title={walletToDelete === w.id ? "Click to confirm delete" : "Delete"}
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           )}
                         </div>
 
-                        {/* Collapsible Derived Accounts of this Wallet */}
                         {isExpanded && isWalletActive && derivedAccounts.length > 0 && (
-                          <div className="px-3 pb-2.5 pt-1 space-y-1 border-t border-white/10 bg-black">
-                            <span className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider block mb-1">
-                              [CUENTAS DERIVADAS ({derivedAccounts.length})]
+                          <div className="px-3 pb-2 pt-1 space-y-1 border-t border-white/10 bg-black">
+                            <span className="text-[9px] font-semibold text-zinc-500 uppercase tracking-wider block mb-1">
+                              [{t("common.derivedAccounts")} ({derivedAccounts.length})]
                             </span>
                             {derivedAccounts.map((acc) => {
-                              const isAccountActive = acc.address.toLowerCase() === unlockedAddress?.toLowerCase();
+                              const isAccountActive =
+                                acc.address.toLowerCase() === unlockedAddress?.toLowerCase();
                               return (
                                 <div
                                   key={acc.address}
@@ -273,9 +301,14 @@ export const Navbar: React.FC<NavbarProps> = ({
                                 >
                                   <div className="flex items-center space-x-1.5 truncate">
                                     <span className="text-[10px]">#{acc.index + 1}</span>
-                                    <span className="truncate">{acc.name || `${acc.address.slice(0, 6)}...${acc.address.slice(-4)}`}</span>
+                                    <span className="truncate">
+                                      {acc.name ||
+                                        `${acc.address.slice(0, 6)}...${acc.address.slice(-4)}`}
+                                    </span>
                                   </div>
-                                  {isAccountActive && <Check className="w-3.5 h-3.5 text-black shrink-0" />}
+                                  {isAccountActive && (
+                                    <Check className="w-3.5 h-3.5 text-black shrink-0" />
+                                  )}
                                 </div>
                               );
                             })}
@@ -296,7 +329,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     className="w-full flex items-center space-x-2 px-2.5 py-1.5 rounded-[2px] text-xs text-zinc-300 hover:text-white hover:bg-white/10 transition"
                   >
                     <Plus className="w-3.5 h-3.5 text-white" />
-                    <span>Crear Nueva Billetera</span>
+                    <span>{t("common.createNewWallet")}</span>
                   </button>
 
                   <button
@@ -307,7 +340,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     className="w-full flex items-center space-x-2 px-2.5 py-1.5 rounded-[2px] text-xs text-zinc-300 hover:text-white hover:bg-white/10 transition"
                   >
                     <Download className="w-3.5 h-3.5 text-white" />
-                    <span>Importar Mnemónico Existente</span>
+                    <span>{t("common.importMnemonic")}</span>
                   </button>
 
                   <div className="border-t border-white/10 my-1" />
@@ -320,7 +353,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     className="w-full flex items-center space-x-2 px-2.5 py-1.5 rounded-[2px] text-xs text-zinc-400 hover:text-white hover:bg-white/10 transition"
                   >
                     <Lock className="w-3.5 h-3.5 text-white" />
-                    <span>Bloquear Bóveda</span>
+                    <span>{t("common.lockVault")}</span>
                   </button>
                 </div>
               </div>
@@ -333,7 +366,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               className="flex items-center space-x-1.5 px-3 py-1.5 bg-white text-black font-bold hover:bg-zinc-200 border border-white rounded-[2px] text-xs transition shadow-[0_0_15px_rgba(255,255,255,0.15)]"
             >
               <ShieldAlert className="w-4 h-4 text-black" />
-              <span>Desbloquear Billetera</span>
+              <span>{t("common.unlockWallet")}</span>
             </button>
           </div>
         )}

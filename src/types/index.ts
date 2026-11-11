@@ -95,3 +95,13 @@ export interface NetworkInfo {
   baseFeeGwei: string;
 }
 
+export interface MinerGamificationStats {
+  address: string;
+  blocksMined: number;
+  level: number;
+  title: string;
+  currentXP: number;
+  nextLevelXP: number;
+  progressPercent: number;
+}
+

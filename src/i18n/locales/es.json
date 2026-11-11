@@ -1,0 +1,76 @@
+{
+  "common": {
+    "appName": "ROGUE SIGNAL",
+    "dashboard": "Dashboard",
+    "wallet": "Billetera",
+    "mining": "Minería CPU",
+    "explorer": "Mini Explorador",
+    "console": "Consola del Nodo",
+    "settings": "Ajustes",
+    "block": "Bloque",
+    "status": "Estado",
+    "active": "ACTIVA",
+    "wallets": "Billeteras",
+    "unlocked": "Desbloqueada",
+    "locked": "Bloqueada",
+    "lockVault": "Bloquear Bóveda",
+    "unlockWallet": "Desbloquear Billetera",
+    "createNewWallet": "Crear Nueva Billetera",
+    "importMnemonic": "Importar Mnemónico Existente",
+    "derivedAccounts": "Cuentas Derivadas",
+    "balance": "Saldo",
+    "hashrate": "Hashrate",
+    "peers": "Pares",
+    "network": "Red",
+    "connected": "Conectado",
+    "offline": "Desconectado"
+  },
+  "sync": {
+    "nodeOffline": "[NODO OFFLINE]",
+    "connectingRpc": "[CONECTANDO RPC...]",
+    "searchingPeers": "[BUSCANDO PARES...]",
+    "syncing": "[SINCRONIZANDO {{progress}}%]",
+    "verifying": "[VERIFICANDO...]",
+    "startingChain": "[INICIANDO CADENA #0]",
+    "synced": "[SINCRONIZADO]",
+    "highestBlock": "Bloque Más Alto",
+    "currentHeight": "Altura Actual"
+  },
+  "consensus": {
+    "title": "[CONSENSUS SPEC]",
+    "algo": "Algo:",
+    "algoValue": "rx/0 (RandomX)",
+    "daa": "DAA:",
+    "daaValue": "LWMA-1 (N=60)",
+    "blockTarget": "Tiempo de Bloque:",
+    "blockTargetValue": "30s",
+    "reward": "Recompensa:",
+    "rewardValue": "25 ROGUE (95/5)",
+    "security": "Seguridad:",
+    "securityValue": "MESS + Reorg≤90"
+  },
+  "gamification": {
+    "profileTitle": "PERFIL MINERO ON-CHAIN",
+    "rank": "Rango",
+    "level": "Nivel {{level}}",
+    "xp": "Progreso de XP",
+    "blocksMined": "Bloques Minados",
+    "nextLevelAt": "Siguiente nivel a los {{blocks}} bloques",
+    "maxRankReached": "Rango Máximo Alcanzado",
+    "titles": {
+      "level0": "Unranked Runner",
+      "level1": "Recon Runner",
+      "level2": "Signal Scraper",
+      "level3": "Hash Warden",
+      "level4": "Cipher Architect",
+      "level5": "Apex Operator",
+      "level6": "Rogue Singularity"
+    }
+  },
+  "languages": {
+    "en": "English",
+    "es": "Español",
+    "zh": "中文"
+  }
+}
+

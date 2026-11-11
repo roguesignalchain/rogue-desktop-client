@@ -8,7 +8,7 @@ import { ExplorerView } from "./components/ExplorerView";
 import { NodeConsoleView } from "./components/NodeConsoleView";
 import { SettingsView } from "./components/SettingsView";
 import { WalletModal } from "./components/WalletModal";
-import { Block, NodeStatus, SyncStatus, WalletSummary, AccountInfo } from "./types";
+import { Block, NodeStatus, SyncStatus, WalletSummary, AccountInfo, MinerGamificationStats } from "./types";
 import { api } from "./services/api";
 import { Loader2, ShieldAlert, AlertTriangle } from "lucide-react";
 
@@ -85,6 +85,7 @@ export const App: React.FC = () => {
   const [showMiningSwitchConfirm, setShowMiningSwitchConfirm] = useState<boolean>(false);
   const [loadingBlocks, setLoadingBlocks] = useState<boolean>(false);
   const [isShuttingDown, setIsShuttingDown] = useState<boolean>(false);
+  const [minerStats, setMinerStats] = useState<MinerGamificationStats | null>(null);
 
   const lastActivityRef = useRef<number>(Date.now());
   const autoStartInitiated = useRef<boolean>(false);
@@ -311,6 +312,15 @@ export const App: React.FC = () => {
         } catch {
           // Transient balance query failure
         }
+
+        try {
+          const stats = await api.getMinerStats(rpcUrl, unlockedAddress);
+          if (stats) {
+            setMinerStats(stats);
+          }
+        } catch {
+          // Transient gamification query failure
+        }
       }
     } catch {
       // Node is unreachable via RPC endpoint
@@ -477,16 +487,12 @@ export const App: React.FC = () => {
   return (
     <div className="flex flex-col h-screen bg-black text-slate-100 overflow-hidden relative">
       <Navbar
-        nodeStatus={nodeStatus}
-        syncStatus={syncStatus}
-        rpcConnected={rpcConnected}
-        peerCount={peerCount}
-        currentBlock={currentBlock}
         unlockedAddress={unlockedAddress}
         activeWallet={activeWallet}
         allWallets={allWallets}
         derivedAccounts={derivedAccounts}
         activeBalance={balance}
+        minerStats={minerStats}
         onOpenWalletModal={(mode) => {
           setWalletModalMode(mode || "unlock");
           setIsWalletModalOpen(true);
@@ -498,7 +504,16 @@ export const App: React.FC = () => {
       />
 
       <div className="flex flex-1 overflow-hidden">
-        <Sidebar currentTab={currentTab} onSelectTab={setCurrentTab} />
+        <Sidebar
+          currentTab={currentTab}
+          onSelectTab={setCurrentTab}
+          syncStatus={syncStatus}
+          currentBlock={currentBlock}
+          nodeStatus={nodeStatus}
+          rpcConnected={rpcConnected}
+          peerCount={peerCount}
+          onRetryPeers={handleRetryPeers}
+        />
 
         <main className="flex-1 overflow-y-auto p-6">
           {currentTab === "dashboard" && (
@@ -507,12 +522,8 @@ export const App: React.FC = () => {
               currentBlock={currentBlock}
               hashrate={hashrate}
               peerCount={peerCount}
-              nodeStatus={nodeStatus}
-              syncStatus={syncStatus}
-              rpcConnected={rpcConnected}
               recentBlocks={recentBlocks}
               onNavigate={(tab) => setCurrentTab(tab)}
-              onRetryPeers={handleRetryPeers}
             />
           )}
 
