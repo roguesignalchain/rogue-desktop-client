@@ -31,21 +31,6 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Top Banner */}
-      <div className="p-6 bg-[#0A0A0C] border border-white/10 rounded-[2px] relative overflow-hidden">
-        <div className="max-w-2xl">
-          <div className="text-[10px] font-mono text-zinc-400 uppercase tracking-widest mb-1">
-            {t("dashboard.badge")}
-          </div>
-          <h1 className="text-2xl font-bold text-white tracking-wide font-display">
-            {t("dashboard.title")}
-          </h1>
-          <p className="text-sm text-zinc-400 mt-1 font-sans">
-            {t("dashboard.description")}
-          </p>
-        </div>
-      </div>
-
       {/* 4 Cards Overview */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
         {/* Balance Card */}
