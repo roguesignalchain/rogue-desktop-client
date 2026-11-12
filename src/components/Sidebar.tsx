@@ -140,28 +140,28 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
           ) : syncStatus.isSyncing ? (
             <div className="space-y-1">
-              <div className="flex items-center space-x-2 py-1 px-1.5 bg-zinc-900 border border-white/30 rounded-[1px] text-white">
-                <RefreshCw className="w-3 h-3 text-white animate-spin shrink-0" />
+              <div className="flex items-center space-x-2 py-1 px-1.5 bg-yellow-500/15 border border-yellow-500/40 rounded-[1px] text-yellow-300">
+                <RefreshCw className="w-3 h-3 text-yellow-400 animate-spin shrink-0" />
                 <span className="truncate">
                   {syncStatus.peersAhead
                     ? t("sync.verifying")
                     : t("sync.syncing", { progress: syncStatus.progressPercentage })}
                 </span>
               </div>
-              <div className="w-full bg-black border border-white/10 h-1.5 rounded-[1px] overflow-hidden">
+              <div className="w-full bg-black border border-yellow-500/25 h-1.5 rounded-[1px] overflow-hidden">
                 <div
-                  className="bg-white h-full transition-all duration-300"
+                  className="bg-yellow-400 h-full transition-all duration-300"
                   style={{ width: `${syncStatus.progressPercentage}%` }}
                 />
               </div>
             </div>
           ) : (
-            <div className="flex items-center justify-between py-1 px-1.5 bg-white/10 border border-white/30 rounded-[1px] text-white font-bold">
+            <div className="flex items-center justify-between py-1 px-1.5 bg-emerald-500/20 border border-emerald-500/50 rounded-[1px] text-emerald-300 font-bold">
               <div className="flex items-center space-x-1.5 truncate">
-                <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse shrink-0" />
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
                 <span>{t("sync.synced")}</span>
               </div>
-              <span className="text-[9px] text-zinc-400 font-normal">
+              <span className="text-[9px] text-emerald-300/80 font-normal">
                 {peerCount} {t("common.peers").toLowerCase()}
               </span>
             </div>
