@@ -13,9 +13,9 @@ import { Block, NodeStatus, SyncStatus, WalletSummary, AccountInfo, MinerGamific
 import { api } from "./services/api";
 import { Loader2, ShieldAlert, AlertTriangle } from "lucide-react";
 
-const DEFAULT_HTTP_PORT = 38849;
+const DEFAULT_HTTP_PORT = 38845;
 const DEFAULT_WS_PORT = 0; // Disabled by default to avoid port collision with local nodes
-const DEFAULT_P2P_PORT = 38890;
+const DEFAULT_P2P_PORT = 38888;
 const DEFAULT_DATADIR = "./nodes-local/node-desktop";
 const DEFAULT_BOOTNODES =
   "enode://5d505bf99dd8281ad884688ca9f0079622a1df4229ba30e59b0aeb0fd64977d2629cfd906d6600b1ef3ff4eb50881fd6d5c449cca34d511b5c34803e344e2285@127.0.0.1:38888";

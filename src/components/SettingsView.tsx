@@ -124,12 +124,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   };
 
   const handleResetDefaults = () => {
-    setLocalRpc("http://127.0.0.1:38849");
+    setLocalRpc("http://127.0.0.1:38845");
     setLocalLock(15);
     setDatadir("./nodes-local/node-desktop");
-    setHttpPort(38849);
-    setWsPort(38850);
-    setP2pPort(38890);
+    setHttpPort(38845);
+    setWsPort(38846);
+    setP2pPort(38888);
     setBootnodes(
       "enode://5d505bf99dd8281ad884688ca9f0079622a1df4229ba30e59b0aeb0fd64977d2629cfd906d6600b1ef3ff4eb50881fd6d5c449cca34d511b5c34803e344e2285@127.0.0.1:38888"
     );
@@ -251,8 +251,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 <input
                   type="number"
                   value={p2pPort}
-                  onChange={(e) => setP2pPort(parseInt(e.target.value) || 38890)}
-                  placeholder="38890"
+                  onChange={(e) => setP2pPort(parseInt(e.target.value) || 38888)}
+                  placeholder="38888"
                   className="w-full bg-zinc-950 border border-zinc-800 focus:border-white rounded-[2px] px-3 py-2 text-xs font-mono text-white outline-none"
                 />
                 <span className="text-[10px] text-zinc-500 mt-1 block">
@@ -268,10 +268,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   type="number"
                   value={httpPort}
                   onChange={(e) => {
-                    const port = parseInt(e.target.value) || 38849;
+                    const port = parseInt(e.target.value) || 38845;
                     setHttpPort(port);
                   }}
-                  placeholder="38849"
+                  placeholder="38845"
                   className="w-full bg-zinc-950 border border-zinc-800 focus:border-white rounded-[2px] px-3 py-2 text-xs font-mono text-white outline-none"
                 />
                 <span className="text-[10px] text-zinc-500 mt-1 block">
