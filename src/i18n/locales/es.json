@@ -75,16 +75,7 @@
     "nextLevelAt": "Siguiente nivel a los {{blocks}} bloques",
     "maxRankReached": "Rango Máximo Alcanzado",
     "tierTooltip": "Nivel {{tier}}: {{blocks}} bloques",
-    "levelAlt": "Nivel {{level}}",
-    "titles": {
-      "level0": "Unranked Runner",
-      "level1": "Recon Runner",
-      "level2": "Signal Scraper",
-      "level3": "Hash Warden",
-      "level4": "Cipher Architect",
-      "level5": "Apex Operator",
-      "level6": "Rogue Singularity"
-    }
+    "levelAlt": "Nivel {{level}}"
   },
   "dashboard": {
     "badge": "[NODO LOCAL CORE-GETH]",

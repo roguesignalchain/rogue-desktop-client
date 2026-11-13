@@ -33,8 +33,8 @@ Built with **Tauri v2**, **Rust**, **React 19**, **TypeScript**, and **Tailwind 
   * Live monitoring of recent blocks, LWMA-1 difficulty adjustments, miner coinbase payouts, RandomX epoch status (`randomx_getEpochInfo`), and active Anti-51% finality (`MaxReorgDepth = 90` + `ECBP-1100 MESS`).
 * **Protocol Gamification & Cyberpunk Miner Identity**:
   * Deterministic procedural avatars generated 100% offline via `@dicebear/core` and `@dicebear/collection` seeded by the active wallet address.
-  * Interactive miner card querying the node's `rogue_getMinerStats` endpoint: renders real-time cyberpunk medals, rank badges, current XP, and next-tier progress bar.
-  * Native tracking of all 7 on-chain tiers persisted in `StateDB` under contract `0x0000000000000000000000000000000000000020`.
+  * Interactive miner card querying the on-chain `RogueMinerReputation` system contract (`0x0000000000000000000000000000000000000020`) via `viem` (`eth_call`): renders real-time cyberpunk medals, localized rank badges, current XP, and next-tier progress bar.
+  * Native tracking of all 7 on-chain tiers persisted in `StateDB` from Block 0 under contract `0x0000000000000000000000000000000000000020`.
   * Comprehensive i18n localization (English, Spanish, Chinese) with selector flags from `country-flag-icons`.
 * **Security, RPC Lockdown & Inactivity Auto-Lock**:
   * Restricts local node HTTP/WS CORS exclusively to `tauri://localhost` and `127.0.0.1:1420` (with `personal` RPC disabled).
@@ -97,7 +97,7 @@ Private keys are never stored in plaintext or exposed to the JavaScript frontend
 
 ## 🎖️ Cyberpunk Miner Tiers & Medals Showcase
 
-The desktop client renders real-time cyberpunk medals corresponding to the miner's canonical block count queried from `rogue_getMinerStats`:
+The desktop client renders real-time cyberpunk medals and localized rank titles queried directly from the `RogueMinerReputation` system contract (`0x0000000000000000000000000000000000000020`) via `getMinerStats(address, lang)` and `getAllRanks(lang)`:
 
 | Level | Rank Title | Blocks Mined | Target XP | Badge Asset | Tier Status |
 | :---: | :--- | :---: | :---: | :---: | :---: |

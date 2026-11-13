@@ -9,7 +9,7 @@ import { ExplorerView } from "./components/ExplorerView";
 import { NodeConsoleView } from "./components/NodeConsoleView";
 import { SettingsView } from "./components/SettingsView";
 import { WalletModal } from "./components/WalletModal";
-import { Block, NodeStatus, SyncStatus, WalletSummary, AccountInfo, MinerGamificationStats } from "./types";
+import { Block, NodeStatus, SyncStatus, WalletSummary, AccountInfo, MinerGamificationStats, RankInfo } from "./types";
 import { api } from "./services/api";
 import { Loader2, ShieldAlert, AlertTriangle } from "lucide-react";
 
@@ -21,7 +21,7 @@ const DEFAULT_BOOTNODES =
   "enode://5d505bf99dd8281ad884688ca9f0079622a1df4229ba30e59b0aeb0fd64977d2629cfd906d6600b1ef3ff4eb50881fd6d5c449cca34d511b5c34803e344e2285@127.0.0.1:38888";
 
 export const App: React.FC = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [currentTab, setCurrentTab] = useState<TabType>("dashboard");
   const [rpcUrl, setRpcUrl] = useState<string>(() => {
     return localStorage.getItem("rogue_rpc_url") || `http://127.0.0.1:${DEFAULT_HTTP_PORT}`;
@@ -88,6 +88,7 @@ export const App: React.FC = () => {
   const [loadingBlocks, setLoadingBlocks] = useState<boolean>(false);
   const [isShuttingDown, setIsShuttingDown] = useState<boolean>(false);
   const [minerStats, setMinerStats] = useState<MinerGamificationStats | null>(null);
+  const [ranks, setRanks] = useState<RankInfo[]>([]);
 
   const lastActivityRef = useRef<number>(Date.now());
   const autoStartInitiated = useRef<boolean>(false);
@@ -249,7 +250,7 @@ export const App: React.FC = () => {
     try {
       const [bal, stats] = await Promise.all([
         api.getBalance(rpcUrl, addr).catch(() => "0.0000"),
-        api.getMinerStats(rpcUrl, addr).catch(() => null),
+        api.getMinerStats(rpcUrl, addr, i18n.language).catch(() => null),
       ]);
       setBalance(bal);
       if (stats) {
@@ -259,6 +260,30 @@ export const App: React.FC = () => {
       // Handled in periodic poll
     }
   };
+
+  // Fetch localized on-chain rank definitions and refresh stats on language change
+  useEffect(() => {
+    if (!rpcConnected) return;
+    let cancelled = false;
+
+    api.getAllRanks(rpcUrl, i18n.language).then((loadedRanks) => {
+      if (!cancelled && loadedRanks.length > 0) {
+        setRanks(loadedRanks);
+      }
+    });
+
+    if (unlockedAddress) {
+      api.getMinerStats(rpcUrl, unlockedAddress, i18n.language).then((stats) => {
+        if (!cancelled && stats) {
+          setMinerStats(stats);
+        }
+      });
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, [rpcConnected, rpcUrl, i18n.language, unlockedAddress]);
 
   // Inactivity auto-lock listener
   useEffect(() => {
@@ -328,7 +353,7 @@ export const App: React.FC = () => {
         }
 
         try {
-          const stats = await api.getMinerStats(rpcUrl, unlockedAddress);
+          const stats = await api.getMinerStats(rpcUrl, unlockedAddress, i18n.language);
           if (stats) {
             setMinerStats(stats);
           }
@@ -507,6 +532,7 @@ export const App: React.FC = () => {
         derivedAccounts={derivedAccounts}
         activeBalance={balance}
         minerStats={minerStats}
+        ranks={ranks}
         onOpenWalletModal={(mode) => {
           setWalletModalMode(mode || "unlock");
           setIsWalletModalOpen(true);

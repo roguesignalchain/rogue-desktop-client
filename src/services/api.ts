@@ -1,4 +1,5 @@
-import { Block, NodeStatus, AccountInfo, WalletSummary, NodeLaunchConfig, SyncStatus, SystemSpecs, MinerGamificationStats } from "../types";
+import { Block, NodeStatus, AccountInfo, WalletSummary, NodeLaunchConfig, SyncStatus, SystemSpecs, MinerGamificationStats, RankInfo } from "../types";
+import { readAllRanks, readMinerLevel, readMinerStats } from "../contracts/rogueReputation";
 
 // Safe invoke wrapper for Tauri v2
 async function safeInvoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
@@ -192,22 +193,17 @@ export const api = {
     await api.callRpc(rpcUrl, "miner_stop", []);
   },
 
-  // Protocol Gamification
-  getMinerStats: async (rpcUrl: string, address: string): Promise<MinerGamificationStats | null> => {
-    try {
-      return await api.callRpc<MinerGamificationStats>(rpcUrl, "rogue_getMinerStats", [address]);
-    } catch (e) {
-      console.warn("Could not retrieve miner stats:", e);
-      return null;
-    }
+  // Protocol Gamification (On-chain System Contract 0x0000...0020 via viem eth_call)
+  getMinerStats: async (rpcUrl: string, address: string, lang?: string): Promise<MinerGamificationStats | null> => {
+    return await readMinerStats(rpcUrl, address, lang);
   },
 
   getMinerLevel: async (rpcUrl: string, address: string): Promise<number> => {
-    try {
-      return await api.callRpc<number>(rpcUrl, "rogue_getMinerLevel", [address]);
-    } catch {
-      return 0;
-    }
+    return await readMinerLevel(rpcUrl, address);
+  },
+
+  getAllRanks: async (rpcUrl: string, lang?: string): Promise<RankInfo[]> => {
+    return await readAllRanks(rpcUrl, lang);
   },
 
   // Convenience RPC helpers

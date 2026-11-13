@@ -100,8 +100,16 @@ export interface MinerGamificationStats {
   blocksMined: number;
   level: number;
   title: string;
+  imageURI?: string;
   currentXP: number;
   nextLevelXP: number;
   progressPercent: number;
+}
+
+export interface RankInfo {
+  level: number;
+  minBlocks: number;
+  title: string;
+  imageURI: string;
 }
 

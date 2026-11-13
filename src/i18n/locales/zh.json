@@ -75,16 +75,7 @@
     "nextLevelAt": "升级需达到 {{blocks}} 个区块",
     "maxRankReached": "已达最高等级",
     "tierTooltip": "等级 {{tier}}: {{blocks}} 个区块",
-    "levelAlt": "等级 {{level}}",
-    "titles": {
-      "level0": "Unranked Runner",
-      "level1": "Recon Runner",
-      "level2": "Signal Scraper",
-      "level3": "Hash Warden",
-      "level4": "Cipher Architect",
-      "level5": "Apex Operator",
-      "level6": "Rogue Singularity"
-    }
+    "levelAlt": "等级 {{level}}"
   },
   "dashboard": {
     "badge": "[本地 CORE-GETH 节点]",

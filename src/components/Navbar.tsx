@@ -13,7 +13,7 @@ import {
   Award,
   Zap,
 } from "lucide-react";
-import { WalletSummary, AccountInfo, MinerGamificationStats } from "../types";
+import { WalletSummary, AccountInfo, MinerGamificationStats, RankInfo } from "../types";
 import { VoxelAvatar } from "./VoxelAvatar";
 import { LanguageSelector } from "./LanguageSelector";
 
@@ -24,6 +24,7 @@ interface NavbarProps {
   derivedAccounts: AccountInfo[];
   activeBalance: string;
   minerStats: MinerGamificationStats | null;
+  ranks?: RankInfo[];
   onOpenWalletModal: (mode?: "unlock" | "create" | "import") => void;
   onLockWallet: () => void;
   onSelectWallet: (walletId: string) => void;
@@ -39,6 +40,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   derivedAccounts,
   activeBalance,
   minerStats,
+  ranks = [],
   onOpenWalletModal,
   onLockWallet,
   onSelectWallet,
@@ -83,7 +85,10 @@ export const Navbar: React.FC<NavbarProps> = ({
   }, [activeWallet]);
 
   const level = minerStats?.level ?? 0;
-  const rankTitle = minerStats?.title ?? t("gamification.titles.level0");
+  const rankTitle =
+    minerStats?.title ??
+    ranks.find((r) => r.level === level)?.title ??
+    "Unranked Runner";
   const progressPercent = minerStats?.progressPercent ?? 0;
 
   return (
@@ -230,7 +235,16 @@ export const Navbar: React.FC<NavbarProps> = ({
                       {[0, 1, 2, 3, 4, 5, 6].map((tier) => {
                         const isUnlocked = level >= tier;
                         const isCurrent = level === tier;
-                        const thresholds = ["0", "1", "25", "100", "500", "2.5K", "10K+"];
+                        const fallbackThresholds = ["0", "1", "25", "100", "500", "2.5K", "10K+"];
+                        const onChainRank = ranks.find((r) => r.level === tier);
+                        const formatMinBlocks = (n: number) =>
+                          n >= 1000 ? `${n / 1000}K${tier === 6 ? "+" : ""}` : String(n);
+                        const thresholdLabel = onChainRank
+                          ? formatMinBlocks(onChainRank.minBlocks)
+                          : fallbackThresholds[tier];
+                        const tierTooltip = onChainRank
+                          ? `${onChainRank.title} — ${t("gamification.tierTooltip", { tier, blocks: thresholdLabel })}`
+                          : t("gamification.tierTooltip", { tier, blocks: thresholdLabel });
                         return (
                           <div
                             key={tier}
@@ -241,7 +255,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                                 ? "bg-black border border-white/10"
                                 : "bg-black/60 border border-white/5 opacity-35 grayscale"
                             }`}
-                            title={t("gamification.tierTooltip", { tier, blocks: thresholds[tier] })}
+                            title={tierTooltip}
                           >
                             <img
                               src={`/badges/lvl${tier}.png`}
@@ -252,7 +266,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                               L{tier}
                             </span>
                             <span className="text-[7px] font-mono text-zinc-500">
-                              {thresholds[tier]}
+                              {thresholdLabel}
                             </span>
                           </div>
                         );
