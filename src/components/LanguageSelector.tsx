@@ -35,7 +35,7 @@ export const LanguageSelector: React.FC = () => {
     <div className="relative font-mono text-xs select-none" ref={containerRef}>
       <button
         onClick={() => setOpen(!open)}
-        className="flex items-center space-x-2 px-2.5 py-1.5 bg-[#0A0A0C] hover:bg-zinc-900 border border-white/15 hover:border-white/30 rounded-[2px] text-zinc-300 hover:text-white transition"
+        className="h-10 flex items-center space-x-2 px-3 bg-[#0A0A0C] hover:bg-zinc-900 border border-white/15 hover:border-white/40 rounded-[2px] text-zinc-300 hover:text-white transition"
         title={t("common.selectLanguage")}
       >
         <currentLang.Flag className="w-4 h-3 rounded-[1px] object-cover" />

@@ -90,6 +90,14 @@ export const Navbar: React.FC<NavbarProps> = ({
     ranks.find((r) => r.level === level)?.title ??
     "Unranked Runner";
   const progressPercent = minerStats?.progressPercent ?? 0;
+  const activeAccount = derivedAccounts.find(
+    (acc) => acc.address.toLowerCase() === unlockedAddress?.toLowerCase()
+  );
+  const activeAccountName =
+    activeAccount?.name ||
+    (activeAccount
+      ? `${activeWallet?.name || t("common.wallet")} #${activeAccount.index + 1}`
+      : activeWallet?.name || t("common.wallet"));
 
   return (
     <header className="h-14 border-b border-white/10 bg-black px-6 flex items-center justify-between sticky top-0 z-30 select-none">
@@ -103,61 +111,86 @@ export const Navbar: React.FC<NavbarProps> = ({
         </span>
       </div>
 
-      {/* Right Side: Language Selector + Gamified User Card */}
-      <div className="flex items-center space-x-3">
+      {/* Right Side: Independent Uniform Indicators + User Card */}
+      <div className="flex items-center space-x-2">
         {/* Language Selector (EN, ES, ZH with Flags) */}
         <LanguageSelector />
 
-        {/* Gamified User Card */}
         {unlockedAddress ? (
-          <div className="relative" ref={dropdownRef}>
-            <button
-              onClick={handleToggleDropdown}
-              className="flex items-center space-x-2.5 px-3 py-1.5 bg-[#0A0A0C] hover:bg-zinc-900 border border-white/15 hover:border-white/40 rounded-[2px] text-xs transition group"
+          <>
+            {/* Level & Experience Bar Indicator */}
+            <div
+              className="h-10 px-3 bg-[#0A0A0C] border border-white/15 rounded-[2px] flex items-center space-x-2.5"
+              title={`${rankTitle} (${progressPercent.toFixed(1)}%)`}
             >
-              {/* Dynamic Offline Voxel Bot Avatar & Current Level Medal */}
-              <div className="relative flex items-center space-x-1.5">
-                <div className="relative">
-                  <VoxelAvatar seed={unlockedAddress} size={28} className="border border-white/20" />
-                  <span className="absolute -bottom-1 -right-1 px-1 py-0.2 bg-white text-black font-extrabold text-[8px] rounded-[1px] font-mono leading-tight shadow">
-                    L{level}
-                  </span>
+              <img
+                src={`/badges/lvl${Math.min(6, Math.max(0, level))}.png`}
+                alt={t("gamification.levelAlt", { level })}
+                className="w-5 h-5 object-contain shrink-0 drop-shadow"
+              />
+              <div className="flex flex-col justify-center min-w-[96px]">
+                <div className="flex items-center justify-between space-x-2 text-[10px] font-mono leading-none">
+                  <span className="font-bold text-white uppercase">L{level}</span>
+                  <span className="text-zinc-400">{progressPercent.toFixed(0)}%</span>
                 </div>
-                <img
-                  src={`/badges/lvl${Math.min(6, Math.max(0, level))}.png`}
-                  alt={`Level ${level}`}
-                  className="w-5 h-5 object-contain shrink-0 drop-shadow"
-                />
+                <div className="w-full bg-zinc-900 border border-white/10 h-1.5 rounded-[1px] overflow-hidden mt-1">
+                  <div
+                    className="bg-white h-full transition-all duration-300"
+                    style={{ width: `${Math.min(100, Math.max(0, progressPercent))}%` }}
+                  />
+                </div>
               </div>
+            </div>
 
-              {/* User Identity & Gamified Rank */}
-              <div className="flex flex-col items-start leading-tight">
-                <div className="flex items-center space-x-1.5">
-                  <span className="font-bold text-white text-[11px] group-hover:text-zinc-200 transition">
-                    [{rankTitle}]
+            {/* Blocks Mined Indicator */}
+            <div className="h-10 px-3 bg-[#0A0A0C] border border-white/15 rounded-[2px] flex items-center space-x-2">
+              <Zap className="w-3.5 h-3.5 text-white shrink-0" />
+              <div className="flex flex-col justify-center leading-tight">
+                <span className="text-[9px] font-mono text-zinc-400 uppercase tracking-wider">
+                  {t("gamification.blocksMined")}
+                </span>
+                <span className="text-[11px] font-mono font-bold text-white">
+                  {minerStats?.blocksMined ?? 0}
+                </span>
+              </div>
+            </div>
+
+            {/* User Balance Indicator */}
+            <div className="h-10 px-3 bg-[#0A0A0C] border border-white/15 rounded-[2px] flex items-center space-x-2">
+              <Wallet className="w-3.5 h-3.5 text-white shrink-0" />
+              <div className="flex flex-col justify-center leading-tight">
+                <span className="text-[9px] font-mono text-zinc-400 uppercase tracking-wider">
+                  {t("common.balance")}
+                </span>
+                <span className="text-[11px] font-mono font-bold text-white">
+                  {activeBalance} ROGUE
+                </span>
+              </div>
+            </div>
+
+            {/* User Card (Avatar without level, Address Name, Address) */}
+            <div className="relative" ref={dropdownRef}>
+              <button
+                onClick={handleToggleDropdown}
+                className="h-10 flex items-center space-x-2.5 px-3 bg-[#0A0A0C] hover:bg-zinc-900 border border-white/15 hover:border-white/40 rounded-[2px] text-xs transition group"
+              >
+                <VoxelAvatar seed={unlockedAddress} size={24} className="border border-white/20 shrink-0" />
+
+                <div className="flex flex-col items-start justify-center leading-tight">
+                  <span className="font-bold text-white text-[11px] group-hover:text-zinc-200 transition max-w-[120px] truncate">
+                    {activeAccountName}
                   </span>
                   <span className="font-mono text-[10px] text-zinc-400">
                     {unlockedAddress.slice(0, 6)}...{unlockedAddress.slice(-4)}
                   </span>
                 </div>
-                <div className="flex items-center space-x-2 mt-0.5">
-                  <span className="font-mono text-[10px] text-zinc-300 font-bold">
-                    {activeBalance} ROGUE
-                  </span>
-                  {minerStats && (
-                    <span className="text-[9px] font-mono text-zinc-400">
-                      • {minerStats.blocksMined} {t("gamification.blocksMined").toLowerCase()}
-                    </span>
-                  )}
-                </div>
-              </div>
 
-              <ChevronDown
-                className={`w-3.5 h-3.5 text-zinc-400 transition-transform ${
-                  dropdownOpen ? "rotate-180" : ""
-                }`}
-              />
-            </button>
+                <ChevronDown
+                  className={`w-3.5 h-3.5 text-zinc-400 transition-transform ${
+                    dropdownOpen ? "rotate-180" : ""
+                  }`}
+                />
+              </button>
 
             {/* Dropdown Menu: Gamification Stats + Multi-Wallet Management */}
             {dropdownOpen && (
@@ -443,12 +476,13 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </div>
               </div>
             )}
-          </div>
+            </div>
+          </>
         ) : (
           <div className="flex items-center space-x-2">
             <button
               onClick={() => onOpenWalletModal("unlock")}
-              className="flex items-center space-x-1.5 px-3 py-1.5 bg-white text-black font-bold hover:bg-zinc-200 border border-white rounded-[2px] text-xs transition shadow-[0_0_15px_rgba(255,255,255,0.15)]"
+              className="h-10 flex items-center space-x-1.5 px-3 bg-white text-black font-bold hover:bg-zinc-200 border border-white rounded-[2px] text-xs transition shadow-[0_0_15px_rgba(255,255,255,0.15)]"
             >
               <ShieldAlert className="w-4 h-4 text-black" />
               <span>{t("common.unlockWallet")}</span>
