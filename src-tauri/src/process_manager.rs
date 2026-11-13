@@ -6,8 +6,6 @@ use tauri::{AppHandle, Emitter};
 
 static NODE_PROCESS: Mutex<Option<Child>> = Mutex::new(None);
 
-const EMBEDDED_GENESIS: &str = include_str!("../../../genesis.json");
-
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct NodeConfig {
     pub datadir: Option<String>,
@@ -149,16 +147,12 @@ fn ensure_genesis_init(geth_bin: &Path, datadir: &Path) -> Result<(), String> {
     }
 
     let _ = std::fs::create_dir_all(datadir);
-    let genesis_file = datadir.join("genesis.json");
-    std::fs::write(&genesis_file, EMBEDDED_GENESIS)
-        .map_err(|e| format!("Failed to write embedded genesis.json: {}", e))?;
 
     let mut cmd = Command::new(geth_bin);
     cmd.arg("--rogue")
         .arg("--datadir")
         .arg(datadir)
         .arg("init")
-        .arg(&genesis_file)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
 
