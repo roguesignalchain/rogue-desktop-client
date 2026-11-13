@@ -77,12 +77,37 @@ export const Navbar: React.FC<NavbarProps> = ({
     };
   }, [dropdownOpen]);
 
-  // Keep expanded wallet sync with active wallet
+  const [accountMetaMap, setAccountMetaMap] = useState<
+    Record<string, { name?: string; categoryId?: string; order?: number }>
+  >({});
+
+  // Keep expanded wallet and saved account metadata in sync with active wallet
   useEffect(() => {
     if (activeWallet) {
       setExpandedWalletId(activeWallet.id);
     }
-  }, [activeWallet]);
+
+    const loadAccountMeta = () => {
+      if (!activeWallet?.id) {
+        setAccountMetaMap({});
+        return;
+      }
+      try {
+        const raw = localStorage.getItem(`rogue_account_meta_${activeWallet.id}`);
+        setAccountMetaMap(raw ? JSON.parse(raw) : {});
+      } catch {
+        setAccountMetaMap({});
+      }
+    };
+
+    loadAccountMeta();
+    window.addEventListener("rogue-account-meta-updated", loadAccountMeta);
+    window.addEventListener("storage", loadAccountMeta);
+    return () => {
+      window.removeEventListener("rogue-account-meta-updated", loadAccountMeta);
+      window.removeEventListener("storage", loadAccountMeta);
+    };
+  }, [activeWallet, unlockedAddress, dropdownOpen]);
 
   const level = minerStats?.level ?? 0;
   const rankTitle =
@@ -93,31 +118,52 @@ export const Navbar: React.FC<NavbarProps> = ({
   const activeAccount = derivedAccounts.find(
     (acc) => acc.address.toLowerCase() === unlockedAddress?.toLowerCase()
   );
+  const savedAccountName = unlockedAddress
+    ? accountMetaMap[unlockedAddress.toLowerCase()]?.name
+    : undefined;
   const activeAccountName =
+    savedAccountName ||
     activeAccount?.name ||
     (activeAccount
-      ? `${activeWallet?.name || t("common.wallet")} #${activeAccount.index + 1}`
+      ? activeAccount.index === 0
+        ? t("wallet.mainAccount")
+        : t("wallet.accountNumber", { index: activeAccount.index + 1 })
       : activeWallet?.name || t("common.wallet"));
 
   return (
     <header className="h-14 border-b border-white/10 bg-black px-6 flex items-center justify-between sticky top-0 z-30 select-none">
-      {/* Brand: Logo & Title only (Clean, no Chain ID, no sync widgets) */}
-      <div className="flex items-center space-x-2.5">
-        <div className="w-8 h-8 flex items-center justify-center">
-          <img src="/icon.png" alt="Rogue Signal" className="w-full h-full object-contain" />
+      {/* Left Side: Brand Logo, Title & Language Selector */}
+      <div className="flex items-center space-x-4">
+        <div className="flex items-center space-x-2.5">
+          <div className="w-8 h-8 flex items-center justify-center">
+            <img src="/icon.png" alt="Rogue Signal" className="w-full h-full object-contain" />
+          </div>
+          <span className="font-bold text-base tracking-wider text-white font-display">
+            {t("common.appName")}
+          </span>
         </div>
-        <span className="font-bold text-base tracking-wider text-white font-display">
-          {t("common.appName")}
-        </span>
+
+        {/* Language Selector (EN, ES, ZH with Flags) */}
+        <LanguageSelector />
       </div>
 
       {/* Right Side: Independent Uniform Indicators + User Card */}
       <div className="flex items-center space-x-2">
-        {/* Language Selector (EN, ES, ZH with Flags) */}
-        <LanguageSelector />
-
         {unlockedAddress ? (
           <>
+            {/* User Balance Indicator */}
+            <div className="h-10 px-3 bg-[#0A0A0C] border border-white/15 rounded-[2px] flex items-center space-x-2">
+              <Wallet className="w-3.5 h-3.5 text-white shrink-0" />
+              <div className="flex flex-col justify-center leading-tight">
+                <span className="text-[9px] font-mono text-zinc-400 uppercase tracking-wider">
+                  {t("common.balance")}
+                </span>
+                <span className="text-[11px] font-mono font-bold text-white">
+                  {activeBalance} ROGUE
+                </span>
+              </div>
+            </div>
+
             {/* Level & Experience Bar Indicator */}
             <div
               className="h-10 px-3 bg-[#0A0A0C] border border-white/15 rounded-[2px] flex items-center space-x-2.5"
@@ -139,32 +185,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                     style={{ width: `${Math.min(100, Math.max(0, progressPercent))}%` }}
                   />
                 </div>
-              </div>
-            </div>
-
-            {/* Blocks Mined Indicator */}
-            <div className="h-10 px-3 bg-[#0A0A0C] border border-white/15 rounded-[2px] flex items-center space-x-2">
-              <Zap className="w-3.5 h-3.5 text-white shrink-0" />
-              <div className="flex flex-col justify-center leading-tight">
-                <span className="text-[9px] font-mono text-zinc-400 uppercase tracking-wider">
-                  {t("gamification.blocksMined")}
-                </span>
-                <span className="text-[11px] font-mono font-bold text-white">
-                  {minerStats?.blocksMined ?? 0}
-                </span>
-              </div>
-            </div>
-
-            {/* User Balance Indicator */}
-            <div className="h-10 px-3 bg-[#0A0A0C] border border-white/15 rounded-[2px] flex items-center space-x-2">
-              <Wallet className="w-3.5 h-3.5 text-white shrink-0" />
-              <div className="flex flex-col justify-center leading-tight">
-                <span className="text-[9px] font-mono text-zinc-400 uppercase tracking-wider">
-                  {t("common.balance")}
-                </span>
-                <span className="text-[11px] font-mono font-bold text-white">
-                  {activeBalance} ROGUE
-                </span>
               </div>
             </div>
 
@@ -420,7 +440,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                                   <div className="flex items-center space-x-1.5 truncate">
                                     <span className="text-[10px]">#{acc.index + 1}</span>
                                     <span className="truncate">
-                                      {acc.name ||
+                                      {accountMetaMap[acc.address.toLowerCase()]?.name ||
+                                        acc.name ||
                                         `${acc.address.slice(0, 6)}...${acc.address.slice(-4)}`}
                                     </span>
                                   </div>

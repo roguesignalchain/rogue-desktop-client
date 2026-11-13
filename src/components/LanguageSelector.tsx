@@ -44,7 +44,7 @@ export const LanguageSelector: React.FC = () => {
       </button>
 
       {open && (
-        <div className="absolute right-0 mt-1 w-32 bg-[#0A0A0C] border border-white/20 rounded-[2px] shadow-2xl py-1 z-50 animate-in fade-in duration-100">
+        <div className="absolute left-0 mt-1 w-32 bg-[#0A0A0C] border border-white/20 rounded-[2px] shadow-2xl py-1 z-50 animate-in fade-in duration-100">
           {languages.map((lang) => {
             const isSelected = i18n.language === lang.code;
             const FlagIcon = lang.Flag;

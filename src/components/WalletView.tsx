@@ -179,6 +179,7 @@ export const WalletView: React.FC<WalletViewProps> = ({
       };
     });
     localStorage.setItem(metaKey, JSON.stringify(metaMap));
+    window.dispatchEvent(new CustomEvent("rogue-account-meta-updated"));
   };
 
   // Save Categories
