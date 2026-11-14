@@ -822,4 +822,24 @@ mod tests {
         cfg.bootnodes = Some("http://evil.com".to_string());
         assert!(validate_node_config(&cfg).is_err());
     }
+
+    #[test]
+    fn test_cleanup_stale_pid_and_ipc_removes_orphans() {
+        let tmp_dir = std::env::temp_dir().join(format!("rogue-stale-test-{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&tmp_dir);
+        let pid_path = pid_file_path(&tmp_dir);
+        let ipc_path = tmp_dir.join("geth.ipc");
+
+        // Use a non-existent PID so cleanup does not signal any real process
+        write_pid_file(&pid_path, 999_999_999);
+        std::fs::write(&ipc_path, b"").expect("failed to create mock ipc file");
+        assert!(pid_path.exists());
+        assert!(ipc_path.exists());
+
+        cleanup_stale_pid(&pid_path, &tmp_dir);
+        assert!(!pid_path.exists());
+        assert!(!ipc_path.exists());
+
+        let _ = std::fs::remove_dir_all(&tmp_dir);
+    }
 }
