@@ -128,11 +128,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     setLocalLock(15);
     setDatadir("./nodes-local/node-desktop");
     setHttpPort(38845);
-    setWsPort(38846);
+    setWsPort(0);
     setP2pPort(38888);
-    setBootnodes(
-      "enode://5d505bf99dd8281ad884688ca9f0079622a1df4229ba30e59b0aeb0fd64977d2629cfd906d6600b1ef3ff4eb50881fd6d5c449cca34d511b5c34803e344e2285@127.0.0.1:38888"
-    );
+    setBootnodes("");
     setCache(256);
     setSyncmode("full");
     setVerbosity(3);
@@ -286,8 +284,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 <input
                   type="number"
                   value={wsPort}
-                  onChange={(e) => setWsPort(parseInt(e.target.value) || 38850)}
-                  placeholder="38850"
+                  onChange={(e) => setWsPort(parseInt(e.target.value, 10) || 0)}
+                  placeholder="38846"
                   className="w-full bg-zinc-950 border border-zinc-800 focus:border-white rounded-[2px] px-3 py-2 text-xs font-mono text-white outline-none"
                 />
                 <span className="text-[10px] text-zinc-500 mt-1 block">
@@ -475,7 +473,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   type="text"
                   value={localRpc}
                   onChange={(e) => setLocalRpc(e.target.value)}
-                  placeholder="http://127.0.0.1:38849"
+                  placeholder="http://127.0.0.1:38845"
                   className="w-full bg-zinc-950 border border-zinc-800 focus:border-white rounded-[2px] px-3.5 py-2 text-xs font-mono text-white outline-none"
                 />
               </div>

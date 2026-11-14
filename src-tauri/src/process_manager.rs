@@ -26,10 +26,10 @@ impl Default for NodeConfig {
     fn default() -> Self {
         Self {
             datadir: Some("./nodes-local/node-desktop".to_string()),
-            http_port: 38849,
+            http_port: 38845,
             ws_port: 0,
-            p2p_port: 38890,
-            bootnodes: Some("enode://5d505bf99dd8281ad884688ca9f0079622a1df4229ba30e59b0aeb0fd64977d2629cfd906d6600b1ef3ff4eb50881fd6d5c449cca34d511b5c34803e344e2285@127.0.0.1:38888".to_string()),
+            p2p_port: 38888,
+            bootnodes: None,
             mine: false,
             miner_threads: 2,
             fast_mode: false,
@@ -197,11 +197,7 @@ pub async fn start_node(app: AppHandle, config: NodeConfig) -> Result<String, St
     cmd.arg("--datadir").arg(&datadir);
 
     // Enforce full sync mode for Rogue Signal RandomX PoW to avoid snap-sync state corruption
-    let sync_mode = match config.syncmode.as_deref() {
-        Some("snap") => "full",
-        Some(m) => m,
-        None => "full",
-    };
+    let sync_mode = "full";
     cmd.arg("--syncmode").arg(sync_mode);
 
     let cache_size = config.cache.unwrap_or(256);
@@ -216,9 +212,9 @@ pub async fn start_node(app: AppHandle, config: NodeConfig) -> Result<String, St
         .arg("--http.port")
         .arg(config.http_port.to_string())
         .arg("--http.api")
-        .arg("eth,net,web3,miner,txpool,admin,randomx,rogue")
+        .arg("eth,net,web3,miner,txpool,admin,randomx")
         .arg("--http.corsdomain")
-        .arg("tauri://localhost,http://tauri.localhost,http://localhost:1420,http://127.0.0.1:1420");
+        .arg("tauri://localhost,http://tauri.localhost,https://tauri.localhost,http://localhost:1420,http://127.0.0.1:1420");
 
     if config.ws_port > 0 && config.ws_port != config.http_port {
         cmd.arg("--ws")
@@ -227,17 +223,17 @@ pub async fn start_node(app: AppHandle, config: NodeConfig) -> Result<String, St
             .arg("--ws.port")
             .arg(config.ws_port.to_string())
             .arg("--ws.api")
-            .arg("eth,net,web3,miner,admin,randomx,rogue")
+            .arg("eth,net,web3,miner,admin,randomx")
             .arg("--ws.origins")
-            .arg("tauri://localhost,http://tauri.localhost,http://localhost:1420,http://127.0.0.1:1420");
+            .arg("tauri://localhost,http://tauri.localhost,https://tauri.localhost,http://localhost:1420,http://127.0.0.1:1420");
     }
 
     cmd.arg("--port")
         .arg(config.p2p_port.to_string())
         .arg("--authrpc.port")
-        .arg("8553")
+        .arg("38851")
         .arg("--nat")
-        .arg("extip:127.0.0.1")
+        .arg("any")
         .arg("--metrics");
 
     if let Some(ref bootnodes) = config.bootnodes {
