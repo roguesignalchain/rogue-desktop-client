@@ -14,9 +14,10 @@ import {
   Zap,
   Award,
   Wallet,
+  Compass,
 } from "lucide-react";
 import { api } from "../services/api";
-import { Block, MinerGamificationStats, NodeStatus, SyncStatus, SystemSpecs } from "../types";
+import { Block, ExplorerRoute, MinerGamificationStats, NodeStatus, SyncStatus, SystemSpecs } from "../types";
 import { formatHashrate } from "../utils/format";
 
 interface MiningViewProps {
@@ -32,6 +33,7 @@ interface MiningViewProps {
   nodeFastMode?: boolean;
   onToggleFastMode?: (useFast: boolean) => Promise<void>;
   onMiningStopped?: () => void;
+  onOpenInExplorer?: (route: ExplorerRoute) => void;
 }
 
 export const MiningView: React.FC<MiningViewProps> = ({
@@ -46,6 +48,7 @@ export const MiningView: React.FC<MiningViewProps> = ({
   nodeFastMode = false,
   onToggleFastMode,
   onMiningStopped,
+  onOpenInExplorer,
 }) => {
   const { t } = useTranslation();
 
@@ -244,6 +247,15 @@ export const MiningView: React.FC<MiningViewProps> = ({
               <Award className="w-4 h-4 text-white" />
               <span>{minedByMeCount}</span>
             </span>
+            {activeRewardAddress && onOpenInExplorer && (
+              <button
+                onClick={() => onOpenInExplorer({ view: "address", address: activeRewardAddress })}
+                className="mt-1 inline-flex items-center space-x-1 text-[10px] text-sky-400 hover:text-sky-300 underline"
+              >
+                <Compass className="w-3 h-3" />
+                <span>{t("explorer.inspectInExplorer", "Inspect in Explorer")}</span>
+              </button>
+            )}
           </div>
 
           <div className="h-8 w-px bg-white/10" />

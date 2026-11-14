@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Compass,
@@ -24,6 +24,8 @@ interface ExplorerViewProps {
   onRefresh: () => void;
   loading: boolean;
   rpcUrl: string;
+  initialRoute?: ExplorerRoute | null;
+  onInitialRouteConsumed?: () => void;
 }
 
 const PAGE_SIZE = 10;
@@ -33,6 +35,8 @@ export const ExplorerView: React.FC<ExplorerViewProps> = ({
   onRefresh,
   loading,
   rpcUrl,
+  initialRoute,
+  onInitialRouteConsumed,
 }) => {
   const { t } = useTranslation();
   const [searchTerm, setSearchTerm] = useState("");
@@ -45,6 +49,14 @@ export const ExplorerView: React.FC<ExplorerViewProps> = ({
   const [pagedBlocks, setPagedBlocks] = useState<Block[] | null>(null);
   const [pageCursor, setPageCursor] = useState<number | null>(null);
   const [loadingPage, setLoadingPage] = useState(false);
+
+  useEffect(() => {
+    if (initialRoute) {
+      setSearchError(null);
+      setHistory([{ view: "home" }, initialRoute]);
+      onInitialRouteConsumed?.();
+    }
+  }, [initialRoute, onInitialRouteConsumed]);
 
   const navigate = (route: ExplorerRoute) => {
     setSearchError(null);

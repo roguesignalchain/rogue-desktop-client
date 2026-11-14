@@ -20,9 +20,10 @@ import {
   Lock,
   Download,
   Wallet as WalletIcon,
+  Compass,
 } from "lucide-react";
 import { api } from "../services/api";
-import { AccountInfo, WalletSummary, WalletCategory } from "../types";
+import { AccountInfo, ExplorerRoute, WalletSummary, WalletCategory } from "../types";
 
 export interface AccountWithMeta extends AccountInfo {
   balance: string;
@@ -45,6 +46,7 @@ interface WalletViewProps {
   onSelectAddress?: (address: string) => void;
   onWalletRenamed?: (walletId: string, newName: string) => void;
   onNavigateToTransfers?: () => void;
+  onOpenInExplorer?: (route: ExplorerRoute) => void;
 }
 
 export const WalletView: React.FC<WalletViewProps> = ({
@@ -60,6 +62,7 @@ export const WalletView: React.FC<WalletViewProps> = ({
   onSelectAddress,
   onWalletRenamed,
   onNavigateToTransfers,
+  onOpenInExplorer,
 }) => {
   const { t } = useTranslation();
 
@@ -620,6 +623,15 @@ export const WalletView: React.FC<WalletViewProps> = ({
                   <Copy className="w-3.5 h-3.5" />
                 )}
               </button>
+              {onOpenInExplorer && (
+                <button
+                  onClick={() => onOpenInExplorer({ view: "address", address: unlockedAddress })}
+                  className="p-1.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 hover:text-white rounded-[2px] transition"
+                  title={t("explorer.inspectInExplorer", "Inspect in Explorer")}
+                >
+                  <Compass className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
 
             <div className="text-[11px] text-zinc-500 font-mono">{t("wallet.bip44Notice")}</div>

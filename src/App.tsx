@@ -10,7 +10,7 @@ import { ExplorerView } from "./components/ExplorerView";
 import { NodeConsoleView } from "./components/NodeConsoleView";
 import { SettingsView } from "./components/SettingsView";
 import { WalletModal } from "./components/WalletModal";
-import { Block, NodeStatus, SyncStatus, WalletSummary, AccountInfo, MinerGamificationStats, RankInfo } from "./types";
+import { Block, ExplorerRoute, NodeStatus, SyncStatus, WalletSummary, AccountInfo, MinerGamificationStats, RankInfo } from "./types";
 import { api, formatWeiToRogue } from "./services/api";
 import { Loader2, ShieldAlert, AlertTriangle } from "lucide-react";
 
@@ -23,6 +23,12 @@ const DEFAULT_BOOTNODES = "";
 export const App: React.FC = () => {
   const { t, i18n } = useTranslation();
   const [currentTab, setCurrentTab] = useState<TabType>("dashboard");
+  const [explorerTarget, setExplorerTarget] = useState<ExplorerRoute | null>(null);
+
+  const openInExplorer = (route: ExplorerRoute) => {
+    setExplorerTarget(route);
+    setCurrentTab("explorer");
+  };
   const [rpcUrl, setRpcUrl] = useState<string>(() => {
     return localStorage.getItem("rogue_rpc_url") || `http://127.0.0.1:${DEFAULT_HTTP_PORT}`;
   });
@@ -760,6 +766,7 @@ export const App: React.FC = () => {
               onSelectAddress={handleSelectAddress}
               onWalletRenamed={handleWalletRenamed}
               onNavigateToTransfers={() => setCurrentTab("transfers")}
+              onOpenInExplorer={openInExplorer}
             />
           )}
 
@@ -775,6 +782,7 @@ export const App: React.FC = () => {
                 setIsWalletModalOpen(true);
               }}
               onSelectAddress={handleSelectAddress}
+              onOpenInExplorer={openInExplorer}
             />
           )}
 
@@ -792,6 +800,7 @@ export const App: React.FC = () => {
               nodeFastMode={nodeFastMode}
               onToggleFastMode={handleRestartNodeWithFastMode}
               onMiningStopped={() => setHashrate(0)}
+              onOpenInExplorer={openInExplorer}
             />
           )}
 
@@ -801,6 +810,8 @@ export const App: React.FC = () => {
               onRefresh={refreshBlocks}
               loading={loadingBlocks}
               rpcUrl={rpcUrl}
+              initialRoute={explorerTarget}
+              onInitialRouteConsumed={() => setExplorerTarget(null)}
             />
           )}
 

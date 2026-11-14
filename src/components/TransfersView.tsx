@@ -11,9 +11,10 @@ import {
   CheckCircle2,
   AlertCircle,
   Zap,
+  Compass,
 } from "lucide-react";
 import { api } from "../services/api";
-import { AccountInfo, WalletSummary } from "../types";
+import { AccountInfo, ExplorerRoute, WalletSummary } from "../types";
 import { parseEther, formatEther, isAddress } from "viem";
 
 interface DerivedAccountItem extends AccountInfo {
@@ -29,6 +30,7 @@ interface TransfersViewProps {
   onRefreshBalance: () => void;
   onOpenWalletModal: (mode?: "unlock" | "create" | "import") => void;
   onSelectAddress?: (address: string) => void;
+  onOpenInExplorer?: (route: ExplorerRoute) => void;
 }
 
 export const TransfersView: React.FC<TransfersViewProps> = ({
@@ -39,6 +41,7 @@ export const TransfersView: React.FC<TransfersViewProps> = ({
   onRefreshBalance,
   onOpenWalletModal,
   onSelectAddress,
+  onOpenInExplorer,
 }) => {
   const { t } = useTranslation();
 
@@ -525,23 +528,35 @@ export const TransfersView: React.FC<TransfersViewProps> = ({
               >
                 <div className="break-all">{statusMsg.text}</div>
                 {statusMsg.txHash && (
-                  <button
-                    type="button"
-                    onClick={() => handleCopy(statusMsg.txHash!, "tx")}
-                    className="inline-flex items-center space-x-1.5 px-2.5 py-1 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 rounded-[2px] text-[11px] text-white transition"
-                  >
-                    {copiedTxHash ? (
-                      <>
-                        <Check className="w-3 h-3 text-emerald-400" />
-                        <span>{t("common.copied")}</span>
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="w-3 h-3" />
-                        <span>{t("transfers.copyTxHash")}</span>
-                      </>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleCopy(statusMsg.txHash!, "tx")}
+                      className="inline-flex items-center space-x-1.5 px-2.5 py-1 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 rounded-[2px] text-[11px] text-white transition"
+                    >
+                      {copiedTxHash ? (
+                        <>
+                          <Check className="w-3 h-3 text-emerald-400" />
+                          <span>{t("common.copied")}</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3 h-3" />
+                          <span>{t("transfers.copyTxHash")}</span>
+                        </>
+                      )}
+                    </button>
+                    {onOpenInExplorer && (
+                      <button
+                        type="button"
+                        onClick={() => onOpenInExplorer({ view: "tx", hash: statusMsg.txHash! })}
+                        className="inline-flex items-center space-x-1.5 px-2.5 py-1 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 rounded-[2px] text-[11px] text-sky-300 hover:text-white transition"
+                      >
+                        <Compass className="w-3 h-3" />
+                        <span>{t("explorer.viewInExplorer", "View in Explorer")}</span>
+                      </button>
                     )}
-                  </button>
+                  </div>
                 )}
               </div>
             )}
