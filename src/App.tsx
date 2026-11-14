@@ -703,6 +703,7 @@ export const App: React.FC = () => {
   return (
     <div className="flex flex-col h-screen bg-black text-slate-100 overflow-hidden relative">
       <Navbar
+        currentTab={currentTab}
         unlockedAddress={unlockedAddress}
         activeWallet={activeWallet}
         allWallets={allWallets}
@@ -710,6 +711,7 @@ export const App: React.FC = () => {
         activeBalance={navbarBalance}
         minerStats={minerStats}
         ranks={ranks}
+        onSelectTab={setCurrentTab}
         onOpenWalletModal={(mode) => {
           setWalletModalMode(mode || "unlock");
           setIsWalletModalOpen(true);

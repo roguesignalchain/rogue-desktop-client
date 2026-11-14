@@ -4,10 +4,6 @@ import {
   LayoutDashboard,
   Wallet,
   ArrowLeftRight,
-  Pickaxe,
-  Compass,
-  Terminal,
-  Settings,
   RefreshCw,
   Activity,
 } from "lucide-react";
@@ -42,10 +38,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: "dashboard", label: t("common.dashboard"), icon: LayoutDashboard },
     { id: "wallet", label: t("common.wallet"), icon: Wallet },
     { id: "transfers", label: t("common.transfers"), icon: ArrowLeftRight },
-    { id: "mining", label: t("common.mining"), icon: Pickaxe },
-    { id: "explorer", label: t("common.explorer"), icon: Compass },
-    { id: "console", label: t("common.console"), icon: Terminal },
-    { id: "settings", label: t("common.settings"), icon: Settings },
   ];
 
   return (

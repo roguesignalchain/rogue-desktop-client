@@ -8,16 +8,22 @@ import {
   Plus,
   Download,
   Lock,
+  Settings,
+  Pickaxe,
+  Compass,
+  Terminal,
   Trash2,
   Check,
   Award,
   Zap,
 } from "lucide-react";
 import { WalletSummary, AccountInfo, MinerGamificationStats, RankInfo } from "../types";
+import { TabType } from "./Sidebar";
 import { VoxelAvatar } from "./VoxelAvatar";
 import { LanguageSelector } from "./LanguageSelector";
 
 interface NavbarProps {
+  currentTab: TabType;
   unlockedAddress: string | null;
   activeWallet: WalletSummary | null;
   allWallets: WalletSummary[];
@@ -25,6 +31,7 @@ interface NavbarProps {
   activeBalance: string;
   minerStats: MinerGamificationStats | null;
   ranks?: RankInfo[];
+  onSelectTab: (tab: TabType) => void;
   onOpenWalletModal: (mode?: "unlock" | "create" | "import") => void;
   onLockWallet: () => void;
   onSelectWallet: (walletId: string) => void;
@@ -34,6 +41,7 @@ interface NavbarProps {
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
+  currentTab,
   unlockedAddress,
   activeWallet,
   allWallets,
@@ -41,6 +49,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   activeBalance,
   minerStats,
   ranks = [],
+  onSelectTab,
   onOpenWalletModal,
   onLockWallet,
   onSelectWallet,
@@ -128,6 +137,37 @@ export const Navbar: React.FC<NavbarProps> = ({
         ? t("wallet.mainAccount")
         : t("wallet.accountNumber", { index: activeAccount.index + 1 })
       : activeWallet?.name || t("common.wallet"));
+
+  const quickNavItems: { id: TabType; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
+    { id: "mining", label: t("common.mining"), icon: Pickaxe },
+    { id: "explorer", label: t("common.explorer"), icon: Compass },
+    { id: "console", label: t("common.console"), icon: Terminal },
+    { id: "settings", label: t("common.settings"), icon: Settings },
+  ];
+
+  const quickNavButtons = (
+    <div className="flex items-center space-x-1.5">
+      {quickNavItems.map((item) => {
+        const Icon = item.icon;
+        const isActive = currentTab === item.id;
+        return (
+          <button
+            key={item.id}
+            onClick={() => onSelectTab(item.id)}
+            title={item.label}
+            aria-label={item.label}
+            className={`h-10 w-10 flex items-center justify-center rounded-[2px] border transition ${
+              isActive
+                ? "bg-white text-black border-white shadow-[0_0_15px_rgba(255,255,255,0.15)]"
+                : "bg-[#0A0A0C] hover:bg-zinc-900 border-white/15 hover:border-white/40 text-zinc-400 hover:text-white"
+            }`}
+          >
+            <Icon className="w-4 h-4" />
+          </button>
+        );
+      })}
+    </div>
+  );
 
   return (
     <header className="h-14 border-b border-white/10 bg-black px-6 flex items-center justify-between sticky top-0 z-30 select-none">
@@ -490,6 +530,9 @@ export const Navbar: React.FC<NavbarProps> = ({
             )}
             </div>
 
+            {/* Quick Navigation Icon Buttons (Mining, Explorer, Console, Settings) */}
+            {quickNavButtons}
+
             {/* Quick Screen Lock Button */}
             <button
               onClick={onLockWallet}
@@ -501,6 +544,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           </>
         ) : (
           <div className="flex items-center space-x-2">
+            {quickNavButtons}
             <button
               onClick={() => onOpenWalletModal("unlock")}
               className="h-10 flex items-center space-x-1.5 px-3 bg-white text-black font-bold hover:bg-zinc-200 border border-white rounded-[2px] text-xs transition shadow-[0_0_15px_rgba(255,255,255,0.15)]"
