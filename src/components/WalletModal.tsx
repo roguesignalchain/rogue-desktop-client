@@ -7,9 +7,15 @@ import { WalletSummary } from "../types";
 interface WalletModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onWalletUnlocked: (activeWallet: WalletSummary, allWallets: WalletSummary[]) => void;
+  onWalletUnlocked: (
+    activeWallet: WalletSummary,
+    allWallets: WalletSummary[],
+    isNewlyAdded?: boolean
+  ) => void;
   initialMode?: "unlock" | "create" | "import";
   isVaultUnlocked?: boolean;
+  hasVault?: boolean;
+  onVaultReset?: () => void;
 }
 
 export const WalletModal: React.FC<WalletModalProps> = ({
@@ -18,6 +24,8 @@ export const WalletModal: React.FC<WalletModalProps> = ({
   onWalletUnlocked,
   initialMode = "unlock",
   isVaultUnlocked = false,
+  hasVault = true,
+  onVaultReset,
 }) => {
   const { t } = useTranslation();
   const [mode, setMode] = useState<"unlock" | "create" | "import">(initialMode);
@@ -30,17 +38,29 @@ export const WalletModal: React.FC<WalletModalProps> = ({
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+
+  const isMandatoryOverlay = !isVaultUnlocked;
 
   useEffect(() => {
     if (isOpen) {
       setError(null);
+      setShowResetConfirm(false);
       if (isVaultUnlocked) {
         setMode(initialMode === "unlock" ? "create" : initialMode);
+      } else if (hasVault) {
+        setMode("unlock");
       } else {
-        setMode(initialMode);
+        setMode(initialMode === "import" ? "import" : "create");
       }
     }
-  }, [isOpen, initialMode, isVaultUnlocked]);
+  }, [isOpen, initialMode, isVaultUnlocked, hasVault]);
+
+  useEffect(() => {
+    if (isOpen && mode === "create" && !mnemonic) {
+      handleGenerateMnemonic(wordCount);
+    }
+  }, [isOpen, mode]);
 
   if (!isOpen) return null;
 
@@ -74,6 +94,23 @@ export const WalletModal: React.FC<WalletModalProps> = ({
       onWalletUnlocked(wallets[0], wallets);
       setPassword("");
       onClose();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResetVault = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      await api.resetVault();
+      setPassword("");
+      setConfirmPassword("");
+      setShowResetConfirm(false);
+      onVaultReset?.();
+      setMode("create");
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -119,7 +156,7 @@ export const WalletModal: React.FC<WalletModalProps> = ({
         allWallets = [activeWallet];
       }
 
-      onWalletUnlocked(activeWallet, allWallets);
+      onWalletUnlocked(activeWallet, allWallets, true);
       setPassword("");
       setConfirmPassword("");
       setMnemonic("");
@@ -127,19 +164,24 @@ export const WalletModal: React.FC<WalletModalProps> = ({
       setWalletName("");
       onClose();
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : String(err));
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes("DUPLICATE_WALLET")) {
+        setError(t("walletModal.errors.duplicateWallet"));
+      } else {
+        setError(msg);
+      }
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 backdrop-blur-md p-4">
       <div className="w-full max-w-lg bg-zinc-950 border border-zinc-800 rounded-[2px] shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
         {/* Modal Header & Tabs */}
         <div className="p-4 border-b border-zinc-800 flex items-center justify-between">
           <div className="flex space-x-1.5 overflow-x-auto">
-            {!isVaultUnlocked && (
+            {!isVaultUnlocked && hasVault && (
               <button
                 onClick={() => {
                   setMode("unlock");
@@ -155,42 +197,48 @@ export const WalletModal: React.FC<WalletModalProps> = ({
               </button>
             )}
 
-            <button
-              onClick={() => {
-                setMode("create");
-                setError(null);
-                if (!mnemonic) handleGenerateMnemonic(wordCount);
-              }}
-              className={`px-3 py-1.5 rounded-[2px] text-xs font-semibold transition ${
-                mode === "create"
-                  ? "bg-white text-black font-bold border-white"
-                  : "text-zinc-400 hover:text-white"
-              }`}
-            >
-              {isVaultUnlocked ? t("walletModal.newWallet") : t("walletModal.createVault")}
-            </button>
+            {(isVaultUnlocked || !hasVault) && (
+              <>
+                <button
+                  onClick={() => {
+                    setMode("create");
+                    setError(null);
+                    if (!mnemonic) handleGenerateMnemonic(wordCount);
+                  }}
+                  className={`px-3 py-1.5 rounded-[2px] text-xs font-semibold transition ${
+                    mode === "create"
+                      ? "bg-white text-black font-bold border-white"
+                      : "text-zinc-400 hover:text-white"
+                  }`}
+                >
+                  {isVaultUnlocked ? t("walletModal.newWallet") : t("walletModal.createVault")}
+                </button>
 
-            <button
-              onClick={() => {
-                setMode("import");
-                setError(null);
-              }}
-              className={`px-3 py-1.5 rounded-[2px] text-xs font-semibold transition ${
-                mode === "import"
-                  ? "bg-white text-black font-bold border-white"
-                  : "text-zinc-400 hover:text-white"
-              }`}
-            >
-              {t("walletModal.importMnemonic")}
-            </button>
+                <button
+                  onClick={() => {
+                    setMode("import");
+                    setError(null);
+                  }}
+                  className={`px-3 py-1.5 rounded-[2px] text-xs font-semibold transition ${
+                    mode === "import"
+                      ? "bg-white text-black font-bold border-white"
+                      : "text-zinc-400 hover:text-white"
+                  }`}
+                >
+                  {t("walletModal.importMnemonic")}
+                </button>
+              </>
+            )}
           </div>
 
-          <button
-            onClick={onClose}
-            className="p-1 hover:bg-zinc-800 rounded text-zinc-500 hover:text-white transition"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          {!isMandatoryOverlay && (
+            <button
+              onClick={onClose}
+              className="p-1 hover:bg-zinc-800 rounded text-zinc-500 hover:text-white transition"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
         </div>
 
         {/* Modal Content */}
@@ -240,6 +288,41 @@ export const WalletModal: React.FC<WalletModalProps> = ({
                 <Key className="w-4 h-4" />
                 <span>{loading ? t("walletModal.unlocking") : t("walletModal.unlockBtn")}</span>
               </button>
+
+              <div className="pt-3 border-t border-zinc-800/80">
+                {!showResetConfirm ? (
+                  <button
+                    type="button"
+                    onClick={() => setShowResetConfirm(true)}
+                    className="text-[11px] font-mono text-zinc-500 hover:text-zinc-300 underline transition"
+                  >
+                    {t("walletModal.resetVault")}
+                  </button>
+                ) : (
+                  <div className="p-3 bg-black border border-white/20 rounded-[2px] space-y-2.5">
+                    <p className="text-[11px] font-mono text-zinc-300 leading-relaxed">
+                      {t("walletModal.resetVaultConfirmText")}
+                    </p>
+                    <div className="flex items-center justify-end space-x-2">
+                      <button
+                        type="button"
+                        onClick={() => setShowResetConfirm(false)}
+                        className="px-2.5 py-1 text-[11px] font-mono text-zinc-400 hover:text-white border border-zinc-800 rounded-[2px]"
+                      >
+                        {t("common.cancel")}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={loading}
+                        onClick={handleResetVault}
+                        className="px-2.5 py-1 text-[11px] font-mono font-bold bg-white text-black hover:bg-zinc-200 rounded-[2px]"
+                      >
+                        {t("walletModal.resetVaultConfirmBtn")}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </form>
           )}
 

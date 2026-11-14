@@ -51,7 +51,6 @@ export const Navbar: React.FC<NavbarProps> = ({
   const { t } = useTranslation();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [expandedWalletId, setExpandedWalletId] = useState<string | null>(null);
-  const [walletToDelete, setWalletToDelete] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const handleToggleDropdown = () => {
@@ -397,19 +396,11 @@ export const Navbar: React.FC<NavbarProps> = ({
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                if (walletToDelete === w.id) {
-                                  onRemoveWallet(w.id);
-                                  setWalletToDelete(null);
-                                } else {
-                                  setWalletToDelete(w.id);
-                                }
+                                setDropdownOpen(false);
+                                onRemoveWallet(w.id);
                               }}
-                              className={`p-1.5 rounded-[2px] transition ml-1.5 ${
-                                walletToDelete === w.id
-                                  ? "bg-white text-black font-bold"
-                                  : "text-zinc-500 hover:text-white hover:bg-zinc-900"
-                              }`}
-                              title={walletToDelete === w.id ? t("common.confirmDelete") : t("common.delete")}
+                              className="p-1.5 rounded-[2px] transition ml-1.5 text-zinc-500 hover:text-white hover:bg-zinc-900"
+                              title={t("common.delete")}
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
@@ -498,6 +489,15 @@ export const Navbar: React.FC<NavbarProps> = ({
               </div>
             )}
             </div>
+
+            {/* Quick Screen Lock Button */}
+            <button
+              onClick={onLockWallet}
+              title={`${t("common.lockVault")} (Ctrl+L)`}
+              className="h-10 w-10 flex items-center justify-center bg-[#0A0A0C] hover:bg-zinc-900 border border-white/15 hover:border-white/40 rounded-[2px] text-zinc-400 hover:text-white transition"
+            >
+              <Lock className="w-4 h-4" />
+            </button>
           </>
         ) : (
           <div className="flex items-center space-x-2">

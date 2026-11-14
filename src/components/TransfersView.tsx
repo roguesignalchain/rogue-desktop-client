@@ -96,6 +96,12 @@ export const TransfersView: React.FC<TransfersViewProps> = ({
   }, [activeWallet?.id, rpcUrl, t]);
 
   useEffect(() => {
+    setRecipient("");
+    setAmount("");
+    setStatusMsg(null);
+  }, [activeWallet?.id, unlockedAddress]);
+
+  useEffect(() => {
     loadAccounts();
     const handler = () => loadAccounts();
     window.addEventListener("rogue-account-meta-updated", handler);

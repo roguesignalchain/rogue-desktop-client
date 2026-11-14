@@ -18,6 +18,8 @@ import {
   GripVertical,
   Search,
   Lock,
+  Download,
+  Wallet as WalletIcon,
 } from "lucide-react";
 import { api } from "../services/api";
 import { AccountInfo, WalletSummary, WalletCategory } from "../types";
@@ -32,10 +34,14 @@ export interface AccountWithMeta extends AccountInfo {
 interface WalletViewProps {
   unlockedAddress: string | null;
   activeWallet: WalletSummary | null;
+  allWallets: WalletSummary[];
   balance: string;
   rpcUrl: string;
   onRefreshBalance: () => void;
   onOpenWalletModal: (mode?: "unlock" | "create" | "import") => void;
+  onSelectWallet: (walletId: string) => void;
+  onRemoveWallet: (walletId: string) => void;
+  onLockWallet: () => void;
   onSelectAddress?: (address: string) => void;
   onWalletRenamed?: (walletId: string, newName: string) => void;
   onNavigateToTransfers?: () => void;
@@ -44,9 +50,13 @@ interface WalletViewProps {
 export const WalletView: React.FC<WalletViewProps> = ({
   unlockedAddress,
   activeWallet,
+  allWallets,
   balance,
   rpcUrl,
   onOpenWalletModal,
+  onSelectWallet,
+  onRemoveWallet,
+  onLockWallet,
   onSelectAddress,
   onWalletRenamed,
   onNavigateToTransfers,
@@ -476,6 +486,70 @@ export const WalletView: React.FC<WalletViewProps> = ({
 
   return (
     <div className="space-y-6">
+      {/* Compact Multi-Wallet Switcher & Actions Bar */}
+      <div className="p-3 bg-[#0A0A0C] border border-white/10 rounded-[2px] flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center space-x-2.5 flex-1 min-w-[240px]">
+          <div className="flex items-center space-x-1.5 text-zinc-400 shrink-0">
+            <WalletIcon className="w-4 h-4 text-white" />
+            <span className="text-[11px] font-mono uppercase tracking-wider font-bold text-white">
+              {t("common.wallets")} ({allWallets.length})
+            </span>
+          </div>
+          <select
+            value={activeWallet.id}
+            onChange={(e) => onSelectWallet(e.target.value)}
+            className="flex-1 max-w-sm bg-zinc-950 border border-white/15 focus:border-white rounded-[2px] px-3 py-1.5 text-xs font-mono text-white outline-none transition cursor-pointer"
+          >
+            {allWallets.map((w) => (
+              <option key={w.id} value={w.id}>
+                {w.name} ({w.primary_address.slice(0, 6)}...{w.primary_address.slice(-4)})
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => onOpenWalletModal("create")}
+            className="flex items-center space-x-1.5 px-3 py-1.5 bg-white hover:bg-zinc-200 text-black font-bold rounded-[2px] text-[11px] font-mono uppercase tracking-wider transition"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>{t("walletModal.newWallet")}</span>
+          </button>
+          <button
+            onClick={() => onOpenWalletModal("import")}
+            className="flex items-center space-x-1.5 px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 border border-white/15 text-zinc-200 hover:text-white rounded-[2px] text-[11px] font-mono uppercase tracking-wider transition"
+          >
+            <Download className="w-3.5 h-3.5" />
+            <span>{t("common.import")}</span>
+          </button>
+          <button
+            onClick={() => setEditingWalletName(true)}
+            className="p-1.5 bg-zinc-900 hover:bg-zinc-800 border border-white/15 text-zinc-300 hover:text-white rounded-[2px] transition"
+            title={t("wallet.renameWallet")}
+          >
+            <Pencil className="w-3.5 h-3.5" />
+          </button>
+          {allWallets.length > 1 && (
+            <button
+              onClick={() => onRemoveWallet(activeWallet.id)}
+              className="p-1.5 bg-zinc-900 hover:bg-zinc-800 border border-white/15 text-zinc-400 hover:text-white rounded-[2px] transition"
+              title={t("common.delete")}
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          )}
+          <button
+            onClick={onLockWallet}
+            className="flex items-center space-x-1.5 px-2.5 py-1.5 bg-zinc-900 hover:bg-zinc-800 border border-white/15 text-zinc-300 hover:text-white rounded-[2px] text-[11px] font-mono uppercase tracking-wider transition"
+            title={`${t("common.lockVault")} (Ctrl+L)`}
+          >
+            <Lock className="w-3.5 h-3.5" />
+            <span>{t("common.lock")}</span>
+          </button>
+        </div>
+      </div>
+
       {/* Active Wallet & Active Account Hero Card */}
       <div className="p-6 bg-[#0A0A0C] border border-white/10 rounded-[2px] space-y-5">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">

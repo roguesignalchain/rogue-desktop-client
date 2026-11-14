@@ -35,7 +35,9 @@
     "close": "Close",
     "refresh": "Refresh",
     "selectLanguage": "Select Language",
-    "confirmDelete": "Click to confirm delete",
+    "confirmDelete": "Confirm delete",
+    "import": "Import",
+    "lock": "Lock",
     "loading": "Loading..."
   },
   "sidebar": {
@@ -107,6 +109,10 @@
     "unlockInitBtn": "Unlock / Initialize Wallet",
     "activeWalletBadge": "Active Wallet",
     "renameWallet": "Rename wallet",
+    "deleteConfirm": {
+      "title": "Remove this wallet from vault?",
+      "description": "This will remove the wallet from your local vault. Make sure you have backed up its seed phrase if you want to recover it later."
+    },
     "selectedAddress": "Selected address:",
     "copyActiveAddress": "Copy active address",
     "bip44Notice": "BIP-44 EVM Standard • All mining and transfers operate on the selected address",
@@ -230,12 +236,16 @@
     "importing": "Importing...",
     "importToVault": "Import Wallet",
     "createWithMnemonic": "Create Wallet with Mnemonic",
+    "resetVault": "Forgot password? Reset vault",
+    "resetVaultConfirmText": "Warning: this will delete the current vault file from your disk. You can only recover your funds if you still have your seed phrases.",
+    "resetVaultConfirmBtn": "Yes, reset vault",
     "errors": {
       "generateMnemonic": "Error generating mnemonic.",
       "noWalletsFound": "No wallets found.",
       "wordsLength": "Mnemonic phrase must contain exactly 12 or 24 words.",
       "passwordMinLength": "Master password must be at least 8 characters long.",
-      "passwordMismatch": "Passwords do not match."
+      "passwordMismatch": "Passwords do not match.",
+      "duplicateWallet": "This wallet already exists in your vault."
     }
   },
   "mining": {
@@ -332,6 +342,13 @@
   },
   "settings": {
     "title": "Client & Node Configuration",
+    "masterPasswordSection": "Vault Master Password",
+    "masterPasswordDesc": "Update the single master password that encrypts all wallets in this desktop client.",
+    "newMasterPassword": "New Master Password",
+    "confirmNewMasterPassword": "Confirm New Password",
+    "updateMasterPassBtn": "Update Master Password",
+    "masterPassEmpty": "Please enter a new master password.",
+    "masterPassSuccess": "Master password updated and vault re-encrypted.",
     "manualControlTitle": "Manual Node Process Control",
     "statusLabel": "Status:",
     "statusRunning": "Running (PID: {{pid}})",

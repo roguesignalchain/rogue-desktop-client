@@ -293,9 +293,67 @@ fn save_vault_locked(wallets: &[WalletItem], active_id: &Option<String>) -> Resu
 }
 
 #[tauri::command]
+pub fn has_vault() -> bool {
+    get_vault_path().exists()
+}
+
+#[tauri::command]
+pub fn reset_vault() -> Result<(), String> {
+    lock_wallet()?;
+    let path = get_vault_path();
+    if path.exists() {
+        fs::remove_file(&path).map_err(|e| format!("Failed to remove vault file: {}", e))?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn change_master_password(new_password: String) -> Result<(), String> {
+    if new_password.is_empty() {
+        return Err("Password cannot be empty".to_string());
+    }
+    if lock_master_key().is_none() {
+        return Err("Vault is locked".to_string());
+    }
+
+    let mut new_salt = [0u8; 16];
+    let mut rng = rand::thread_rng();
+    rng.fill_bytes(&mut new_salt);
+
+    let mut new_key = [0u8; 32];
+    Argon2::default()
+        .hash_password_into(new_password.as_bytes(), &new_salt, &mut new_key)
+        .map_err(|e| format!("Argon2 derivation error: {}", e))?;
+
+    {
+        let mut key_guard = lock_master_key();
+        if let Some(ref mut old_key) = *key_guard {
+            secure_zero_bytes(old_key);
+        }
+        *key_guard = Some(new_key);
+    }
+    {
+        let mut salt_guard = lock_salt();
+        if let Some(ref mut old_salt) = *salt_guard {
+            secure_zero_bytes(old_salt);
+        }
+        *salt_guard = Some(new_salt);
+    }
+    secure_zero_bytes(&mut new_key);
+
+    let wallets = lock_wallets().clone();
+    let active_id = lock_active_wallet_id().clone();
+    save_vault_locked(&wallets, &active_id)
+}
+
+#[tauri::command]
 pub fn create_wallet(mnemonic: String, password: String, name: Option<String>) -> Result<WalletSummary, String> {
-    let _ = Mnemonic::parse_in_normalized(Language::English, &mnemonic)
-        .map_err(|e| format!("Invalid mnemonic: {:?}", e))?;
+    if get_vault_path().exists() {
+        return Err("VAULT_ALREADY_EXISTS".to_string());
+    }
+    let normalized = Mnemonic::parse_in_normalized(Language::English, &mnemonic)
+        .map_err(|e| format!("Invalid mnemonic: {:?}", e))?
+        .to_string();
 
     let mut salt = [0u8; 16];
     let mut rng = rand::thread_rng();
@@ -313,12 +371,15 @@ pub fn create_wallet(mnemonic: String, password: String, name: Option<String>) -
             .unwrap()
             .as_millis()
     );
-    let wallet_name = name.unwrap_or_else(|| "Billetera Principal".to_string());
+    let wallet_name = name
+        .map(|n| n.trim().to_string())
+        .filter(|n| !n.is_empty())
+        .unwrap_or_else(|| "Wallet 1".to_string());
 
     let item = WalletItem {
         id: wallet_id.clone(),
         name: wallet_name.clone(),
-        mnemonic: mnemonic.clone(),
+        mnemonic: normalized.clone(),
         derived_count: 1,
     };
 
@@ -441,12 +502,22 @@ pub fn unlock_wallet(password: String) -> Result<Vec<WalletSummary>, String> {
 
 #[tauri::command]
 pub fn add_wallet(mnemonic: String, name: Option<String>) -> Result<WalletSummary, String> {
-    let _ = Mnemonic::parse_in_normalized(Language::English, &mnemonic)
-        .map_err(|e| format!("Invalid mnemonic: {:?}", e))?;
+    let normalized = Mnemonic::parse_in_normalized(Language::English, &mnemonic)
+        .map_err(|e| format!("Invalid mnemonic: {:?}", e))?
+        .to_string();
 
     let mut wallets = UNLOCKED_WALLETS.lock().unwrap();
     if wallets.is_empty() && UNLOCKED_MASTER_KEY.lock().unwrap().is_none() {
         return Err("Vault is locked".to_string());
+    }
+
+    let duplicate = wallets.iter().any(|w| {
+        Mnemonic::parse_in_normalized(Language::English, &w.mnemonic)
+            .map(|m| m.to_string() == normalized)
+            .unwrap_or(false)
+    });
+    if duplicate {
+        return Err("DUPLICATE_WALLET".to_string());
     }
 
     let count = wallets.len() + 1;
@@ -458,20 +529,24 @@ pub fn add_wallet(mnemonic: String, name: Option<String>) -> Result<WalletSummar
             .unwrap()
             .as_millis()
     );
-    let wallet_name = name.unwrap_or_else(|| format!("Billetera {}", count));
+    let wallet_name = name
+        .map(|n| n.trim().to_string())
+        .filter(|n| !n.is_empty())
+        .unwrap_or_else(|| format!("Wallet {}", count));
 
     let item = WalletItem {
         id: wallet_id.clone(),
         name: wallet_name.clone(),
-        mnemonic: mnemonic.clone(),
+        mnemonic: normalized.clone(),
         derived_count: 1,
     };
 
     wallets.push(item);
-    let active_id = ACTIVE_WALLET_ID.lock().unwrap().clone();
+    let active_id = Some(wallet_id.clone());
+    *ACTIVE_WALLET_ID.lock().unwrap() = active_id.clone();
     save_vault_locked(&wallets, &active_id)?;
 
-    let privkey = derive_private_key_bip44(&mnemonic, 0)?;
+    let privkey = derive_private_key_bip44(&normalized, 0)?;
     let secp = Secp256k1::new();
     let secret = SecretKey::from_slice(&privkey).map_err(|e| e.to_string())?;
     let pubkey = PublicKey::from_secret_key(&secp, &secret);

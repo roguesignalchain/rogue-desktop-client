@@ -15,6 +15,8 @@ import {
   RefreshCw,
   Activity,
   ShieldCheck,
+  KeyRound,
+  Check,
 } from "lucide-react";
 import { NodeStatus, SystemSpecs } from "../types";
 import { api } from "../services/api";
@@ -82,6 +84,37 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [saved, setSaved] = useState(false);
   const [showDangerConfirm, setShowDangerConfirm] = useState(false);
   const [isResettingDb, setIsResettingDb] = useState(false);
+  const [newMasterPass, setNewMasterPass] = useState("");
+  const [confirmMasterPass, setConfirmMasterPass] = useState("");
+  const [masterPassError, setMasterPassError] = useState<string | null>(null);
+  const [masterPassSuccess, setMasterPassSuccess] = useState(false);
+  const [changingMasterPass, setChangingMasterPass] = useState(false);
+
+  const handleChangeMasterPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setMasterPassError(null);
+    setMasterPassSuccess(false);
+    if (!newMasterPass) {
+      setMasterPassError(t("settings.masterPassEmpty"));
+      return;
+    }
+    if (newMasterPass !== confirmMasterPass) {
+      setMasterPassError(t("walletModal.errors.passwordMismatch"));
+      return;
+    }
+    try {
+      setChangingMasterPass(true);
+      await api.changeMasterPassword(newMasterPass);
+      setNewMasterPass("");
+      setConfirmMasterPass("");
+      setMasterPassSuccess(true);
+      setTimeout(() => setMasterPassSuccess(false), 3000);
+    } catch (err: unknown) {
+      setMasterPassError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setChangingMasterPass(false);
+    }
+  };
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [specs, setSpecs] = useState<SystemSpecs | null>(null);
   const [checkingSpecs, setCheckingSpecs] = useState<boolean>(false);
@@ -516,6 +549,65 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               <span>{t("settings.resetDefaults")}</span>
             </button>
           </div>
+        </form>
+
+        {/* Master Password Management */}
+        <form onSubmit={handleChangeMasterPassword} className="mt-8 pt-6 border-t border-zinc-800 space-y-4">
+          <div className="flex items-center space-x-2 text-xs font-bold text-zinc-400 uppercase tracking-wider">
+            <KeyRound className="w-3.5 h-3.5 text-white" />
+            <span>{t("settings.masterPasswordSection")}</span>
+          </div>
+          <p className="text-[11px] text-zinc-400">
+            {t("settings.masterPasswordDesc")}
+          </p>
+
+          {masterPassError && (
+            <div className="p-2.5 bg-white/5 border border-white/20 rounded-[2px] text-xs font-mono text-zinc-200">
+              {masterPassError}
+            </div>
+          )}
+          {masterPassSuccess && (
+            <div className="p-2.5 bg-emerald-500/10 border border-emerald-500/30 rounded-[2px] text-xs font-mono text-emerald-300 flex items-center space-x-2">
+              <Check className="w-4 h-4 shrink-0" />
+              <span>{t("settings.masterPassSuccess")}</span>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label className="text-[11px] font-medium text-zinc-400 block mb-1">
+                {t("settings.newMasterPassword")}
+              </label>
+              <input
+                type="password"
+                value={newMasterPass}
+                onChange={(e) => setNewMasterPass(e.target.value)}
+                placeholder="••••••••"
+                className="w-full bg-zinc-950 border border-zinc-800 focus:border-white rounded-[2px] px-3 py-2 text-xs font-mono text-white outline-none"
+              />
+            </div>
+            <div>
+              <label className="text-[11px] font-medium text-zinc-400 block mb-1">
+                {t("settings.confirmNewMasterPassword")}
+              </label>
+              <input
+                type="password"
+                value={confirmMasterPass}
+                onChange={(e) => setConfirmMasterPass(e.target.value)}
+                placeholder="••••••••"
+                className="w-full bg-zinc-950 border border-zinc-800 focus:border-white rounded-[2px] px-3 py-2 text-xs font-mono text-white outline-none"
+              />
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            disabled={changingMasterPass}
+            className="flex items-center space-x-2 px-4 py-2 bg-zinc-900 hover:bg-zinc-800 border border-white/20 text-white rounded-[2px] text-xs font-mono uppercase tracking-wider font-bold transition disabled:opacity-50"
+          >
+            <KeyRound className="w-3.5 h-3.5" />
+            <span>{changingMasterPass ? t("common.loading") : t("settings.updateMasterPassBtn")}</span>
+          </button>
         </form>
 
         {/* Danger Zone: Clean Chaindata */}

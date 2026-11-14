@@ -35,7 +35,9 @@
     "close": "关闭",
     "refresh": "刷新",
     "selectLanguage": "选择语言",
-    "confirmDelete": "点击确认删除",
+    "confirmDelete": "确认删除",
+    "import": "导入",
+    "lock": "锁定",
     "loading": "加载中..."
   },
   "sidebar": {
@@ -107,6 +109,10 @@
     "unlockInitBtn": "解锁 / 初始化钱包",
     "activeWalletBadge": "当前活跃钱包",
     "renameWallet": "重命名钱包",
+    "deleteConfirm": {
+      "title": "从此保险库中移除该钱包？",
+      "description": "此操作将从本地保险库中移除该钱包。如需日后恢复，请确保已备份其助记词。"
+    },
     "selectedAddress": "选定地址:",
     "copyActiveAddress": "复制当前活跃地址",
     "bip44Notice": "BIP-44 EVM 标准 • 所有挖矿与转账操作均基于此选定地址",
@@ -230,12 +236,16 @@
     "importing": "正在导入...",
     "importToVault": "导入钱包",
     "createWithMnemonic": "使用助记词创建钱包",
+    "resetVault": "忘记密码？重置保险库",
+    "resetVaultConfirmText": "警告：这将从磁盘删除当前的保险库文件。只有保留助记词才能恢复您的资产。",
+    "resetVaultConfirmBtn": "是的，重置保险库",
     "errors": {
       "generateMnemonic": "生成助记词失败。",
       "noWalletsFound": "未找到钱包。",
       "wordsLength": "助记词必须包含正好 12 或 24 个单词。",
       "passwordMinLength": "主密码长度必须至少为 8 个字符。",
-      "passwordMismatch": "两次输入的密码不一致。"
+      "passwordMismatch": "两次输入的密码不一致。",
+      "duplicateWallet": "此钱包已存在于您的保险库中。"
     }
   },
   "mining": {
@@ -332,6 +342,13 @@
   },
   "settings": {
     "title": "客户端与节点配置",
+    "masterPasswordSection": "保险库主密码",
+    "masterPasswordDesc": "更新用于加密此桌面客户端中所有钱包的唯一主密码。",
+    "newMasterPassword": "新主密码",
+    "confirmNewMasterPassword": "确认新密码",
+    "updateMasterPassBtn": "更新主密码",
+    "masterPassEmpty": "请输入新的主密码。",
+    "masterPassSuccess": "主密码已更新并重新加密保险库。",
     "manualControlTitle": "手动控制节点进程",
     "statusLabel": "状态:",
     "statusRunning": "运行中 (PID: {{pid}})",

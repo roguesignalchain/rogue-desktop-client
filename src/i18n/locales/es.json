@@ -35,7 +35,9 @@
     "close": "Cerrar",
     "refresh": "Actualizar",
     "selectLanguage": "Seleccionar Idioma",
-    "confirmDelete": "Haz clic para confirmar eliminación",
+    "confirmDelete": "Confirmar eliminación",
+    "import": "Importar",
+    "lock": "Bloquear",
     "loading": "Cargando..."
   },
   "sidebar": {
@@ -107,6 +109,10 @@
     "unlockInitBtn": "Desbloquear / Inicializar Billetera",
     "activeWalletBadge": "Billetera Activa",
     "renameWallet": "Renombrar billetera",
+    "deleteConfirm": {
+      "title": "¿Eliminar esta billetera de la bóveda?",
+      "description": "Esta acción eliminará la billetera de tu bóveda local. Asegúrate de haber respaldado su frase semilla si deseas recuperarla en el futuro."
+    },
     "selectedAddress": "Dirección seleccionada:",
     "copyActiveAddress": "Copiar dirección activa",
     "bip44Notice": "BIP-44 Estándar EVM • Toda la minería y envíos operan sobre la dirección seleccionada",
@@ -230,12 +236,16 @@
     "importing": "Importando...",
     "importToVault": "Importar Billetera",
     "createWithMnemonic": "Crear Billetera con Mnemónico",
+    "resetVault": "¿Olvidaste tu contraseña? Restablecer bóveda",
+    "resetVaultConfirmText": "Advertencia: esto eliminará el archivo de bóveda actual de tu disco. Solo podrás recuperar tus fondos si conservas tus frases semilla.",
+    "resetVaultConfirmBtn": "Sí, restablecer bóveda",
     "errors": {
       "generateMnemonic": "Error al generar mnemónico.",
       "noWalletsFound": "No se encontraron billeteras.",
       "wordsLength": "La frase mnemónica debe contener exactamente 12 o 24 palabras.",
       "passwordMinLength": "La contraseña maestra debe tener al menos 8 caracteres.",
-      "passwordMismatch": "Las contraseñas no coinciden."
+      "passwordMismatch": "Las contraseñas no coinciden.",
+      "duplicateWallet": "Esta billetera ya existe en tu bóveda."
     }
   },
   "mining": {
@@ -332,6 +342,13 @@
   },
   "settings": {
     "title": "Configuración de Cliente & Nodo",
+    "masterPasswordSection": "Contraseña Maestra de la Bóveda",
+    "masterPasswordDesc": "Actualiza la contraseña maestra única que cifra todas las billeteras en este cliente de escritorio.",
+    "newMasterPassword": "Nueva Contraseña Maestra",
+    "confirmNewMasterPassword": "Confirmar Nueva Contraseña",
+    "updateMasterPassBtn": "Actualizar Contraseña Maestra",
+    "masterPassEmpty": "Ingresa una nueva contraseña maestra.",
+    "masterPassSuccess": "Contraseña maestra actualizada y bóveda re-cifrada.",
     "manualControlTitle": "Control Manual del Proceso de Nodo",
     "statusLabel": "Estado:",
     "statusRunning": "En ejecución (PID: {{pid}})",

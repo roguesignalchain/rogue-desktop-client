@@ -91,6 +91,18 @@ export const api = {
   },
 
   // Wallet and Keystore
+  hasVault: async (): Promise<boolean> => {
+    return safeInvoke("has_vault");
+  },
+
+  resetVault: async (): Promise<void> => {
+    return safeInvoke("reset_vault");
+  },
+
+  changeMasterPassword: async (newPassword: string): Promise<void> => {
+    return safeInvoke("change_master_password", { newPassword });
+  },
+
   generateMnemonic: async (words: number = 12): Promise<string> => {
     return safeInvoke("generate_mnemonic", { words });
   },

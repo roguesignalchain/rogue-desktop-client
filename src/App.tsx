@@ -87,8 +87,11 @@ export const App: React.FC = () => {
   const [derivedAccounts, setDerivedAccounts] = useState<AccountInfo[]>([]);
   const [isWalletModalOpen, setIsWalletModalOpen] = useState<boolean>(false);
   const [walletModalMode, setWalletModalMode] = useState<"unlock" | "create" | "import">("unlock");
+  const [hasVault, setHasVault] = useState<boolean>(true);
   const [pendingWalletSwitchId, setPendingWalletSwitchId] = useState<string | null>(null);
+  const [pendingAddressSwitch, setPendingAddressSwitch] = useState<string | null>(null);
   const [showMiningSwitchConfirm, setShowMiningSwitchConfirm] = useState<boolean>(false);
+  const [walletIdPendingDelete, setWalletIdPendingDelete] = useState<string | null>(null);
   const [loadingBlocks, setLoadingBlocks] = useState<boolean>(false);
   const [isShuttingDown, setIsShuttingDown] = useState<boolean>(false);
   const [isRecoveringChain, setIsRecoveringChain] = useState<boolean>(false);
@@ -173,25 +176,33 @@ export const App: React.FC = () => {
     };
   }, []);
 
-  const loadActiveWalletAccounts = async (walletId: string) => {
+  const loadActiveWalletAccounts = async (walletId: string): Promise<AccountInfo[]> => {
     try {
       const accs = await api.getDerivedAccounts(walletId);
       setDerivedAccounts(accs);
+      return accs;
     } catch (e) {
       console.warn("Could not load derived accounts:", e);
+      return [];
     }
   };
 
-  const handleLockWallet = async () => {
-    if (hashrate > 0) {
-      try {
-        await api.stopMining(rpcUrl);
-        setHashrate(0);
-        setLogs((prev) => [...prev, t("logs.miningStoppedAuto")]);
-      } catch (e) {
-        console.warn("Failed to stop mining on wallet lock:", e);
+  useEffect(() => {
+    api.hasVault().then(setHasVault).catch(() => setHasVault(false));
+  }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "l" && unlockedAddress) {
+        e.preventDefault();
+        void handleLockWallet();
       }
-    }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [unlockedAddress]);
+
+  const handleLockWallet = async () => {
     try {
       await api.lockWallet();
     } catch (e) {
@@ -204,19 +215,44 @@ export const App: React.FC = () => {
     setLogs((prev) => [...prev, t("logs.vaultLocked")]);
   };
 
-  const handleWalletUnlocked = async (actWallet: WalletSummary, walletsList: WalletSummary[]) => {
+  const handleWalletUnlocked = async (
+    actWallet: WalletSummary,
+    walletsList: WalletSummary[],
+    isNewlyAdded: boolean = false
+  ) => {
+    setHasVault(true);
     setAllWallets(walletsList);
     const savedActiveId = localStorage.getItem("rogue_active_wallet_id");
-    const found = walletsList.find((w) => w.id === savedActiveId) || actWallet;
+    let found = isNewlyAdded
+      ? actWallet
+      : walletsList.find((w) => w.id === savedActiveId) || actWallet;
+
+    if (!isNewlyAdded && found.id !== actWallet.id) {
+      try {
+        found = await api.setActiveWallet(found.id);
+      } catch {
+        // Fallback to backend active wallet
+      }
+    }
+
+    localStorage.setItem("rogue_active_wallet_id", found.id);
     setActiveWallet(found);
-    setUnlockedAddress(found.primary_address);
-    await loadActiveWalletAccounts(found.id);
+
+    const accs = await loadActiveWalletAccounts(found.id);
+    const savedAccountAddr = localStorage.getItem(`rogue_active_account_${found.id}`);
+    const restoredAccount = !isNewlyAdded && savedAccountAddr
+      ? accs.find((a) => a.address.toLowerCase() === savedAccountAddr.toLowerCase())
+      : undefined;
+    const targetAddr = restoredAccount ? restoredAccount.address : found.primary_address;
+
+    setUnlockedAddress(targetAddr);
+    localStorage.setItem(`rogue_active_account_${found.id}`, targetAddr);
     try {
-      await api.setEtherbase(rpcUrl, found.primary_address);
+      await api.setEtherbase(rpcUrl, targetAddr);
     } catch {
       // Node might not be ready yet
     }
-    setLogs((prev) => [...prev, t("logs.vaultUnlocked", { name: found.name, address: found.primary_address })]);
+    setLogs((prev) => [...prev, t("logs.vaultUnlocked", { name: found.name, address: targetAddr })]);
   };
 
   const handleSwitchWalletRequest = async (walletId: string) => {
@@ -224,6 +260,7 @@ export const App: React.FC = () => {
 
     if (hashrate > 0) {
       setPendingWalletSwitchId(walletId);
+      setPendingAddressSwitch(null);
       setShowMiningSwitchConfirm(true);
       return;
     }
@@ -235,32 +272,50 @@ export const App: React.FC = () => {
     try {
       if (stopMining) {
         await api.stopMining(rpcUrl);
+        setHashrate(0);
         setLogs((prev) => [...prev, t("logs.miningStoppedAuto")]);
       }
 
       const summary = await api.setActiveWallet(walletId);
       setActiveWallet(summary);
-      setUnlockedAddress(summary.primary_address);
       localStorage.setItem("rogue_active_wallet_id", walletId);
-      await loadActiveWalletAccounts(walletId);
+      const accs = await loadActiveWalletAccounts(walletId);
+      const savedAccountAddr = localStorage.getItem(`rogue_active_account_${walletId}`);
+      const restoredAccount = savedAccountAddr
+        ? accs.find((a) => a.address.toLowerCase() === savedAccountAddr.toLowerCase())
+        : undefined;
+      const targetAddr = restoredAccount ? restoredAccount.address : summary.primary_address;
+
+      setUnlockedAddress(targetAddr);
+      localStorage.setItem(`rogue_active_account_${walletId}`, targetAddr);
       try {
-        await api.setEtherbase(rpcUrl, summary.primary_address);
+        await api.setEtherbase(rpcUrl, targetAddr);
       } catch {
         // Node might not be ready yet
       }
-      setLogs((prev) => [...prev, t("logs.walletSwitched", { name: summary.name, address: summary.primary_address })]);
+      setLogs((prev) => [...prev, t("logs.walletSwitched", { name: summary.name, address: targetAddr })]);
     } catch (err) {
       console.error("Error switching wallet:", err);
     } finally {
       setShowMiningSwitchConfirm(false);
       setPendingWalletSwitchId(null);
+      setPendingAddressSwitch(null);
     }
   };
 
-  const handleRemoveWallet = async (walletId: string) => {
+  const handleRequestRemoveWallet = (walletId: string) => {
+    if (allWallets.length <= 1) return;
+    setWalletIdPendingDelete(walletId);
+  };
+
+  const handleConfirmRemoveWallet = async () => {
+    if (!walletIdPendingDelete) return;
+    const walletId = walletIdPendingDelete;
+    setWalletIdPendingDelete(null);
     try {
       const updated = await api.removeWallet(walletId);
       setAllWallets(updated);
+      localStorage.removeItem(`rogue_active_account_${walletId}`);
       if (activeWallet?.id === walletId && updated.length > 0) {
         await executeWalletSwitch(updated[0].id);
       }
@@ -278,14 +333,33 @@ export const App: React.FC = () => {
   };
 
   const handleSelectAddress = async (addr: string) => {
-    setUnlockedAddress(addr);
-    setLogs((prev) => [...prev, t("logs.addressSelected", { address: addr })]);
-    try {
-      await api.setEtherbase(rpcUrl, addr);
-    } catch {
-      // Node might not be ready yet
+    if (addr.toLowerCase() === unlockedAddress?.toLowerCase()) return;
+    if (hashrate > 0) {
+      setPendingAddressSwitch(addr);
+      setPendingWalletSwitchId(null);
+      setShowMiningSwitchConfirm(true);
+      return;
     }
+    await executeAddressSwitch(addr, false);
+  };
+
+  const executeAddressSwitch = async (addr: string, stopMining: boolean = false) => {
     try {
+      if (stopMining) {
+        await api.stopMining(rpcUrl);
+        setHashrate(0);
+        setLogs((prev) => [...prev, t("logs.miningStoppedAuto")]);
+      }
+      setUnlockedAddress(addr);
+      if (activeWallet?.id) {
+        localStorage.setItem(`rogue_active_account_${activeWallet.id}`, addr);
+      }
+      setLogs((prev) => [...prev, t("logs.addressSelected", { address: addr })]);
+      try {
+        await api.setEtherbase(rpcUrl, addr);
+      } catch {
+        // Node might not be ready yet
+      }
       const [balWei, stats] = await Promise.all([
         api.getBalanceWei(rpcUrl, addr).catch(() => null),
         api.getMinerStats(rpcUrl, addr, i18n.language).catch(() => null),
@@ -301,7 +375,11 @@ export const App: React.FC = () => {
         setMinerStats(stats);
       }
     } catch {
-      // Handled in periodic poll
+      // ignore
+    } finally {
+      setShowMiningSwitchConfirm(false);
+      setPendingAddressSwitch(null);
+      setPendingWalletSwitchId(null);
     }
   };
 
@@ -639,7 +717,7 @@ export const App: React.FC = () => {
         onLockWallet={handleLockWallet}
         onSelectWallet={handleSwitchWalletRequest}
         onSelectAddress={handleSelectAddress}
-        onRemoveWallet={handleRemoveWallet}
+        onRemoveWallet={handleRequestRemoveWallet}
         onRefreshMetrics={refreshMetrics}
       />
 
@@ -671,6 +749,7 @@ export const App: React.FC = () => {
             <WalletView
               unlockedAddress={unlockedAddress}
               activeWallet={activeWallet}
+              allWallets={allWallets}
               balance={balance}
               rpcUrl={rpcUrl}
               onRefreshBalance={refreshMetrics}
@@ -678,6 +757,9 @@ export const App: React.FC = () => {
                 setWalletModalMode(mode || "create");
                 setIsWalletModalOpen(true);
               }}
+              onSelectWallet={handleSwitchWalletRequest}
+              onRemoveWallet={handleRequestRemoveWallet}
+              onLockWallet={handleLockWallet}
               onSelectAddress={handleSelectAddress}
               onWalletRenamed={handleWalletRenamed}
               onNavigateToTransfers={() => setCurrentTab("transfers")}
@@ -757,14 +839,61 @@ export const App: React.FC = () => {
       </div>
 
       <WalletModal
-        isOpen={isWalletModalOpen}
-        onClose={() => setIsWalletModalOpen(false)}
+        isOpen={isWalletModalOpen || !unlockedAddress}
+        onClose={() => {
+          if (unlockedAddress) {
+            setIsWalletModalOpen(false);
+          }
+        }}
         onWalletUnlocked={handleWalletUnlocked}
-        initialMode={walletModalMode}
+        initialMode={unlockedAddress ? walletModalMode : hasVault ? "unlock" : "create"}
         isVaultUnlocked={!!unlockedAddress}
+        hasVault={hasVault}
+        onVaultReset={() => {
+          setHasVault(false);
+          localStorage.removeItem("rogue_active_wallet_id");
+        }}
       />
 
-      {/* Confirmation Modal when switching wallet while mining is active */}
+      {/* Confirmation Modal when deleting a wallet */}
+      {walletIdPendingDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 animate-in fade-in duration-100">
+          <div className="w-full max-w-md bg-zinc-950 border border-white/20 rounded-[2px] shadow-2xl p-6 space-y-4">
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 rounded-full bg-black border border-white/20 flex items-center justify-center text-white shrink-0">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-white">{t("wallet.deleteConfirm.title")}</h3>
+                <p className="text-xs text-zinc-300">
+                  {allWallets.find((w) => w.id === walletIdPendingDelete)?.name}
+                </p>
+              </div>
+            </div>
+
+            <p className="text-xs text-zinc-400 leading-relaxed">
+              {t("wallet.deleteConfirm.description")}
+            </p>
+
+            <div className="flex items-center justify-end space-x-2 pt-2 border-t border-zinc-800">
+              <button
+                onClick={() => setWalletIdPendingDelete(null)}
+                className="px-3.5 py-1.5 text-xs text-zinc-400 hover:text-white rounded-lg transition"
+              >
+                {t("common.cancel")}
+              </button>
+              <button
+                onClick={handleConfirmRemoveWallet}
+                className="px-4 py-1.5 bg-white hover:bg-zinc-200 text-black text-xs font-mono uppercase tracking-wider font-bold rounded-[2px] shadow-[0_0_15px_rgba(255,255,255,0.15)] transition"
+              >
+                {t("common.confirmDelete")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation Modal when switching wallet/account while mining is active */}
       {showMiningSwitchConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 animate-in fade-in duration-100">
           <div className="w-full max-w-md bg-zinc-950 border border-white/20 rounded-[2px] shadow-2xl p-6 space-y-4">
@@ -787,6 +916,7 @@ export const App: React.FC = () => {
                 onClick={() => {
                   setShowMiningSwitchConfirm(false);
                   setPendingWalletSwitchId(null);
+                  setPendingAddressSwitch(null);
                 }}
                 className="px-3.5 py-1.5 text-xs text-zinc-400 hover:text-white rounded-lg transition"
               >
@@ -796,6 +926,8 @@ export const App: React.FC = () => {
                 onClick={() => {
                   if (pendingWalletSwitchId) {
                     executeWalletSwitch(pendingWalletSwitchId, true);
+                  } else if (pendingAddressSwitch) {
+                    executeAddressSwitch(pendingAddressSwitch, true);
                   }
                 }}
                 className="px-4 py-1.5 bg-white hover:bg-zinc-200 text-black text-xs font-mono uppercase tracking-wider font-bold rounded-[2px] shadow-[0_0_15px_rgba(255,255,255,0.15)] transition"
