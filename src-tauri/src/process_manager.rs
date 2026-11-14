@@ -201,7 +201,14 @@ fn read_pid_file(path: &Path) -> Option<u32> {
         .filter(|&pid| pid > 0)
 }
 
-fn cleanup_stale_pid(pid_file: &Path) {
+fn remove_stale_ipc(datadir: &Path) {
+    let ipc_path = datadir.join("geth.ipc");
+    if ipc_path.exists() {
+        let _ = std::fs::remove_file(&ipc_path);
+    }
+}
+
+fn cleanup_stale_pid(pid_file: &Path, datadir: &Path) {
     if let Some(old_pid) = read_pid_file(pid_file) {
         #[cfg(unix)]
         {
@@ -235,26 +242,48 @@ fn cleanup_stale_pid(pid_file: &Path) {
         }
         remove_pid_file(pid_file);
     }
+    remove_stale_ipc(datadir);
+}
+
+fn send_json_rpc_sync(http_port: u16, method: &str) -> Option<String> {
+    if http_port == 0 {
+        return None;
+    }
+    let addr = SocketAddr::from(([127, 0, 0, 1], http_port));
+    let mut stream = TcpStream::connect_timeout(&addr, std::time::Duration::from_millis(400)).ok()?;
+    let _ = stream.set_read_timeout(Some(std::time::Duration::from_millis(500)));
+    let _ = stream.set_write_timeout(Some(std::time::Duration::from_millis(500)));
+    let body = format!(r#"{{"jsonrpc":"2.0","id":1,"method":"{}","params":[]}}"#, method);
+    let req = format!(
+        "POST / HTTP/1.1\r\nHost: 127.0.0.1:{}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+        http_port,
+        body.len(),
+        body
+    );
+    stream.write_all(req.as_bytes()).ok()?;
+    let mut buf = [0u8; 512];
+    let n = stream.read(&mut buf).ok()?;
+    Some(String::from_utf8_lossy(&buf[..n]).to_string())
 }
 
 fn send_miner_stop_sync(http_port: u16) {
-    if http_port == 0 {
+    let is_mining = send_json_rpc_sync(http_port, "eth_mining")
+        .map(|resp| resp.contains("true"))
+        .unwrap_or(false);
+    if !is_mining {
         return;
     }
-    let addr = SocketAddr::from(([127, 0, 0, 1], http_port));
-    if let Ok(mut stream) = TcpStream::connect_timeout(&addr, std::time::Duration::from_millis(400)) {
-        let _ = stream.set_read_timeout(Some(std::time::Duration::from_millis(500)));
-        let _ = stream.set_write_timeout(Some(std::time::Duration::from_millis(500)));
-        let body = r#"{"jsonrpc":"2.0","id":1,"method":"miner_stop","params":[]}"#;
-        let req = format!(
-            "POST / HTTP/1.1\r\nHost: 127.0.0.1:{}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
-            http_port,
-            body.len(),
-            body
-        );
-        let _ = stream.write_all(req.as_bytes());
-        let mut buf = [0u8; 256];
-        let _ = stream.read(&mut buf);
+
+    let _ = send_json_rpc_sync(http_port, "miner_stop");
+
+    // Give RandomX miner threads a brief window to wind down before SIGTERM
+    for _ in 0..15 {
+        std::thread::sleep(std::time::Duration::from_millis(100));
+        match send_json_rpc_sync(http_port, "eth_mining") {
+            Some(resp) if resp.contains("false") => break,
+            None => break,
+            _ => {}
+        }
     }
 }
 
@@ -303,8 +332,8 @@ pub async fn start_node(app: AppHandle, config: NodeConfig) -> Result<String, St
     let datadir = resolve_datadir(config.datadir.as_deref());
     let pid_file = pid_file_path(&datadir);
 
-    // Clean up any orphaned core-rogue process left behind by a prior crash
-    cleanup_stale_pid(&pid_file);
+    // Clean up any orphaned core-rogue process or stale IPC socket left behind by a prior crash
+    cleanup_stale_pid(&pid_file, &datadir);
 
     if is_rpc_active(config.http_port) {
         return Err(format!(
@@ -505,16 +534,25 @@ pub async fn exit_app(app: AppHandle) -> Result<(), String> {
     Ok(())
 }
 
-#[tauri::command]
-pub async fn clean_chaindata(datadir: Option<String>) -> Result<String, String> {
+async fn reset_chaindata_internal(datadir: Option<String>, preserve_identity: bool) -> Result<String, String> {
     let _ = stop_node().await;
 
     let resolved = resolve_datadir(datadir.as_deref());
     if resolved.parent().is_none() {
         return Err("Refusing to clean chaindata at filesystem root".to_string());
     }
+    remove_stale_ipc(&resolved);
+
     let geth_dir = resolved.join("geth");
-    if geth_dir.exists() {
+    if preserve_identity {
+        for sub in ["chaindata", "lightchaindata"] {
+            let target = geth_dir.join(sub);
+            if target.exists() {
+                std::fs::remove_dir_all(&target)
+                    .map_err(|e| format!("Failed to delete {} at {:?}: {}", sub, target, e))?;
+            }
+        }
+    } else if geth_dir.exists() {
         std::fs::remove_dir_all(&geth_dir)
             .map_err(|e| format!("Failed to delete geth directory at {:?}: {}", geth_dir, e))?;
     }
@@ -527,6 +565,16 @@ pub async fn clean_chaindata(datadir: Option<String>) -> Result<String, String> 
         "Chaindata reset and genesis reinitialized successfully at {:?}",
         resolved
     ))
+}
+
+#[tauri::command]
+pub async fn clean_chaindata(datadir: Option<String>) -> Result<String, String> {
+    reset_chaindata_internal(datadir, false).await
+}
+
+#[tauri::command]
+pub async fn recover_chaindata(datadir: Option<String>) -> Result<String, String> {
+    reset_chaindata_internal(datadir, true).await
 }
 
 #[tauri::command]

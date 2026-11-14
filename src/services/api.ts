@@ -68,6 +68,10 @@ export const api = {
     return safeInvoke("clean_chaindata", { datadir });
   },
 
+  recoverChaindata: async (datadir?: string): Promise<string> => {
+    return safeInvoke("recover_chaindata", { datadir });
+  },
+
   // Hardware diagnostics
   getSystemSpecs: async (): Promise<SystemSpecs> => {
     try {

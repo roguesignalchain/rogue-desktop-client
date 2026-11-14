@@ -57,6 +57,7 @@ pub fn run() {
             process_manager::exit_app,
             process_manager::get_node_status,
             process_manager::clean_chaindata,
+            process_manager::recover_chaindata,
             process_manager::get_system_specs,
             wallet::generate_mnemonic,
             wallet::create_wallet,
