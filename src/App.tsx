@@ -706,6 +706,12 @@ export const App: React.FC = () => {
         derivedAccounts={derivedAccounts}
         minerStats={minerStats}
         ranks={ranks}
+        syncStatus={syncStatus}
+        currentBlock={currentBlock}
+        nodeStatus={nodeStatus}
+        rpcConnected={rpcConnected}
+        peerCount={peerCount}
+        onRetryPeers={handleRetryPeers}
         onSelectTab={setCurrentTab}
         onOpenWalletModal={(mode) => {
           setWalletModalMode(mode || "unlock");
@@ -722,12 +728,6 @@ export const App: React.FC = () => {
         <Sidebar
           currentTab={currentTab}
           onSelectTab={setCurrentTab}
-          syncStatus={syncStatus}
-          currentBlock={currentBlock}
-          nodeStatus={nodeStatus}
-          rpcConnected={rpcConnected}
-          peerCount={peerCount}
-          onRetryPeers={handleRetryPeers}
         />
 
         <main className="flex-1 overflow-y-auto p-6">

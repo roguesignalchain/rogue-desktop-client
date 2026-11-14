@@ -4,33 +4,18 @@ import {
   LayoutDashboard,
   Wallet,
   ArrowLeftRight,
-  RefreshCw,
-  Activity,
 } from "lucide-react";
-import { NodeStatus, SyncStatus } from "../types";
 
 export type TabType = "dashboard" | "wallet" | "transfers" | "mining" | "explorer" | "console" | "settings";
 
 interface SidebarProps {
   currentTab: TabType;
   onSelectTab: (tab: TabType) => void;
-  syncStatus: SyncStatus;
-  currentBlock: number;
-  nodeStatus: NodeStatus;
-  rpcConnected: boolean;
-  peerCount: number;
-  onRetryPeers?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
   currentTab,
   onSelectTab,
-  syncStatus,
-  currentBlock,
-  nodeStatus,
-  rpcConnected,
-  peerCount,
-  onRetryPeers,
 }) => {
   const { t } = useTranslation();
 
@@ -91,75 +76,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <span>{t("consensus.security")}</span>
             <span className="text-white">{t("consensus.securityValue")}</span>
           </div>
-        </div>
-
-        {/* Relocated Compact Blockchain Sync & Height Widget */}
-        <div className="p-2.5 bg-[#0A0A0C] rounded-[2px] border border-white/15 text-[10px] text-zinc-300 space-y-1.5 font-mono shadow-[0_0_10px_rgba(255,255,255,0.02)]">
-          <div className="flex items-center justify-between">
-            <span className="text-zinc-500 uppercase tracking-widest text-[9px] font-bold">
-              {t("sidebar.syncAndNetwork")}
-            </span>
-            <div className="flex items-center space-x-1">
-              <Activity className="w-3 h-3 text-white" />
-              <span className="text-white font-bold text-[11px]">#{currentBlock}</span>
-            </div>
-          </div>
-
-          {/* Sync Status Badge */}
-          {!rpcConnected && !nodeStatus.running ? (
-            <div className="flex items-center space-x-2 py-1 px-1.5 bg-black border border-white/10 rounded-[1px] text-zinc-500">
-              <span className="w-1.5 h-1.5 rounded-full bg-zinc-600 shrink-0" />
-              <span className="truncate">{t("sync.nodeOffline")}</span>
-            </div>
-          ) : !rpcConnected ? (
-            <div className="flex items-center space-x-2 py-1 px-1.5 bg-zinc-950 border border-white/20 rounded-[1px] text-zinc-300">
-              <RefreshCw className="w-3 h-3 text-white animate-spin shrink-0" />
-              <span className="truncate">{t("sync.connectingRpc")}</span>
-            </div>
-          ) : peerCount === 0 ? (
-            <div className="space-y-1">
-              <div className="flex items-center space-x-2 py-1 px-1.5 bg-zinc-950 border border-white/20 rounded-[1px] text-zinc-300">
-                <span className="w-1.5 h-1.5 rounded-full bg-zinc-400 animate-pulse shrink-0" />
-                <span className="truncate">{t("sync.searchingPeers")}</span>
-              </div>
-              {onRetryPeers && (
-                <button
-                  onClick={onRetryPeers}
-                  className="w-full text-[9px] py-0.5 bg-zinc-900 hover:bg-white/10 text-zinc-300 hover:text-white rounded-[1px] border border-white/15 transition flex items-center justify-center space-x-1"
-                >
-                  <RefreshCw className="w-2.5 h-2.5" />
-                  <span>{t("sidebar.retryBootnodes")}</span>
-                </button>
-              )}
-            </div>
-          ) : syncStatus.isSyncing ? (
-            <div className="space-y-1">
-              <div className="flex items-center space-x-2 py-1 px-1.5 bg-yellow-500/15 border border-yellow-500/40 rounded-[1px] text-yellow-300">
-                <RefreshCw className="w-3 h-3 text-yellow-400 animate-spin shrink-0" />
-                <span className="truncate">
-                  {syncStatus.peersAhead
-                    ? t("sync.verifying")
-                    : t("sync.syncing", { progress: syncStatus.progressPercentage })}
-                </span>
-              </div>
-              <div className="w-full bg-black border border-yellow-500/25 h-1.5 rounded-[1px] overflow-hidden">
-                <div
-                  className="bg-yellow-400 h-full transition-all duration-300"
-                  style={{ width: `${syncStatus.progressPercentage}%` }}
-                />
-              </div>
-            </div>
-          ) : (
-            <div className="flex items-center justify-between py-1 px-1.5 bg-emerald-500/20 border border-emerald-500/50 rounded-[1px] text-emerald-300 font-bold">
-              <div className="flex items-center space-x-1.5 truncate">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
-                <span>{t("sync.synced")}</span>
-              </div>
-              <span className="text-[9px] text-emerald-300/80 font-normal">
-                {peerCount} {t("common.peers").toLowerCase()}
-              </span>
-            </div>
-          )}
         </div>
       </div>
     </aside>
