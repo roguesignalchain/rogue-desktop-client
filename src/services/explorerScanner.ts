@@ -370,3 +370,4 @@ export async function discoverAddressTokensAndNfts(params: {
 
   return { erc20Balances, transfers, nfts };
 }
+

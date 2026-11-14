@@ -336,3 +336,4 @@ export const BlockDetailView: React.FC<BlockDetailViewProps> = ({
     </div>
   );
 };
+

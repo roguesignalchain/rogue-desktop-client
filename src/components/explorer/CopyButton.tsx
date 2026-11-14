@@ -31,3 +31,4 @@ export const CopyButton: React.FC<CopyButtonProps> = ({ text, className = "" }) 
     </button>
   );
 };
+

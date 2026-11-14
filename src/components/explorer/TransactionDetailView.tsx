@@ -392,3 +392,4 @@ export const TransactionDetailView: React.FC<TransactionDetailViewProps> = ({
     </div>
   );
 };
+
