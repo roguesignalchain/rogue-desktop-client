@@ -9,6 +9,7 @@ import {
   Zap,
 } from "lucide-react";
 import { Block } from "../types";
+import { formatHashrateParts } from "../utils/format";
 
 interface DashboardProps {
   balance: string;
@@ -28,6 +29,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
   onNavigate,
 }) => {
   const { t } = useTranslation();
+  const formattedHashrate = formatHashrateParts(hashrate);
 
   return (
     <div className="space-y-6">
@@ -84,8 +86,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
             <Cpu className="w-5 h-5 text-white" />
           </div>
           <div className="mt-3 flex items-baseline space-x-1.5 font-mono">
-            <span className="text-2xl font-black text-white">{hashrate > 0 ? (hashrate / 1000).toFixed(2) : "0.00"}</span>
-            <span className="text-xs font-bold text-zinc-300">{hashrate > 0 ? "kH/s" : "H/s"}</span>
+            <span className="text-2xl font-black text-white">{formattedHashrate.value}</span>
+            <span className="text-xs font-bold text-zinc-300">{formattedHashrate.unit}</span>
           </div>
           <div className="mt-2 text-xs text-zinc-500 flex items-center group-hover:text-white transition font-mono">
             <span>{t("dashboard.miningSettings")}</span>

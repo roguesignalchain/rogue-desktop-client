@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { api } from "../services/api";
 import { Block, MinerGamificationStats, NodeStatus, SyncStatus, SystemSpecs } from "../types";
+import { formatHashrate } from "../utils/format";
 
 interface MiningViewProps {
   hashrate: number;
@@ -212,11 +213,6 @@ export const MiningView: React.FC<MiningViewProps> = ({
         b.miner &&
         b.miner.toLowerCase() === activeRewardAddress.toLowerCase()
     ).length;
-
-  const formatHashrate = (hr: number) => {
-    if (hr <= 0) return "0.00 H/s";
-    return `${(hr / 1000).toFixed(2)} kH/s`;
-  };
 
   const ramUsagePercent = specs
     ? Math.min(100, Math.round(((specs.totalRamMb - specs.availableRamMb) / specs.totalRamMb) * 100))
