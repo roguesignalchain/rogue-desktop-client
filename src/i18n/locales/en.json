@@ -407,9 +407,14 @@
     }
   },
   "shutdown": {
-    "title": "Shutting down node and flushing database...",
-    "description": "Core-Geth is safely syncing the LevelDB state to disk. Please do not turn off your computer to prevent blockchain corruption.",
+    "title": "Stopping miner and shutting down node...",
+    "description": "Stopping active mining threads and safely flushing database state to disk. Please do not turn off your computer to prevent blockchain corruption.",
     "badge": "Graceful shutdown in progress"
+  },
+  "recovery": {
+    "title": "Recovering blockchain state...",
+    "description": "An incomplete state from a previous shutdown caused a fallback to snap sync. Cleaning chaindata and restarting in Full Sync mode (your wallet and node identity are preserved).",
+    "badge": "Automatic Full Sync recovery"
   },
   "logs": {
     "vaultLocked": "[Wallet] Vault locked successfully.",

@@ -407,9 +407,14 @@
     }
   },
   "shutdown": {
-    "title": "Cerrando el nodo y guardando la base de datos...",
-    "description": "Core-Geth está sincronizando el estado de LevelDB a disco de forma segura. Por favor no desconectes el equipo para evitar la corrupción de la blockchain.",
+    "title": "Deteniendo minado y cerrando el nodo...",
+    "description": "Deteniendo los hilos de minado activos y guardando la base de datos a disco de forma segura. Por favor no desconectes el equipo para evitar la corrupción de la blockchain.",
     "badge": "Apagado ordenado en curso"
+  },
+  "recovery": {
+    "title": "Recuperando estado de la blockchain...",
+    "description": "Un estado incompleto de un cierre previo provocó el cambio a snap sync. Limpiando chaindata y reiniciando en modo Full Sync (tu billetera e identidad del nodo se conservan).",
+    "badge": "Recuperación automática a Full Sync"
   },
   "logs": {
     "vaultLocked": "[Wallet] Bóveda bloqueada exitosamente.",

@@ -407,9 +407,14 @@
     }
   },
   "shutdown": {
-    "title": "正在关闭节点并刷新写入数据库...",
-    "description": "Core-Geth 正在安全地将 LevelDB 状态同步至磁盘。请勿强制关闭电脑，以免造成区块链数据损坏。",
+    "title": "正在停止挖矿并安全关闭节点...",
+    "description": "正在停止活动挖矿线程并将数据库状态安全刷新写入磁盘。请勿强制关闭电脑，以免造成区块链数据损坏。",
     "badge": "正在安全关机退出"
+  },
+  "recovery": {
+    "title": "正在恢复区块链状态...",
+    "description": "由于上次异常关闭导致状态不完整，节点回退到了 snap sync。正在清理 chaindata 并以 Full Sync 模式重启（钱包和节点身份将完整保留）。",
+    "badge": "自动恢复 Full Sync 中"
   },
   "logs": {
     "vaultLocked": "[Wallet] 保险库已成功锁定。",

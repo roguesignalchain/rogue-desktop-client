@@ -91,12 +91,16 @@ export const App: React.FC = () => {
   const [showMiningSwitchConfirm, setShowMiningSwitchConfirm] = useState<boolean>(false);
   const [loadingBlocks, setLoadingBlocks] = useState<boolean>(false);
   const [isShuttingDown, setIsShuttingDown] = useState<boolean>(false);
+  const [isRecoveringChain, setIsRecoveringChain] = useState<boolean>(false);
   const [minerStats, setMinerStats] = useState<MinerGamificationStats | null>(null);
   const [ranks, setRanks] = useState<RankInfo[]>([]);
 
   const lastActivityRef = useRef<number>(Date.now());
   const autoStartInitiated = useRef<boolean>(false);
   const isRefreshingMetricsRef = useRef<boolean>(false);
+  const isShuttingDownRef = useRef<boolean>(false);
+  const isRecoveringRef = useRef<boolean>(false);
+  const recoverChainRef = useRef<() => Promise<void>>(async () => {});
 
   // Listen to Tauri log events (clean async unlisten to avoid duplicates)
   useEffect(() => {
@@ -109,7 +113,16 @@ export const App: React.FC = () => {
         if (isCancelled) return;
 
         const unlistenNode = await listen<string>("node-log", (event) => {
-          setLogs((prev) => [...prev.slice(-300), `[Geth] ${event.payload}`]);
+          const line = event.payload;
+          setLogs((prev) => [...prev.slice(-300), `[Geth] ${line}`]);
+          if (
+            !isShuttingDownRef.current &&
+            !isRecoveringRef.current &&
+            (line.includes("Switch sync mode from full sync to snap sync") ||
+              line.includes("snap sync incomplete"))
+          ) {
+            void recoverChainRef.current();
+          }
         });
         if (isCancelled) {
           unlistenNode();
@@ -137,6 +150,7 @@ export const App: React.FC = () => {
         const appWindow = getCurrentWindow();
         unlistenClose = await appWindow.onCloseRequested(async (event) => {
           event.preventDefault();
+          isShuttingDownRef.current = true;
           setIsShuttingDown(true);
           try {
             await api.exitApp();
@@ -470,6 +484,29 @@ export const App: React.FC = () => {
     }
   };
 
+  recoverChainRef.current = async () => {
+    if (isRecoveringRef.current || isShuttingDownRef.current) return;
+    isRecoveringRef.current = true;
+    setIsRecoveringChain(true);
+    setLogs((prev) => [
+      ...prev.slice(-300),
+      "[Manager] Incomplete snap-sync fallback detected. Resetting chaindata and restarting in Full Sync...",
+    ]);
+    try {
+      const res = await api.recoverChaindata(nodeDatadir);
+      setLogs((prev) => [...prev.slice(-300), `[Manager] ${res}`]);
+      if (!isShuttingDownRef.current) {
+        await handleStartNode(false, 2, unlockedAddress || undefined);
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setLogs((prev) => [...prev.slice(-300), `[Manager Error] Chaindata recovery failed: ${msg}`]);
+    } finally {
+      setIsRecoveringChain(false);
+      isRecoveringRef.current = false;
+    }
+  };
+
   const handleRestartNodeWithFastMode = async (useFast: boolean) => {
     setNodeFastMode(useFast);
     localStorage.setItem("rogue_node_fast_mode", String(useFast));
@@ -766,6 +803,25 @@ export const App: React.FC = () => {
                 {t("mining.switchConfirm.stopAndSwitch")}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Automatic Chaindata Recovery Modal Overlay */}
+      {isRecoveringChain && !isShuttingDown && (
+        <div className="fixed inset-0 z-[95] bg-black/90 flex flex-col items-center justify-center p-6 text-center select-none animate-fadeIn">
+          <div className="w-16 h-16 rounded-full bg-black border border-white/25 flex items-center justify-center mb-6 shadow-[0_0_25px_rgba(255,255,255,0.15)]">
+            <Loader2 className="w-8 h-8 text-white animate-spin" />
+          </div>
+          <h2 className="text-xl font-bold text-white tracking-wide">
+            {t("recovery.title")}
+          </h2>
+          <p className="text-sm text-zinc-400 max-w-md mt-2">
+            {t("recovery.description")}
+          </p>
+          <div className="mt-6 flex items-center space-x-2 text-xs font-mono text-white bg-white/10 border border-white/20 px-3 py-1.5 rounded-[2px]">
+            <ShieldAlert className="w-4 h-4 text-white" />
+            <span>{t("recovery.badge")}</span>
           </div>
         </div>
       )}
