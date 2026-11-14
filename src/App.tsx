@@ -800,6 +800,7 @@ export const App: React.FC = () => {
               blocks={recentBlocks}
               onRefresh={refreshBlocks}
               loading={loadingBlocks}
+              rpcUrl={rpcUrl}
             />
           )}
 
