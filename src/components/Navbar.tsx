@@ -5,6 +5,7 @@ import {
   ChevronDown,
   ChevronRight,
   Wallet,
+  ArrowLeftRight,
   Plus,
   Download,
   Lock,
@@ -151,6 +152,8 @@ export const Navbar: React.FC<NavbarProps> = ({
       : activeWallet?.name || t("common.wallet"));
 
   const quickNavItems: { id: TabType; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
+    { id: "wallet", label: t("common.wallet"), icon: Wallet },
+    { id: "transfers", label: t("common.transfers"), icon: ArrowLeftRight },
     { id: "mining", label: t("common.mining"), icon: Pickaxe },
     { id: "explorer", label: t("common.explorer"), icon: Compass },
     { id: "console", label: t("common.console"), icon: Terminal },

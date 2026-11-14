@@ -2,8 +2,6 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 import {
   LayoutDashboard,
-  Wallet,
-  ArrowLeftRight,
 } from "lucide-react";
 
 export type TabType = "dashboard" | "wallet" | "transfers" | "mining" | "explorer" | "console" | "settings";
@@ -21,8 +19,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const navItems = [
     { id: "dashboard", label: t("common.dashboard"), icon: LayoutDashboard },
-    { id: "wallet", label: t("common.wallet"), icon: Wallet },
-    { id: "transfers", label: t("common.transfers"), icon: ArrowLeftRight },
   ];
 
   return (
