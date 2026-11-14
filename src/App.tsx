@@ -807,21 +807,25 @@ export const App: React.FC = () => {
         </div>
       )}
 
-      {/* Automatic Chaindata Recovery Modal Overlay */}
+      {/* Automatic Chaindata Recovery Toast */}
       {isRecoveringChain && !isShuttingDown && (
-        <div className="fixed inset-0 z-[95] bg-black/90 flex flex-col items-center justify-center p-6 text-center select-none animate-fadeIn">
-          <div className="w-16 h-16 rounded-full bg-black border border-white/25 flex items-center justify-center mb-6 shadow-[0_0_25px_rgba(255,255,255,0.15)]">
-            <Loader2 className="w-8 h-8 text-white animate-spin" />
-          </div>
-          <h2 className="text-xl font-bold text-white tracking-wide">
-            {t("recovery.title")}
-          </h2>
-          <p className="text-sm text-zinc-400 max-w-md mt-2">
-            {t("recovery.description")}
-          </p>
-          <div className="mt-6 flex items-center space-x-2 text-xs font-mono text-white bg-white/10 border border-white/20 px-3 py-1.5 rounded-[2px]">
-            <ShieldAlert className="w-4 h-4 text-white" />
-            <span>{t("recovery.badge")}</span>
+        <div className="fixed bottom-5 right-5 z-[90] max-w-sm bg-zinc-950/95 border border-white/25 rounded-[2px] p-4 shadow-[0_0_25px_rgba(0,0,0,0.8)] backdrop-blur-sm select-none animate-fadeIn">
+          <div className="flex items-start space-x-3">
+            <div className="w-8 h-8 rounded-full bg-black border border-white/25 flex items-center justify-center shrink-0 mt-0.5">
+              <Loader2 className="w-4 h-4 text-white animate-spin" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center space-x-1.5 text-[10px] font-mono uppercase tracking-wider text-zinc-400 mb-1">
+                <ShieldAlert className="w-3 h-3 text-white shrink-0" />
+                <span>{t("recovery.badge")}</span>
+              </div>
+              <h3 className="text-sm font-bold text-white leading-snug">
+                {t("recovery.title")}
+              </h3>
+              <p className="text-xs text-zinc-400 mt-1 leading-relaxed">
+                {t("recovery.description")}
+              </p>
+            </div>
           </div>
         </div>
       )}
