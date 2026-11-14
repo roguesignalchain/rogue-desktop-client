@@ -442,6 +442,94 @@ pub async fn get_system_specs() -> Result<SystemSpecs, String> {
         }
     }
 
+    #[cfg(target_os = "macos")]
+    {
+        if let Ok(out) = std::process::Command::new("sysctl").args(["-n", "machdep.cpu.brand_string"]).output() {
+            let s = String::from_utf8_lossy(&out.stdout).trim().to_string();
+            if !s.is_empty() {
+                cpu_model = s;
+            }
+        }
+        if let Ok(out) = std::process::Command::new("sysctl").args(["-n", "hw.memsize"]).output() {
+            if let Ok(bytes) = String::from_utf8_lossy(&out.stdout).trim().parse::<u64>() {
+                if bytes > 0 {
+                    total_ram_mb = bytes / (1024 * 1024);
+                    available_ram_mb = (total_ram_mb * 60) / 100;
+                }
+            }
+        }
+        if let Ok(out) = std::process::Command::new("vm_stat").output() {
+            let text = String::from_utf8_lossy(&out.stdout);
+            let mut page_size: u64 = 4096;
+            if let Some(first_line) = text.lines().next() {
+                if let Some(idx) = first_line.find("page size of ") {
+                    let rest = &first_line[idx + 13..];
+                    if let Some(end) = rest.find(' ') {
+                        page_size = rest[..end].parse().unwrap_or(4096);
+                    }
+                }
+            }
+            let mut free_pages: u64 = 0;
+            let mut inactive_pages: u64 = 0;
+            for line in text.lines() {
+                if let Some((k, v)) = line.split_once(':') {
+                    let num = v.trim().trim_end_matches('.').parse::<u64>().unwrap_or(0);
+                    if k.contains("Pages free") {
+                        free_pages = num;
+                    } else if k.contains("Pages inactive") {
+                        inactive_pages = num;
+                    }
+                }
+            }
+            let avail_bytes = (free_pages + inactive_pages) * page_size;
+            if avail_bytes > 0 {
+                available_ram_mb = avail_bytes / (1024 * 1024);
+            }
+        }
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        if let Ok(out) = std::process::Command::new("powershell")
+            .args([
+                "-NoProfile",
+                "-Command",
+                "(Get-CimInstance Win32_Processor | Select-Object -First 1 -ExpandProperty Name)",
+            ])
+            .creation_flags(CREATE_NO_WINDOW)
+            .output()
+        {
+            let s = String::from_utf8_lossy(&out.stdout).trim().to_string();
+            if !s.is_empty() {
+                cpu_model = s;
+            }
+        }
+        if let Ok(out) = std::process::Command::new("powershell")
+            .args([
+                "-NoProfile",
+                "-Command",
+                "$os = Get-CimInstance Win32_OperatingSystem; Write-Output \"$($os.TotalVisibleMemorySize) $($os.FreePhysicalMemory)\"",
+            ])
+            .creation_flags(CREATE_NO_WINDOW)
+            .output()
+        {
+            let s = String::from_utf8_lossy(&out.stdout).trim().to_string();
+            let parts: Vec<&str> = s.split_whitespace().collect();
+            if parts.len() >= 2 {
+                if let (Ok(total_kb), Ok(free_kb)) = (parts[0].parse::<u64>(), parts[1].parse::<u64>()) {
+                    if total_kb > 0 {
+                        total_ram_mb = total_kb / 1024;
+                    }
+                    if free_kb > 0 {
+                        available_ram_mb = free_kb / 1024;
+                    }
+                }
+            }
+        }
+    }
+
     let recommended_threads = (cpu_cores / 2).max(1);
     let can_run_fast_mode = available_ram_mb >= 3072;
     let recommended_cache_mb = if total_ram_mb >= 16384 {

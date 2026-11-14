@@ -85,7 +85,7 @@ export const ExplorerView: React.FC<ExplorerViewProps> = ({ blocks, onRefresh, l
                       <span className="text-zinc-500 text-[11px]">{date}</span>
                     </div>
                     <div className="text-[11px] px-2 py-0.5 rounded bg-zinc-950 border border-zinc-800 text-zinc-400">
-                      {t("explorer.difficulty")} {parseInt(b.difficulty, 16).toLocaleString()}
+                      {t("explorer.difficulty")} {BigInt(b.difficulty || "0x0").toLocaleString()}
                     </div>
                   </div>
 

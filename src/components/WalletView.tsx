@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { api } from "../services/api";
 import { AccountInfo, WalletSummary, WalletCategory } from "../types";
+import { parseEther, formatEther, isAddress } from "viem";
 
 export interface AccountWithMeta extends AccountInfo {
   balance: string;
@@ -401,19 +402,31 @@ export const WalletView: React.FC<WalletViewProps> = ({
     setDraggedAccountAddress(null);
   };
 
-  // Send Transfer
+  const getTierGasPriceWei = (tier: "slow" | "normal" | "fast"): bigint => {
+    const gwei = tier === "slow" ? 1n : tier === "normal" ? 2n : 5n;
+    return gwei * 1_000_000_000n;
+  };
+
+  // Send Transfer (Local Legacy Type 0 + EIP-155 signing)
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!unlockedAddress) {
       setStatusMsg({ type: "error", text: t("wallet.errors.unlockFirst") });
       return;
     }
-    if (!recipient.startsWith("0x") || recipient.length !== 42) {
+    if (!isAddress(recipient)) {
       setStatusMsg({ type: "error", text: t("wallet.errors.invalidRecipient") });
       return;
     }
-    const parsedAmount = parseFloat(amount);
-    if (isNaN(parsedAmount) || parsedAmount <= 0) {
+
+    let wei: bigint;
+    try {
+      wei = parseEther(amount.trim());
+    } catch {
+      setStatusMsg({ type: "error", text: t("wallet.errors.invalidAmount") });
+      return;
+    }
+    if (wei <= 0n) {
       setStatusMsg({ type: "error", text: t("wallet.errors.invalidAmount") });
       return;
     }
@@ -422,21 +435,28 @@ export const WalletView: React.FC<WalletViewProps> = ({
       setSending(true);
       setStatusMsg({ type: "info", text: t("wallet.status.sending") });
 
-      const wei = BigInt(Math.floor(parsedAmount * 1e6)) * BigInt(10 ** 12);
-      const valueHex = "0x" + wei.toString(16);
+      const [nonce, networkGasPrice] = await Promise.all([
+        api.getNonce(rpcUrl, unlockedAddress),
+        api.getGasPrice(rpcUrl),
+      ]);
+      const tierGasPrice = getTierGasPriceWei(gasTier);
+      const gasPriceWei = networkGasPrice > tierGasPrice ? networkGasPrice : tierGasPrice;
 
-      const gasPriceGwei = gasTier === "slow" ? 1 : gasTier === "normal" ? 2 : 5;
-      const gasPriceHex = "0x" + (BigInt(gasPriceGwei) * BigInt(10 ** 9)).toString(16);
-
-      const txParams = {
-        from: unlockedAddress,
+      const activeAcc = accounts.find(
+        (a) => a.address.toLowerCase() === unlockedAddress.toLowerCase()
+      );
+      const rawTx = await api.signRawTransaction({
         to: recipient,
-        value: valueHex,
-        gas: "0x5208",
-        gasPrice: gasPriceHex,
-      };
+        valueWeiHex: "0x" + wei.toString(16),
+        gasLimit: 21000,
+        gasPriceHex: "0x" + gasPriceWei.toString(16),
+        nonce,
+        chainId: 800055,
+        walletId: activeWallet?.id,
+        accountIndex: activeAcc?.index ?? 0,
+      });
 
-      const txHash = await api.callRpc<string>(rpcUrl, "eth_sendTransaction", [txParams]);
+      const txHash = await api.callRpc<string>(rpcUrl, "eth_sendRawTransaction", [rawTx]);
       setStatusMsg({
         type: "success",
         text: t("wallet.status.success", { txHash }),
@@ -1003,7 +1023,17 @@ export const WalletView: React.FC<WalletViewProps> = ({
               />
               <button
                 type="button"
-                onClick={() => setAmount(balance)}
+                onClick={async () => {
+                  if (!unlockedAddress) return;
+                  try {
+                    const balWei = await api.getBalanceWei(rpcUrl, unlockedAddress);
+                    const feeWei = 21000n * getTierGasPriceWei(gasTier);
+                    const maxWei = balWei > feeWei ? balWei - feeWei : 0n;
+                    setAmount(formatEther(maxWei));
+                  } catch {
+                    setAmount(balance);
+                  }
+                }}
                 className="absolute right-2 top-1.5 px-2.5 py-1 bg-zinc-800 hover:bg-zinc-700 text-xs text-zinc-300 rounded font-mono transition"
               >
                 {t("wallet.max")}

@@ -12,6 +12,26 @@ async function safeInvoke<T>(cmd: string, args?: Record<string, unknown>): Promi
   }
 }
 
+export function parseDifficultyBigInt(diff: unknown): bigint | null {
+  if (diff === undefined || diff === null) return null;
+  try {
+    if (typeof diff === "bigint") return diff;
+    if (typeof diff === "number") {
+      if (!Number.isFinite(diff) || diff < 0) return null;
+      if (Number.isSafeInteger(diff)) return BigInt(diff);
+      return BigInt(Math.trunc(diff).toLocaleString("fullwide", { useGrouping: false }));
+    }
+    if (typeof diff === "string") {
+      const trimmed = diff.trim();
+      if (!trimmed) return null;
+      return BigInt(trimmed);
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 export const api = {
   // Node management
   startNode: async (config: NodeLaunchConfig): Promise<string> => {
@@ -113,6 +133,20 @@ export const api = {
     return safeInvoke("sign_transaction", { txHashHex, walletId, accountIndex });
   },
 
+  signRawTransaction: async (params: {
+    to: string;
+    valueWeiHex: string;
+    gasLimit: number;
+    gasPriceHex: string;
+    nonce: number;
+    chainId: number;
+    dataHex?: string;
+    walletId?: string;
+    accountIndex?: number;
+  }): Promise<string> => {
+    return safeInvoke("sign_raw_transaction", params);
+  },
+
   // Direct JSON-RPC proxy
   callRpc: async <T>(endpoint: string, method: string, params: unknown[] = []): Promise<T> => {
     const isTauri = typeof window !== "undefined" && ("__TAURI_INTERNALS__" in window || "__TAURI__" in window);
@@ -206,6 +240,25 @@ export const api = {
     return parseInt(hex, 16);
   },
 
+  getBalanceWei: async (rpcUrl: string, address: string): Promise<bigint> => {
+    const hex = await api.callRpc<string>(rpcUrl, "eth_getBalance", [address, "latest"]);
+    return BigInt(hex || "0x0");
+  },
+
+  getNonce: async (rpcUrl: string, address: string): Promise<number> => {
+    const hex = await api.callRpc<string>(rpcUrl, "eth_getTransactionCount", [address, "pending"]);
+    return parseInt(hex || "0x0", 16);
+  },
+
+  getGasPrice: async (rpcUrl: string): Promise<bigint> => {
+    try {
+      const hex = await api.callRpc<string>(rpcUrl, "eth_gasPrice");
+      return BigInt(hex || "0x3b9aca00");
+    } catch {
+      return BigInt(1_000_000_000);
+    }
+  },
+
   getBalance: async (rpcUrl: string, address: string): Promise<string> => {
     const hex = await api.callRpc<string>(rpcUrl, "eth_getBalance", [address, "latest"]);
     const wei = BigInt(hex || "0x0");
@@ -295,8 +348,8 @@ export const api = {
         if (Array.isArray(peers) && peers.length > 0) {
           for (const p of peers) {
             const diff = p.protocols?.eth?.difficulty;
-            if (diff !== undefined && diff !== null) {
-              const td = BigInt(diff);
+            const td = parseDifficultyBigInt(diff);
+            if (td !== null) {
               if (td > peerHighestTd) {
                 peerHighestTd = td;
               }
@@ -315,8 +368,8 @@ export const api = {
           isSyncing: true,
           startingBlock: 0,
           currentBlock: currentLocalBlock,
-          highestBlock: Math.max(currentLocalBlock + 1, 1),
-          progressPercentage: 50,
+          highestBlock: currentLocalBlock,
+          progressPercentage: 0,
           peersAhead: true,
           stage: "verifying",
         };

@@ -84,6 +84,7 @@ pub fn run() {
             wallet::get_derived_accounts,
             wallet::get_private_key,
             wallet::sign_transaction,
+            wallet::sign_raw_transaction,
             rpc::call_rpc
         ])
         .run(tauri::generate_context!())

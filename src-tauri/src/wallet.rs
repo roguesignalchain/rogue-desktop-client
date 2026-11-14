@@ -585,6 +585,179 @@ pub fn lock_wallet() -> Result<(), String> {
     Ok(())
 }
 
+fn be_bytes_trimmed(bytes: &[u8]) -> &[u8] {
+    let first_non_zero = bytes.iter().position(|&b| b != 0).unwrap_or(bytes.len());
+    &bytes[first_non_zero..]
+}
+
+fn rlp_length_prefix(len: usize, short_offset: u8, long_offset: u8) -> Vec<u8> {
+    if len <= 55 {
+        vec![short_offset + len as u8]
+    } else {
+        let len_be = len.to_be_bytes();
+        let len_bytes = be_bytes_trimmed(&len_be);
+        let mut out = Vec::with_capacity(1 + len_bytes.len());
+        out.push(long_offset + len_bytes.len() as u8);
+        out.extend_from_slice(len_bytes);
+        out
+    }
+}
+
+fn rlp_encode_bytes(data: &[u8]) -> Vec<u8> {
+    if data.len() == 1 && data[0] < 0x80 {
+        return vec![data[0]];
+    }
+    let mut out = rlp_length_prefix(data.len(), 0x80, 0xb7);
+    out.extend_from_slice(data);
+    out
+}
+
+fn rlp_encode_u64(val: u64) -> Vec<u8> {
+    if val == 0 {
+        return vec![0x80];
+    }
+    let be = val.to_be_bytes();
+    rlp_encode_bytes(be_bytes_trimmed(&be))
+}
+
+fn parse_hex_bytes(hex_str: &str) -> Result<Vec<u8>, String> {
+    let clean = hex_str.trim().trim_start_matches("0x").trim_start_matches("0X");
+    if clean.is_empty() {
+        return Ok(Vec::new());
+    }
+    let padded = if clean.len() % 2 == 1 {
+        format!("0{}", clean)
+    } else {
+        clean.to_string()
+    };
+    hex::decode(&padded).map_err(|e| format!("Invalid hex '{}': {}", hex_str, e))
+}
+
+fn rlp_encode_hex_uint(hex_str: &str) -> Result<Vec<u8>, String> {
+    let bytes = parse_hex_bytes(hex_str)?;
+    Ok(rlp_encode_bytes(be_bytes_trimmed(&bytes)))
+}
+
+fn rlp_encode_list(items: &[Vec<u8>]) -> Vec<u8> {
+    let payload_len: usize = items.iter().map(|i| i.len()).sum();
+    let mut out = rlp_length_prefix(payload_len, 0xc0, 0xf7);
+    for item in items {
+        out.extend_from_slice(item);
+    }
+    out
+}
+
+fn keccak256(data: &[u8]) -> [u8; 32] {
+    let mut hasher = Keccak::v256();
+    let mut out = [0u8; 32];
+    hasher.update(data);
+    hasher.finalize(&mut out);
+    out
+}
+
+/// Sign a Legacy (Type 0) EIP-155 transaction and return the RLP-encoded raw tx hex (`0x...`)
+/// ready for `eth_sendRawTransaction`.
+pub fn build_and_sign_legacy_tx(
+    privkey: &[u8; 32],
+    nonce: u64,
+    gas_price_hex: &str,
+    gas_limit: u64,
+    to: &str,
+    value_wei_hex: &str,
+    data_hex: &str,
+    chain_id: u64,
+) -> Result<String, String> {
+    let to_bytes = parse_hex_bytes(to)?;
+    if !to_bytes.is_empty() && to_bytes.len() != 20 {
+        return Err("Recipient address must be 20 bytes".to_string());
+    }
+    let data_bytes = parse_hex_bytes(data_hex)?;
+
+    let rlp_nonce = rlp_encode_u64(nonce);
+    let rlp_gas_price = rlp_encode_hex_uint(gas_price_hex)?;
+    let rlp_gas_limit = rlp_encode_u64(gas_limit);
+    let rlp_to = rlp_encode_bytes(&to_bytes);
+    let rlp_value = rlp_encode_hex_uint(value_wei_hex)?;
+    let rlp_data = rlp_encode_bytes(&data_bytes);
+
+    // EIP-155 unsigned payload: [nonce, gasPrice, gasLimit, to, value, data, chainId, 0, 0]
+    let unsigned_rlp = rlp_encode_list(&[
+        rlp_nonce.clone(),
+        rlp_gas_price.clone(),
+        rlp_gas_limit.clone(),
+        rlp_to.clone(),
+        rlp_value.clone(),
+        rlp_data.clone(),
+        rlp_encode_u64(chain_id),
+        rlp_encode_u64(0),
+        rlp_encode_u64(0),
+    ]);
+
+    let sighash = keccak256(&unsigned_rlp);
+
+    let secp = Secp256k1::new();
+    let secret = SecretKey::from_slice(privkey).map_err(|e| e.to_string())?;
+    let message = Message::from_digest_slice(&sighash).map_err(|e| e.to_string())?;
+    let sig = secp.sign_ecdsa_recoverable(&message, &secret);
+    let (rec_id, sig_bytes) = sig.serialize_compact();
+
+    let v = (rec_id.to_i32() as u64) + chain_id * 2 + 35;
+    let r = be_bytes_trimmed(&sig_bytes[0..32]);
+    let s = be_bytes_trimmed(&sig_bytes[32..64]);
+
+    let signed_rlp = rlp_encode_list(&[
+        rlp_nonce,
+        rlp_gas_price,
+        rlp_gas_limit,
+        rlp_to,
+        rlp_value,
+        rlp_data,
+        rlp_encode_u64(v),
+        rlp_encode_bytes(r),
+        rlp_encode_bytes(s),
+    ]);
+
+    Ok(format!("0x{}", hex::encode(signed_rlp)))
+}
+
+#[tauri::command]
+pub fn sign_raw_transaction(
+    to: String,
+    value_wei_hex: String,
+    gas_limit: u64,
+    gas_price_hex: String,
+    nonce: u64,
+    chain_id: u64,
+    data_hex: Option<String>,
+    wallet_id: Option<String>,
+    account_index: Option<u32>,
+) -> Result<String, String> {
+    let wallets = UNLOCKED_WALLETS.lock().unwrap();
+    if wallets.is_empty() {
+        return Err("Wallet is locked".to_string());
+    }
+
+    let target_id = wallet_id.or_else(|| ACTIVE_WALLET_ID.lock().unwrap().clone());
+    let item = wallets
+        .iter()
+        .find(|w| Some(&w.id) == target_id.as_ref())
+        .ok_or_else(|| "Billetera no encontrada".to_string())?;
+
+    let index = account_index.unwrap_or(0);
+    let privkey = derive_private_key_bip44(&item.mnemonic, index)?;
+
+    build_and_sign_legacy_tx(
+        &privkey,
+        nonce,
+        &gas_price_hex,
+        gas_limit,
+        &to,
+        &value_wei_hex,
+        data_hex.as_deref().unwrap_or(""),
+        chain_id,
+    )
+}
+
 #[tauri::command]
 pub fn sign_transaction(
     tx_hash_hex: String,
@@ -640,5 +813,58 @@ mod tests {
         let address = public_key_to_address(&pubkey);
 
         assert_eq!(address.to_lowercase(), "0x0544802665bc7c22124348e745a7abaa8420e197".to_lowercase());
+    }
+
+    #[test]
+    fn test_rlp_and_eip155_legacy_tx_signing() {
+        use secp256k1::ecdsa::{RecoverableSignature, RecoveryId};
+
+        let mnemonic = "draft horse index reduce awkward black final airport velvet boy obvious during";
+        let privkey = derive_private_key_bip44(mnemonic, 0).expect("derivation failed");
+        let secp = Secp256k1::new();
+        let secret = SecretKey::from_slice(&privkey).unwrap();
+        let expected_addr = public_key_to_address(&PublicKey::from_secret_key(&secp, &secret));
+
+        let chain_id: u64 = 800055;
+        let raw_tx = build_and_sign_legacy_tx(
+            &privkey,
+            0,
+            "0x3b9aca00", // 1 Gwei
+            21000,
+            "0x000000000000000000000000000000000000dead",
+            "0x0de0b6b3a7640000", // 1 ROGUE
+            "",
+            chain_id,
+        )
+        .expect("signing failed");
+
+        assert!(raw_tx.starts_with("0xf8") || raw_tx.starts_with("0xf9"));
+        let raw_bytes = hex::decode(raw_tx.trim_start_matches("0x")).unwrap();
+        assert!(raw_bytes.len() > 80);
+
+        // Verify EIP-155 sighash & recoverable signature against expected address
+        let unsigned = rlp_encode_list(&[
+            rlp_encode_u64(0),
+            rlp_encode_hex_uint("0x3b9aca00").unwrap(),
+            rlp_encode_u64(21000),
+            rlp_encode_bytes(&parse_hex_bytes("0x000000000000000000000000000000000000dead").unwrap()),
+            rlp_encode_hex_uint("0x0de0b6b3a7640000").unwrap(),
+            rlp_encode_bytes(&[]),
+            rlp_encode_u64(chain_id),
+            rlp_encode_u64(0),
+            rlp_encode_u64(0),
+        ]);
+        let sighash = keccak256(&unsigned);
+        let msg = Message::from_digest_slice(&sighash).unwrap();
+        let sig = secp.sign_ecdsa_recoverable(&msg, &secret);
+        let (rec_id, sig_bytes) = sig.serialize_compact();
+
+        // Check EIP-155 v encoding: v = rec_id + chain_id * 2 + 35
+        let expected_v = (rec_id.to_i32() as u64) + chain_id * 2 + 35;
+        assert!(expected_v == 1600145 || expected_v == 1600146);
+
+        let rec_sig = RecoverableSignature::from_compact(&sig_bytes, RecoveryId::from_i32(rec_id.to_i32()).unwrap()).unwrap();
+        let recovered_pk = secp.recover_ecdsa(&msg, &rec_sig).unwrap();
+        assert_eq!(public_key_to_address(&recovered_pk).to_lowercase(), expected_addr.to_lowercase());
     }
 }
