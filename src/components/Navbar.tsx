@@ -19,6 +19,7 @@ import {
   Zap,
   RefreshCw,
   Activity,
+  Info,
 } from "lucide-react";
 import { WalletSummary, AccountInfo, MinerGamificationStats, RankInfo, NodeStatus, SyncStatus } from "../types";
 import { TabType } from "./Sidebar";
@@ -260,9 +261,45 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
       )}
 
-      <div className="flex items-center space-x-1 pl-2.5 border-l border-white/10">
+      <div className="flex items-center space-x-1.5 pl-2.5 border-l border-white/10">
         <Activity className="w-3.5 h-3.5 text-white shrink-0" />
         <span className="text-[11px] font-bold text-white">#{currentBlock}</span>
+        <div className="relative group flex items-center">
+          <button
+            type="button"
+            aria-label={t("consensus.title")}
+            className="text-zinc-400 hover:text-white focus:text-white focus:outline-none transition flex items-center justify-center"
+          >
+            <Info className="w-3.5 h-3.5 shrink-0" />
+          </button>
+          <div className="absolute right-0 top-full mt-2.5 w-56 z-50 opacity-0 invisible pointer-events-none group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible transition-all duration-150">
+            <div className="p-2.5 bg-[#0A0A0C] rounded-[2px] border border-white/15 shadow-2xl text-[10px] text-zinc-400 space-y-1 font-mono">
+              <div className="text-zinc-500 uppercase tracking-widest text-[9px] font-bold pb-1 border-b border-white/10">
+                {t("consensus.title")}
+              </div>
+              <div className="flex justify-between">
+                <span>{t("consensus.algo")}</span>
+                <span className="text-white font-bold">{t("consensus.algoValue")}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>{t("consensus.daa")}</span>
+                <span className="text-white">{t("consensus.daaValue")}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>{t("consensus.blockTarget")}</span>
+                <span className="text-white">{t("consensus.blockTargetValue")}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>{t("consensus.reward")}</span>
+                <span className="text-white">{t("consensus.rewardValue")}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>{t("consensus.security")}</span>
+                <span className="text-white">{t("consensus.securityValue")}</span>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

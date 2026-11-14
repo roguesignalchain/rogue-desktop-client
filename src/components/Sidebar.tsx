@@ -44,36 +44,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
           );
         })}
       </nav>
-
-      {/* Bottom Info Panels */}
-      <div className="space-y-2 mt-4">
-        {/* Consensus Specs Card */}
-        <div className="p-2.5 bg-[#0A0A0C] rounded-[2px] border border-white/10 text-[10px] text-zinc-400 space-y-1 font-mono">
-          <div className="text-zinc-500 uppercase tracking-widest text-[9px] font-bold">
-            {t("consensus.title")}
-          </div>
-          <div className="flex justify-between">
-            <span>{t("consensus.algo")}</span>
-            <span className="text-white font-bold">{t("consensus.algoValue")}</span>
-          </div>
-          <div className="flex justify-between">
-            <span>{t("consensus.daa")}</span>
-            <span className="text-white">{t("consensus.daaValue")}</span>
-          </div>
-          <div className="flex justify-between">
-            <span>{t("consensus.blockTarget")}</span>
-            <span className="text-white">{t("consensus.blockTargetValue")}</span>
-          </div>
-          <div className="flex justify-between">
-            <span>{t("consensus.reward")}</span>
-            <span className="text-white">{t("consensus.rewardValue")}</span>
-          </div>
-          <div className="flex justify-between">
-            <span>{t("consensus.security")}</span>
-            <span className="text-white">{t("consensus.securityValue")}</span>
-          </div>
-        </div>
-      </div>
     </aside>
   );
 };
