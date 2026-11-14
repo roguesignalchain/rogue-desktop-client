@@ -1,10 +1,22 @@
 use serde::{Deserialize, Serialize};
+use std::io::{Read, Write};
+use std::net::{SocketAddr, TcpStream};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
 use tauri::{AppHandle, Emitter};
 
-static NODE_PROCESS: Mutex<Option<Child>> = Mutex::new(None);
+struct ManagedNode {
+    child: Child,
+    http_port: u16,
+    pid_file: PathBuf,
+}
+
+static NODE_PROCESS: Mutex<Option<ManagedNode>> = Mutex::new(None);
+
+fn lock_node_process() -> std::sync::MutexGuard<'static, Option<ManagedNode>> {
+    NODE_PROCESS.lock().unwrap_or_else(|e| e.into_inner())
+}
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct NodeConfig {
@@ -166,28 +178,115 @@ fn ensure_genesis_init(geth_bin: &Path, datadir: &Path) -> Result<(), String> {
 }
 
 fn is_rpc_active(port: u16) -> bool {
-    use std::net::{SocketAddr, TcpStream};
     let addr = SocketAddr::from(([127, 0, 0, 1], port));
     TcpStream::connect_timeout(&addr, std::time::Duration::from_millis(300)).is_ok()
 }
 
+fn pid_file_path(datadir: &Path) -> PathBuf {
+    datadir.join("core-rogue.pid")
+}
+
+fn write_pid_file(path: &Path, pid: u32) {
+    let _ = std::fs::write(path, pid.to_string());
+}
+
+fn remove_pid_file(path: &Path) {
+    let _ = std::fs::remove_file(path);
+}
+
+fn read_pid_file(path: &Path) -> Option<u32> {
+    std::fs::read_to_string(path)
+        .ok()
+        .and_then(|s| s.trim().parse::<u32>().ok())
+        .filter(|&pid| pid > 0)
+}
+
+fn cleanup_stale_pid(pid_file: &Path) {
+    if let Some(old_pid) = read_pid_file(pid_file) {
+        #[cfg(unix)]
+        {
+            let alive = unsafe { libc::kill(old_pid as i32, 0) == 0 };
+            if alive {
+                unsafe {
+                    libc::kill(old_pid as i32, libc::SIGTERM);
+                }
+                for _ in 0..50 {
+                    std::thread::sleep(std::time::Duration::from_millis(100));
+                    let still_alive = unsafe { libc::kill(old_pid as i32, 0) == 0 };
+                    if !still_alive {
+                        break;
+                    }
+                }
+                if unsafe { libc::kill(old_pid as i32, 0) == 0 } {
+                    unsafe {
+                        libc::kill(old_pid as i32, libc::SIGKILL);
+                    }
+                }
+            }
+        }
+        #[cfg(target_os = "windows")]
+        {
+            use std::os::windows::process::CommandExt;
+            const CREATE_NO_WINDOW: u32 = 0x08000000;
+            let _ = Command::new("taskkill")
+                .args(["/PID", &old_pid.to_string(), "/T", "/F"])
+                .creation_flags(CREATE_NO_WINDOW)
+                .output();
+        }
+        remove_pid_file(pid_file);
+    }
+}
+
+fn send_miner_stop_sync(http_port: u16) {
+    if http_port == 0 {
+        return;
+    }
+    let addr = SocketAddr::from(([127, 0, 0, 1], http_port));
+    if let Ok(mut stream) = TcpStream::connect_timeout(&addr, std::time::Duration::from_millis(400)) {
+        let _ = stream.set_read_timeout(Some(std::time::Duration::from_millis(500)));
+        let _ = stream.set_write_timeout(Some(std::time::Duration::from_millis(500)));
+        let body = r#"{"jsonrpc":"2.0","id":1,"method":"miner_stop","params":[]}"#;
+        let req = format!(
+            "POST / HTTP/1.1\r\nHost: 127.0.0.1:{}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+            http_port,
+            body.len(),
+            body
+        );
+        let _ = stream.write_all(req.as_bytes());
+        let mut buf = [0u8; 256];
+        let _ = stream.read(&mut buf);
+    }
+}
+
 #[tauri::command]
 pub async fn start_node(app: AppHandle, config: NodeConfig) -> Result<String, String> {
-    let mut proc_lock = NODE_PROCESS.lock().unwrap();
-    if proc_lock.is_some() {
-        return Ok("Node is already managed and running".to_string());
-    }
-
-    if is_rpc_active(config.http_port) {
-        return Ok(format!(
-            "Node is already responding on RPC port {}. Reusing active instance.",
-            config.http_port
-        ));
+    {
+        let mut proc_lock = lock_node_process();
+        if let Some(ref mut managed) = *proc_lock {
+            match managed.child.try_wait() {
+                Ok(None) => return Ok("Node is already managed and running".to_string()),
+                _ => {
+                    remove_pid_file(&managed.pid_file);
+                    *proc_lock = None;
+                }
+            }
+        }
     }
 
     let geth_bin = resolve_binary("core-rogue")
         .or_else(|_| resolve_binary("geth"))?;
     let datadir = resolve_datadir(config.datadir.as_deref());
+    let pid_file = pid_file_path(&datadir);
+
+    // Clean up any orphaned core-rogue process left behind by a prior crash
+    cleanup_stale_pid(&pid_file);
+
+    if is_rpc_active(config.http_port) {
+        return Err(format!(
+            "HTTP RPC port {} is already in use by an external process",
+            config.http_port
+        ));
+    }
 
     // Ensure genesis block is initialized if chaindata does not exist
     ensure_genesis_init(&geth_bin, &datadir)?;
@@ -257,10 +356,29 @@ pub async fn start_node(app: AppHandle, config: NodeConfig) -> Result<String, St
 
     cmd.stdout(Stdio::null()).stderr(Stdio::piped());
 
+    #[cfg(target_os = "linux")]
+    {
+        use std::os::unix::process::CommandExt;
+        unsafe {
+            cmd.pre_exec(|| {
+                libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGTERM);
+                Ok(())
+            });
+        }
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+
     let mut child = cmd
         .spawn()
         .map_err(|e| format!("Failed to start geth node at {:?}: {}", geth_bin, e))?;
     let pid = child.id();
+    write_pid_file(&pid_file, pid);
 
     // Stream logs in background (Geth primarily outputs to stderr)
     if let Some(stderr) = child.stderr.take() {
@@ -274,18 +392,31 @@ pub async fn start_node(app: AppHandle, config: NodeConfig) -> Result<String, St
         });
     }
 
-    *proc_lock = Some(child);
+    {
+        let mut proc_lock = lock_node_process();
+        *proc_lock = Some(ManagedNode {
+            child,
+            http_port: config.http_port,
+            pid_file,
+        });
+    }
     Ok(format!(
         "Node started successfully (PID: {}) on ports P2P:{} HTTP:{}",
         pid, config.p2p_port, config.http_port
     ))
 }
 
-#[tauri::command]
-pub async fn stop_node() -> Result<String, String> {
-    let mut proc_lock = NODE_PROCESS.lock().unwrap();
-    if let Some(mut child) = proc_lock.take() {
-        let pid = child.id();
+pub fn stop_node_sync() -> Result<String, String> {
+    let taken = {
+        let mut proc_lock = lock_node_process();
+        proc_lock.take()
+    };
+
+    if let Some(mut managed) = taken {
+        let pid = managed.child.id();
+
+        // First ask the node to stop mining immediately before terminating
+        send_miner_stop_sync(managed.http_port);
 
         #[cfg(unix)]
         {
@@ -293,27 +424,39 @@ pub async fn stop_node() -> Result<String, String> {
                 libc::kill(pid as i32, libc::SIGTERM);
             }
         }
-        #[cfg(not(unix))]
+        #[cfg(target_os = "windows")]
         {
-            let _ = child.kill();
+            use std::os::windows::process::CommandExt;
+            const CREATE_NO_WINDOW: u32 = 0x08000000;
+            let _ = Command::new("taskkill")
+                .args(["/PID", &pid.to_string(), "/T"])
+                .creation_flags(CREATE_NO_WINDOW)
+                .output();
+        }
+        #[cfg(not(any(unix, target_os = "windows")))]
+        {
+            let _ = managed.child.kill();
         }
 
         let start = std::time::Instant::now();
         loop {
-            match child.try_wait() {
+            match managed.child.try_wait() {
                 Ok(Some(status)) => {
+                    remove_pid_file(&managed.pid_file);
                     return Ok(format!("Node stopped cleanly with status: {:?}", status));
                 }
                 Ok(None) => {
-                    if start.elapsed() >= std::time::Duration::from_secs(10) {
-                        let _ = child.kill();
-                        let _ = child.wait();
-                        return Ok("Node forcefully killed after graceful shutdown timeout (10s)".to_string());
+                    if start.elapsed() >= std::time::Duration::from_secs(30) {
+                        let _ = managed.child.kill();
+                        let _ = managed.child.wait();
+                        remove_pid_file(&managed.pid_file);
+                        return Ok("Node forcefully killed after graceful shutdown timeout (30s)".to_string());
                     }
                     std::thread::sleep(std::time::Duration::from_millis(100));
                 }
                 Err(e) => {
-                    let _ = child.kill();
+                    let _ = managed.child.kill();
+                    remove_pid_file(&managed.pid_file);
                     return Err(format!("Error while waiting for node shutdown: {}", e));
                 }
             }
@@ -321,6 +464,13 @@ pub async fn stop_node() -> Result<String, String> {
     } else {
         Ok("Node is not running".to_string())
     }
+}
+
+#[tauri::command]
+pub async fn stop_node() -> Result<String, String> {
+    tokio::task::spawn_blocking(stop_node_sync)
+        .await
+        .map_err(|e| format!("Failed to join node stop task: {}", e))?
 }
 
 #[tauri::command]
@@ -353,10 +503,11 @@ pub async fn clean_chaindata(datadir: Option<String>) -> Result<String, String> 
 
 #[tauri::command]
 pub async fn get_node_status() -> Result<ProcessStatus, String> {
-    let mut proc_lock = NODE_PROCESS.lock().unwrap();
-    if let Some(ref mut child) = *proc_lock {
-        match child.try_wait() {
+    let mut proc_lock = lock_node_process();
+    if let Some(ref mut managed) = *proc_lock {
+        match managed.child.try_wait() {
             Ok(Some(_status)) => {
+                remove_pid_file(&managed.pid_file);
                 *proc_lock = None;
                 Ok(ProcessStatus {
                     running: false,
@@ -365,7 +516,7 @@ pub async fn get_node_status() -> Result<ProcessStatus, String> {
             }
             Ok(None) => Ok(ProcessStatus {
                 running: true,
-                pid: Some(child.id()),
+                pid: Some(managed.child.id()),
             }),
             Err(e) => Err(e.to_string()),
         }
@@ -549,4 +700,35 @@ pub async fn get_system_specs() -> Result<SystemSpecs, String> {
         can_run_fast_mode,
         recommended_cache_mb,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_node_config_defaults_aligned() {
+        let cfg = NodeConfig::default();
+        assert_eq!(cfg.http_port, 38845);
+        assert_eq!(cfg.p2p_port, 38888);
+        assert_eq!(cfg.ws_port, 0);
+        assert!(cfg.bootnodes.is_none());
+        assert_eq!(cfg.syncmode.as_deref(), Some("full"));
+        assert!(!cfg.fast_mode);
+        assert!(!cfg.mine);
+    }
+
+    #[test]
+    fn test_pid_file_roundtrip_and_cleanup() {
+        let tmp_dir = std::env::temp_dir().join(format!("rogue-pid-test-{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&tmp_dir);
+        let pid_path = pid_file_path(&tmp_dir);
+
+        write_pid_file(&pid_path, 42424);
+        assert_eq!(read_pid_file(&pid_path), Some(42424));
+
+        remove_pid_file(&pid_path);
+        assert_eq!(read_pid_file(&pid_path), None);
+        let _ = std::fs::remove_dir_all(&tmp_dir);
+    }
 }

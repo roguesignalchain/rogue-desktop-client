@@ -5,7 +5,7 @@ pub mod rpc;
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{TrayIconBuilder, TrayIconEvent},
-    Manager,
+    Manager, RunEvent,
 };
 
 pub fn run() {
@@ -56,13 +56,6 @@ pub fn run() {
 
             Ok(())
         })
-        .on_window_event(|window, event| {
-            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                // Hide window instead of exiting completely, keep mining/syncing node active in background
-                api.prevent_close();
-                let _ = window.hide();
-            }
-        })
         .invoke_handler(tauri::generate_handler![
             process_manager::start_node,
             process_manager::stop_node,
@@ -87,6 +80,12 @@ pub fn run() {
             wallet::sign_raw_transaction,
             rpc::call_rpc
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|_app_handle, event| {
+            if matches!(event, RunEvent::ExitRequested { .. } | RunEvent::Exit) {
+                let _ = process_manager::stop_node_sync();
+                let _ = wallet::lock_wallet();
+            }
+        });
 }
