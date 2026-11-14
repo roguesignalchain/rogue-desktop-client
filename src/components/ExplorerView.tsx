@@ -11,12 +11,12 @@ import {
   Activity,
   ChevronLeft,
   ChevronRight,
-  ArrowLeft,
 } from "lucide-react";
 import { api } from "../services/api";
 import type { Block, ExplorerRoute } from "../types";
 import { BlockDetailView } from "./explorer/BlockDetailView";
 import { TransactionDetailView } from "./explorer/TransactionDetailView";
+import { AddressDetailView } from "./explorer/AddressDetailView";
 import { CopyButton } from "./explorer/CopyButton";
 
 interface ExplorerViewProps {
@@ -254,17 +254,12 @@ export const ExplorerView: React.FC<ExplorerViewProps> = ({
       )}
 
       {currentRoute.view === "address" && (
-        <div className="p-6 bg-zinc-900/40 border border-zinc-800 rounded-[2px] space-y-3 font-mono text-xs">
-          <button
-            onClick={goBack}
-            className="inline-flex items-center space-x-1.5 text-zinc-400 hover:text-white"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            <span>{t("explorer.back", "Back")}</span>
-          </button>
-          <div className="text-white font-bold">Address: {currentRoute.address}</div>
-          <div className="text-zinc-400">Account, ERC-20 & NFT view coming in next step.</div>
-        </div>
+        <AddressDetailView
+          rpcUrl={rpcUrl}
+          address={currentRoute.address}
+          onNavigate={navigate}
+          onBack={goBack}
+        />
       )}
 
       {/* Home View: KPIs + Block List */}
