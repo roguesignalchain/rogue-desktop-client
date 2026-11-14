@@ -1,4 +1,18 @@
-import { Block, NodeStatus, AccountInfo, WalletSummary, NodeLaunchConfig, SyncStatus, SystemSpecs, MinerGamificationStats, RankInfo } from "../types";
+import {
+  Block,
+  BlockWithTransactions,
+  LogEntry,
+  NodeStatus,
+  AccountInfo,
+  WalletSummary,
+  NodeLaunchConfig,
+  RpcTransaction,
+  SyncStatus,
+  SystemSpecs,
+  MinerGamificationStats,
+  RankInfo,
+  TransactionReceipt,
+} from "../types";
 import { readAllRanks, readMinerLevel, readMinerStats } from "../contracts/rogueReputation";
 
 // Safe invoke wrapper for Tauri v2
@@ -291,20 +305,86 @@ export const api = {
     return formatWeiToRogue(wei, 4);
   },
 
-  getRecentBlocks: async (rpcUrl: string, count: number = 5): Promise<Block[]> => {
+  getBlocksRange: async (rpcUrl: string, fromBlock: number, count: number = 10): Promise<Block[]> => {
+    const safeStart = Math.max(0, fromBlock);
+    const heights: number[] = [];
+    for (let i = 0; i < count && safeStart - i >= 0; i++) {
+      heights.push(safeStart - i);
+    }
+    const results = await Promise.all(
+      heights.map(async (h) => {
+        const bHex = "0x" + h.toString(16);
+        try {
+          return await api.callRpc<Block | null>(rpcUrl, "eth_getBlockByNumber", [bHex, false]);
+        } catch (e) {
+          console.error(e);
+          return null;
+        }
+      })
+    );
+    return results
+      .filter((b): b is Block => b !== null && Boolean(b.hash))
+      .sort((a, b) => parseInt(b.number, 16) - parseInt(a.number, 16));
+  },
+
+  getRecentBlocks: async (rpcUrl: string, count: number = 8): Promise<Block[]> => {
     const currentHex = await api.callRpc<string>(rpcUrl, "eth_blockNumber");
     const current = parseInt(currentHex, 16);
-    const blocks: Block[] = [];
-    for (let i = 0; i < count && current - i >= 0; i++) {
-      const bHex = "0x" + (current - i).toString(16);
-      try {
-        const b = await api.callRpc<Block>(rpcUrl, "eth_getBlockByNumber", [bHex, false]);
-        if (b) blocks.push(b);
-      } catch (e) {
-        console.error(e);
-      }
+    if (!Number.isFinite(current) || current < 0) return [];
+    return api.getBlocksRange(rpcUrl, current, count);
+  },
+
+  getBlockByNumber: async (
+    rpcUrl: string,
+    blockNumber: number | string,
+    fullTx: boolean = true
+  ): Promise<BlockWithTransactions | Block | null> => {
+    const tag =
+      typeof blockNumber === "number"
+        ? "0x" + Math.max(0, blockNumber).toString(16)
+        : blockNumber.startsWith("0x") || blockNumber === "latest" || blockNumber === "earliest" || blockNumber === "pending"
+          ? blockNumber
+          : "0x" + parseInt(blockNumber, 10).toString(16);
+    return api.callRpc<BlockWithTransactions | Block | null>(rpcUrl, "eth_getBlockByNumber", [tag, fullTx]);
+  },
+
+  getBlockByHash: async (
+    rpcUrl: string,
+    hash: string,
+    fullTx: boolean = true
+  ): Promise<BlockWithTransactions | Block | null> => {
+    return api.callRpc<BlockWithTransactions | Block | null>(rpcUrl, "eth_getBlockByHash", [hash, fullTx]);
+  },
+
+  getTransactionByHash: async (rpcUrl: string, hash: string): Promise<RpcTransaction | null> => {
+    return api.callRpc<RpcTransaction | null>(rpcUrl, "eth_getTransactionByHash", [hash]);
+  },
+
+  getTransactionReceipt: async (rpcUrl: string, hash: string): Promise<TransactionReceipt | null> => {
+    return api.callRpc<TransactionReceipt | null>(rpcUrl, "eth_getTransactionReceipt", [hash]);
+  },
+
+  getCode: async (rpcUrl: string, address: string): Promise<string> => {
+    const code = await api.callRpc<string>(rpcUrl, "eth_getCode", [address, "latest"]);
+    return code || "0x";
+  },
+
+  getTransactionCount: async (rpcUrl: string, address: string): Promise<number> => {
+    const hex = await api.callRpc<string>(rpcUrl, "eth_getTransactionCount", [address, "latest"]);
+    return parseInt(hex || "0x0", 16);
+  },
+
+  getLogs: async (
+    rpcUrl: string,
+    filter: {
+      fromBlock?: string;
+      toBlock?: string;
+      address?: string | string[];
+      topics?: (string | string[] | null)[];
     }
-    return blocks;
+  ): Promise<LogEntry[]> => {
+    const logs = await api.callRpc<LogEntry[] | null>(rpcUrl, "eth_getLogs", [filter]);
+    return Array.isArray(logs) ? logs : [];
   },
 
   getHashrate: async (rpcUrl: string): Promise<number> => {

@@ -4,12 +4,116 @@ export interface Block {
   parentHash: string;
   miner: string;
   difficulty: string;
+  totalDifficulty?: string;
   timestamp: string;
   gasUsed: string;
   gasLimit: string;
   baseFeePerGas?: string;
+  size?: string;
+  nonce?: string;
+  extraData?: string;
+  stateRoot?: string;
+  transactionsRoot?: string;
+  receiptsRoot?: string;
+  uncles?: string[];
   transactions: string[];
 }
+
+export interface RpcTransaction {
+  hash: string;
+  nonce: string;
+  blockHash: string | null;
+  blockNumber: string | null;
+  transactionIndex: string | null;
+  from: string;
+  to: string | null;
+  value: string;
+  gasPrice?: string;
+  maxFeePerGas?: string;
+  maxPriorityFeePerGas?: string;
+  gas: string;
+  input: string;
+  type?: string;
+  chainId?: string;
+}
+
+export interface BlockWithTransactions extends Omit<Block, "transactions"> {
+  transactions: RpcTransaction[];
+}
+
+export interface LogEntry {
+  address: string;
+  topics: string[];
+  data: string;
+  blockNumber: string;
+  transactionHash: string;
+  transactionIndex: string;
+  blockHash: string;
+  logIndex: string;
+  removed?: boolean;
+}
+
+export interface TransactionReceipt {
+  transactionHash: string;
+  transactionIndex: string;
+  blockHash: string;
+  blockNumber: string;
+  from: string;
+  to: string | null;
+  cumulativeGasUsed: string;
+  gasUsed: string;
+  effectiveGasPrice?: string;
+  contractAddress: string | null;
+  logs: LogEntry[];
+  status?: string;
+  type?: string;
+}
+
+export type TokenStandard = "ERC20" | "ERC721" | "ERC1155";
+
+export interface TokenBalance {
+  contractAddress: string;
+  standard: TokenStandard;
+  name: string;
+  symbol: string;
+  decimals: number;
+  rawBalance: string;
+  formattedBalance: string;
+  isCustom?: boolean;
+}
+
+export interface TokenTransferEvent {
+  transactionHash: string;
+  blockNumber: number;
+  logIndex: number;
+  contractAddress: string;
+  standard: TokenStandard;
+  from: string;
+  to: string;
+  value: string;
+  tokenId?: string;
+  symbol?: string;
+  decimals?: number;
+}
+
+export interface NftItem {
+  contractAddress: string;
+  standard: "ERC721" | "ERC1155";
+  tokenId: string;
+  balance: string;
+  name?: string;
+  symbol?: string;
+  tokenUri?: string;
+  metadataName?: string;
+  metadataDescription?: string;
+  imageUri?: string;
+}
+
+export type ExplorerRoute =
+  | { view: "home" }
+  | { view: "block"; blockId: string }
+  | { view: "tx"; hash: string }
+  | { view: "address"; address: string };
 
 export interface NodeStatus {
   running: boolean;
