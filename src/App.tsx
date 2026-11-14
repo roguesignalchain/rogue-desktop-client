@@ -60,6 +60,9 @@ export const App: React.FC = () => {
     const saved = localStorage.getItem("rogue_node_verbosity");
     return saved ? parseInt(saved, 10) : 3;
   });
+  const [nodeFastMode, setNodeFastMode] = useState<boolean>(() => {
+    return localStorage.getItem("rogue_node_fast_mode") === "true";
+  });
 
   const [nodeStatus, setNodeStatus] = useState<NodeStatus>({ running: false, pid: null });
   const [rpcConnected, setRpcConnected] = useState<boolean>(false);
@@ -91,6 +94,7 @@ export const App: React.FC = () => {
 
   const lastActivityRef = useRef<number>(Date.now());
   const autoStartInitiated = useRef<boolean>(false);
+  const isRefreshingMetricsRef = useRef<boolean>(false);
 
   // Listen to Tauri log events (clean async unlisten to avoid duplicates)
   useEffect(() => {
@@ -163,6 +167,15 @@ export const App: React.FC = () => {
   };
 
   const handleLockWallet = async () => {
+    if (hashrate > 0) {
+      try {
+        await api.stopMining(rpcUrl);
+        setHashrate(0);
+        setLogs((prev) => [...prev, t("logs.miningStoppedAuto")]);
+      } catch (e) {
+        console.warn("Failed to stop mining on wallet lock:", e);
+      }
+    }
     try {
       await api.lockWallet();
     } catch (e) {
@@ -182,6 +195,11 @@ export const App: React.FC = () => {
     setActiveWallet(found);
     setUnlockedAddress(found.primary_address);
     await loadActiveWalletAccounts(found.id);
+    try {
+      await api.setEtherbase(rpcUrl, found.primary_address);
+    } catch {
+      // Node might not be ready yet
+    }
     setLogs((prev) => [...prev, t("logs.vaultUnlocked", { name: found.name, address: found.primary_address })]);
   };
 
@@ -209,6 +227,11 @@ export const App: React.FC = () => {
       setUnlockedAddress(summary.primary_address);
       localStorage.setItem("rogue_active_wallet_id", walletId);
       await loadActiveWalletAccounts(walletId);
+      try {
+        await api.setEtherbase(rpcUrl, summary.primary_address);
+      } catch {
+        // Node might not be ready yet
+      }
       setLogs((prev) => [...prev, t("logs.walletSwitched", { name: summary.name, address: summary.primary_address })]);
     } catch (err) {
       console.error("Error switching wallet:", err);
@@ -312,6 +335,8 @@ export const App: React.FC = () => {
 
   // Periodic polling for node metrics & sync status
   const refreshMetrics = async () => {
+    if (isRefreshingMetricsRef.current) return;
+    isRefreshingMetricsRef.current = true;
     try {
       const status = await api.getNodeStatus();
       setNodeStatus(status);
@@ -363,6 +388,17 @@ export const App: React.FC = () => {
     } catch {
       // Node is unreachable via RPC endpoint
       setRpcConnected(false);
+      setHashrate(0);
+      setPeerCount(0);
+      setSyncStatus({
+        isSyncing: false,
+        startingBlock: 0,
+        currentBlock: 0,
+        highestBlock: 0,
+        progressPercentage: 100,
+      });
+    } finally {
+      isRefreshingMetricsRef.current = false;
     }
   };
 
@@ -392,7 +428,12 @@ export const App: React.FC = () => {
     return () => clearInterval(interval);
   }, [rpcUrl, unlockedAddress, syncStatus.isSyncing, peerCount, rpcConnected]);
 
-  const handleStartNode = async (mine: boolean = false, threads: number = 2, coinbase?: string) => {
+  const handleStartNode = async (
+    mine: boolean = false,
+    threads: number = 2,
+    coinbase?: string,
+    fastModeOverride?: boolean
+  ) => {
     try {
       const msg = await api.startNode({
         datadir: nodeDatadir,
@@ -402,7 +443,7 @@ export const App: React.FC = () => {
         bootnodes: nodeBootnodes,
         mine,
         miner_threads: threads,
-        fast_mode: false,
+        fast_mode: fastModeOverride ?? nodeFastMode,
         coinbase: coinbase || unlockedAddress || undefined,
         cache: nodeCache,
         syncmode: nodeSyncmode,
@@ -418,6 +459,17 @@ export const App: React.FC = () => {
       setLogs((prev) => [...prev, `[Manager Error] ${msg}`]);
       throw err;
     }
+  };
+
+  const handleRestartNodeWithFastMode = async (useFast: boolean) => {
+    setNodeFastMode(useFast);
+    localStorage.setItem("rogue_node_fast_mode", String(useFast));
+    try {
+      await api.stopNode();
+    } catch {
+      // Node may not be running
+    }
+    await handleStartNode(false, 2, unlockedAddress || undefined, useFast);
   };
 
   const handleStopNode = async () => {
@@ -438,6 +490,7 @@ export const App: React.FC = () => {
 
     let attempts = 0;
     let isCancelled = false;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
 
     const tryAutoStart = async () => {
       try {
@@ -450,7 +503,7 @@ export const App: React.FC = () => {
             ...prev,
             `[Auto-Start] Retry attempt ${attempts}/3 in ${delay / 1000}s...`,
           ]);
-          setTimeout(tryAutoStart, delay);
+          retryTimer = setTimeout(tryAutoStart, delay);
         }
       }
     };
@@ -458,6 +511,7 @@ export const App: React.FC = () => {
     tryAutoStart();
     return () => {
       isCancelled = true;
+      if (retryTimer) clearTimeout(retryTimer);
     };
   }, []);
 
@@ -593,6 +647,9 @@ export const App: React.FC = () => {
               peerCount={peerCount}
               recentBlocks={recentBlocks}
               currentBlock={currentBlock}
+              minerStats={minerStats}
+              nodeFastMode={nodeFastMode}
+              onToggleFastMode={handleRestartNodeWithFastMode}
               onMiningStopped={() => setHashrate(0)}
             />
           )}

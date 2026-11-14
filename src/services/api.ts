@@ -156,11 +156,10 @@ export const api = {
     }
   },
 
-  setFastMode: async (rpcUrl: string, fastMode: boolean): Promise<boolean> => {
+  getFastMode: async (rpcUrl: string): Promise<boolean> => {
     try {
-      return await api.callRpc<boolean>(rpcUrl, "randomx_setFastMode", [fastMode]);
-    } catch (e) {
-      console.warn("randomx_setFastMode error:", e);
+      return await api.callRpc<boolean>(rpcUrl, "randomx_getFastMode");
+    } catch {
       return false;
     }
   },
@@ -173,12 +172,7 @@ export const api = {
     }
   },
 
-  startMining: async (rpcUrl: string, threads: number, coinbase?: string, fastMode: boolean = false): Promise<void> => {
-    try {
-      await api.callRpc(rpcUrl, "randomx_setFastMode", [fastMode]);
-    } catch (e) {
-      console.warn("Could not set RandomX fastMode:", e);
-    }
+  startMining: async (rpcUrl: string, threads: number, coinbase?: string): Promise<void> => {
     if (coinbase) {
       try {
         await api.callRpc(rpcUrl, "miner_setEtherbase", [coinbase]);

@@ -16,7 +16,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { api } from "../services/api";
-import { Block, NodeStatus, SyncStatus, SystemSpecs } from "../types";
+import { Block, MinerGamificationStats, NodeStatus, SyncStatus, SystemSpecs } from "../types";
 
 interface MiningViewProps {
   hashrate: number;
@@ -27,6 +27,9 @@ interface MiningViewProps {
   peerCount?: number;
   recentBlocks?: Block[];
   currentBlock?: number;
+  minerStats?: MinerGamificationStats | null;
+  nodeFastMode?: boolean;
+  onToggleFastMode?: (useFast: boolean) => Promise<void>;
   onMiningStopped?: () => void;
 }
 
@@ -38,12 +41,15 @@ export const MiningView: React.FC<MiningViewProps> = ({
   syncStatus,
   peerCount = 0,
   recentBlocks = [],
+  minerStats = null,
+  nodeFastMode = false,
+  onToggleFastMode,
   onMiningStopped,
 }) => {
   const { t } = useTranslation();
 
   // Light Mode (~256 MB) is strictly the default at all times
-  const [fastMode, setFastMode] = useState<boolean>(false);
+  const [fastMode, setFastMode] = useState<boolean>(nodeFastMode);
   const [threads, setThreads] = useState<number>(2);
   const [isMining, setIsMining] = useState<boolean>(false);
   const [coinbaseAddr, setCoinbaseAddr] = useState<string | null>(null);
@@ -75,12 +81,14 @@ export const MiningView: React.FC<MiningViewProps> = ({
     let mounted = true;
     const checkMining = async () => {
       try {
-        const [mining, cb] = await Promise.all([
+        const [mining, cb, nodeFast] = await Promise.all([
           api.isMining(rpcUrl),
           api.getCoinbase(rpcUrl),
+          api.getFastMode(rpcUrl),
         ]);
         if (mounted) {
           setIsMining(mining);
+          setFastMode(nodeFast);
           if (cb && cb !== "0x0000000000000000000000000000000000000000") {
             setCoinbaseAddr(cb);
           }
@@ -140,14 +148,20 @@ export const MiningView: React.FC<MiningViewProps> = ({
     if (useFast && specs && !specs.canRunFastMode) {
       setFeedback(t("mining.feedback.lowRamWarning"));
     }
+    if (useFast === fastMode) return;
     setFastMode(useFast);
-    if (isMining) {
-      await api.setFastMode(rpcUrl, useFast);
-      setFeedback(
-        t("mining.feedback.modeUpdated", {
-          mode: useFast ? "Fast Mode (~2.08 GB RAM)" : "Light Mode (~256 MB RAM)",
-        })
-      );
+    if (onToggleFastMode) {
+      try {
+        await onToggleFastMode(useFast);
+        setFeedback(
+          t("mining.feedback.modeUpdated", {
+            mode: useFast ? "Fast Mode (~2.08 GB RAM)" : "Light Mode (~256 MB RAM)",
+          })
+        );
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        setFeedback(t("mining.feedback.controlError", { msg }));
+      }
     }
   };
 
@@ -165,7 +179,7 @@ export const MiningView: React.FC<MiningViewProps> = ({
           return;
         }
 
-        await api.startMining(rpcUrl, threads, payoutAddr, fastMode);
+        await api.startMining(rpcUrl, threads, payoutAddr);
         setIsMining(true);
         setCoinbaseAddr(payoutAddr);
         setFeedback(
@@ -190,12 +204,14 @@ export const MiningView: React.FC<MiningViewProps> = ({
   };
 
   const activeRewardAddress = unlockedAddress || coinbaseAddr;
-  const minedByMeCount = recentBlocks.filter(
-    (b) =>
-      activeRewardAddress &&
-      b.miner &&
-      b.miner.toLowerCase() === activeRewardAddress.toLowerCase()
-  ).length;
+  const minedByMeCount =
+    minerStats?.blocksMined ??
+    recentBlocks.filter(
+      (b) =>
+        activeRewardAddress &&
+        b.miner &&
+        b.miner.toLowerCase() === activeRewardAddress.toLowerCase()
+    ).length;
 
   const formatHashrate = (hr: number) => {
     if (hr <= 0) return "0.00 H/s";
