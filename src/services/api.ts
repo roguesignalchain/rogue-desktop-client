@@ -32,6 +32,16 @@ export function parseDifficultyBigInt(diff: unknown): bigint | null {
   }
 }
 
+const WEI_PER_ROGUE = BigInt("1000000000000000000");
+
+/** Formats a wei amount into a ROGUE string with the requested decimal places (up to 18). */
+export function formatWeiToRogue(wei: bigint, decimals: number = 4): string {
+  const whole = wei / WEI_PER_ROGUE;
+  const fraction = (wei % WEI_PER_ROGUE).toString().padStart(18, "0");
+  if (decimals <= 0) return whole.toString();
+  return `${whole}.${fraction.slice(0, Math.min(18, decimals))}`;
+}
+
 export const api = {
   // Node management
   startNode: async (config: NodeLaunchConfig): Promise<string> => {
@@ -262,9 +272,7 @@ export const api = {
   getBalance: async (rpcUrl: string, address: string): Promise<string> => {
     const hex = await api.callRpc<string>(rpcUrl, "eth_getBalance", [address, "latest"]);
     const wei = BigInt(hex || "0x0");
-    const whole = wei / BigInt(10 ** 18);
-    const fraction = (wei % BigInt(10 ** 18)).toString().padStart(18, "0").slice(0, 4);
-    return `${whole}.${fraction}`;
+    return formatWeiToRogue(wei, 4);
   },
 
   getRecentBlocks: async (rpcUrl: string, count: number = 5): Promise<Block[]> => {

@@ -10,7 +10,7 @@ import { NodeConsoleView } from "./components/NodeConsoleView";
 import { SettingsView } from "./components/SettingsView";
 import { WalletModal } from "./components/WalletModal";
 import { Block, NodeStatus, SyncStatus, WalletSummary, AccountInfo, MinerGamificationStats, RankInfo } from "./types";
-import { api } from "./services/api";
+import { api, formatWeiToRogue } from "./services/api";
 import { Loader2, ShieldAlert, AlertTriangle } from "lucide-react";
 
 const DEFAULT_HTTP_PORT = 38845;
@@ -75,6 +75,7 @@ export const App: React.FC = () => {
   });
   const [currentBlock, setCurrentBlock] = useState<number>(0);
   const [balance, setBalance] = useState<string>("0.0000");
+  const [navbarBalance, setNavbarBalance] = useState<string>("0.000000000000000000");
   const [hashrate, setHashrate] = useState<number>(0);
   const [peerCount, setPeerCount] = useState<number>(0);
   const [recentBlocks, setRecentBlocks] = useState<Block[]>([]);
@@ -270,11 +271,17 @@ export const App: React.FC = () => {
       // Node might not be ready yet
     }
     try {
-      const [bal, stats] = await Promise.all([
-        api.getBalance(rpcUrl, addr).catch(() => "0.0000"),
+      const [balWei, stats] = await Promise.all([
+        api.getBalanceWei(rpcUrl, addr).catch(() => null),
         api.getMinerStats(rpcUrl, addr, i18n.language).catch(() => null),
       ]);
-      setBalance(bal);
+      if (balWei !== null) {
+        setBalance(formatWeiToRogue(balWei, 4));
+        setNavbarBalance(formatWeiToRogue(balWei, 18));
+      } else {
+        setBalance("0.0000");
+        setNavbarBalance("0.000000000000000000");
+      }
       if (stats) {
         setMinerStats(stats);
       }
@@ -370,8 +377,9 @@ export const App: React.FC = () => {
 
       if (unlockedAddress) {
         try {
-          const bal = await api.getBalance(rpcUrl, unlockedAddress);
-          setBalance(bal);
+          const balWei = await api.getBalanceWei(rpcUrl, unlockedAddress);
+          setBalance(formatWeiToRogue(balWei, 4));
+          setNavbarBalance(formatWeiToRogue(balWei, 18));
         } catch {
           // Transient balance query failure
         }
@@ -583,7 +591,7 @@ export const App: React.FC = () => {
         activeWallet={activeWallet}
         allWallets={allWallets}
         derivedAccounts={derivedAccounts}
-        activeBalance={balance}
+        activeBalance={navbarBalance}
         minerStats={minerStats}
         ranks={ranks}
         onOpenWalletModal={(mode) => {

@@ -158,7 +158,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <span className="text-[9px] font-mono text-zinc-400 uppercase tracking-wider">
                   {t("common.balance")}
                 </span>
-                <span className="text-[11px] font-mono font-bold text-white">
+                <span className="text-[11px] font-mono font-bold text-white whitespace-nowrap">
                   {activeBalance} ROGUE
                 </span>
               </div>
