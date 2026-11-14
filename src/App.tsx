@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { Navbar } from "./components/Navbar";
 import { Sidebar, TabType } from "./components/Sidebar";
@@ -122,7 +122,7 @@ export const App: React.FC = () => {
 
         const unlistenNode = await listen<string>("node-log", (event) => {
           const line = event.payload;
-          setLogs((prev) => [...prev.slice(-300), `[Geth] ${line}`]);
+          setLogs((prev) => [...prev.slice(-1500), `[Geth] ${line}`]);
           if (
             !isShuttingDownRef.current &&
             !isRecoveringRef.current &&
@@ -531,6 +531,15 @@ export const App: React.FC = () => {
     return () => clearInterval(interval);
   }, [rpcUrl, unlockedAddress, syncStatus.isSyncing, peerCount, rpcConnected]);
 
+  const pushAppLog = useCallback(
+    (message: string, level: "INFO" | "WARN" | "ERROR" | "DEBUG" = "INFO") => {
+      const formatted = message.startsWith("[") ? message : `[App] ${message}`;
+      setLogs((prev) => [...prev.slice(-1500), formatted]);
+      void api.appendAppLog(level, message);
+    },
+    []
+  );
+
   const handleStartNode = async (
     mine: boolean = false,
     threads: number = 2,
@@ -552,14 +561,14 @@ export const App: React.FC = () => {
         syncmode: nodeSyncmode,
         verbosity: nodeVerbosity,
       });
-      setLogs((prev) => [...prev, `[Manager] ${msg}`]);
+      pushAppLog(`[Manager] ${msg}`, "INFO");
       const activeRpc = `http://127.0.0.1:${nodeHttpPort}`;
       setRpcUrl(activeRpc);
       localStorage.setItem("rogue_rpc_url", activeRpc);
       refreshMetrics();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      setLogs((prev) => [...prev, `[Manager Error] ${msg}`]);
+      pushAppLog(`[Manager Error] ${msg}`, "ERROR");
       throw err;
     }
   };
@@ -568,19 +577,19 @@ export const App: React.FC = () => {
     if (isRecoveringRef.current || isShuttingDownRef.current) return;
     isRecoveringRef.current = true;
     setIsRecoveringChain(true);
-    setLogs((prev) => [
-      ...prev.slice(-300),
+    pushAppLog(
       "[Manager] Incomplete snap-sync fallback detected. Resetting chaindata and restarting in Full Sync...",
-    ]);
+      "WARN"
+    );
     try {
       const res = await api.recoverChaindata(nodeDatadir);
-      setLogs((prev) => [...prev.slice(-300), `[Manager] ${res}`]);
+      pushAppLog(`[Manager] ${res}`, "INFO");
       if (!isShuttingDownRef.current) {
         await handleStartNode(false, 2, unlockedAddress || undefined);
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      setLogs((prev) => [...prev.slice(-300), `[Manager Error] Chaindata recovery failed: ${msg}`]);
+      pushAppLog(`[Manager Error] Chaindata recovery failed: ${msg}`, "ERROR");
     } finally {
       setIsRecoveringChain(false);
       isRecoveringRef.current = false;
@@ -601,12 +610,21 @@ export const App: React.FC = () => {
   const handleStopNode = async () => {
     try {
       const msg = await api.stopNode();
-      setLogs((prev) => [...prev, `[Manager] ${msg}`]);
+      pushAppLog(`[Manager] ${msg}`, "INFO");
       refreshMetrics();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      setLogs((prev) => [...prev, `[Manager Error] ${msg}`]);
+      pushAppLog(`[Manager Error] ${msg}`, "ERROR");
     }
+  };
+
+  const handleRestartNode = async () => {
+    try {
+      await api.stopNode();
+    } catch {
+      // Node may not be running
+    }
+    await handleStartNode(false, 2, unlockedAddress || undefined);
   };
 
   // Auto-start node upon application mount with retry backoff (guarded against strict mode)
@@ -820,6 +838,12 @@ export const App: React.FC = () => {
               logs={logs}
               onClearLogs={() => setLogs([])}
               rpcUrl={rpcUrl}
+              nodeStatus={nodeStatus}
+              peerCount={peerCount}
+              syncStatus={syncStatus}
+              onStartNode={() => handleStartNode(false, 2, unlockedAddress || undefined)}
+              onStopNode={handleStopNode}
+              onRestartNode={handleRestartNode}
             />
           )}
 

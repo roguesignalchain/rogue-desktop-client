@@ -152,6 +152,10 @@ fn resolve_datadir(raw_path: Option<&str>) -> PathBuf {
     }
 }
 
+pub fn default_logs_dir() -> PathBuf {
+    resolve_datadir(None).join("logs")
+}
+
 fn ensure_genesis_init(geth_bin: &Path, datadir: &Path) -> Result<(), String> {
     let chaindata = datadir.join("geth").join("chaindata");
     if chaindata.exists() && chaindata.read_dir().map(|mut d| d.next().is_some()).unwrap_or(false) {
@@ -408,7 +412,7 @@ pub async fn start_node(app: AppHandle, config: NodeConfig) -> Result<String, St
         }
     }
 
-    cmd.stdout(Stdio::null()).stderr(Stdio::piped());
+    cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
 
     #[cfg(target_os = "linux")]
     {
@@ -428,19 +432,34 @@ pub async fn start_node(app: AppHandle, config: NodeConfig) -> Result<String, St
         cmd.creation_flags(CREATE_NO_WINDOW);
     }
 
+    crate::log_store::set_active_logs_dir(datadir.join("logs"));
+
     let mut child = cmd
         .spawn()
         .map_err(|e| format!("Failed to start geth node at {:?}: {}", geth_bin, e))?;
     let pid = child.id();
     write_pid_file(&pid_file, pid);
 
-    // Stream logs in background (Geth primarily outputs to stderr)
+    // Stream logs in background (both stdout and stderr, persisted to rotating node.log)
+    if let Some(stdout) = child.stdout.take() {
+        let app_handle = app.clone();
+        std::thread::spawn(move || {
+            use std::io::{BufRead, BufReader};
+            let reader = BufReader::new(stdout);
+            for line in reader.lines().flatten() {
+                crate::log_store::append_line("Geth", &line);
+                let _ = app_handle.emit("node-log", line);
+            }
+        });
+    }
+
     if let Some(stderr) = child.stderr.take() {
         let app_handle = app.clone();
         std::thread::spawn(move || {
             use std::io::{BufRead, BufReader};
             let reader = BufReader::new(stderr);
             for line in reader.lines().flatten() {
+                crate::log_store::append_line("Geth", &line);
                 let _ = app_handle.emit("node-log", line);
             }
         });

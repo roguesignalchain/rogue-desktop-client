@@ -86,6 +86,29 @@ export const api = {
     return safeInvoke("recover_chaindata", { datadir });
   },
 
+  appendAppLog: async (level: "INFO" | "WARN" | "ERROR" | "DEBUG", message: string): Promise<void> => {
+    try {
+      await safeInvoke("append_app_log", { level, message });
+    } catch {
+      // Ignore outside Tauri context
+    }
+  },
+
+  readNodeLogs: async (
+    offsetFromEnd: number,
+    limit: number
+  ): Promise<{ lines: string[]; total_lines: number; has_more: boolean; logs_dir: string }> => {
+    return safeInvoke("read_node_logs", { offsetFromEnd, limit });
+  },
+
+  exportDiagnosticLog: async (targetPath: string, diagnosticHeader: string): Promise<number> => {
+    return safeInvoke("export_diagnostic_log", { targetPath, diagnosticHeader });
+  },
+
+  openLogsFolder: async (): Promise<string> => {
+    return safeInvoke("open_logs_folder");
+  },
+
   // Hardware diagnostics
   getSystemSpecs: async (): Promise<SystemSpecs> => {
     try {

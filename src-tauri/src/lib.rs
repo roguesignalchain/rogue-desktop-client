@@ -1,3 +1,4 @@
+pub mod log_store;
 pub mod process_manager;
 pub mod wallet;
 pub mod rpc;
@@ -10,6 +11,8 @@ use tauri::{
 
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_shell::init())
         .setup(|app| {
             let show_i = MenuItem::with_id(app, "show", "Mostrar Ventana", true, None::<&str>)?;
             let quit_i = MenuItem::with_id(app, "quit", "Detener Nodo y Salir", true, None::<&str>)?;
@@ -59,6 +62,10 @@ pub fn run() {
             process_manager::clean_chaindata,
             process_manager::recover_chaindata,
             process_manager::get_system_specs,
+            log_store::append_app_log,
+            log_store::read_node_logs,
+            log_store::export_diagnostic_log,
+            log_store::open_logs_folder,
             wallet::generate_mnemonic,
             wallet::has_vault,
             wallet::reset_vault,

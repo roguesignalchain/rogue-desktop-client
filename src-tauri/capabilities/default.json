@@ -8,7 +8,10 @@
   "permissions": [
     "core:default",
     "core:window:allow-destroy",
-    "core:window:allow-close"
+    "core:window:allow-close",
+    "dialog:default",
+    "dialog:allow-save",
+    "shell:allow-open"
   ]
 }
 
