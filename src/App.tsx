@@ -76,7 +76,6 @@ export const App: React.FC = () => {
   });
   const [currentBlock, setCurrentBlock] = useState<number>(0);
   const [balance, setBalance] = useState<string>("0.0000");
-  const [navbarBalance, setNavbarBalance] = useState<string>("0.000000000000000000");
   const [hashrate, setHashrate] = useState<number>(0);
   const [peerCount, setPeerCount] = useState<number>(0);
   const [recentBlocks, setRecentBlocks] = useState<Block[]>([]);
@@ -366,10 +365,8 @@ export const App: React.FC = () => {
       ]);
       if (balWei !== null) {
         setBalance(formatWeiToRogue(balWei, 4));
-        setNavbarBalance(formatWeiToRogue(balWei, 18));
       } else {
         setBalance("0.0000");
-        setNavbarBalance("0.000000000000000000");
       }
       if (stats) {
         setMinerStats(stats);
@@ -472,7 +469,6 @@ export const App: React.FC = () => {
         try {
           const balWei = await api.getBalanceWei(rpcUrl, unlockedAddress);
           setBalance(formatWeiToRogue(balWei, 4));
-          setNavbarBalance(formatWeiToRogue(balWei, 18));
         } catch {
           // Transient balance query failure
         }
@@ -708,7 +704,6 @@ export const App: React.FC = () => {
         activeWallet={activeWallet}
         allWallets={allWallets}
         derivedAccounts={derivedAccounts}
-        activeBalance={navbarBalance}
         minerStats={minerStats}
         ranks={ranks}
         onSelectTab={setCurrentTab}

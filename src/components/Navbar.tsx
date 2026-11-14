@@ -28,7 +28,6 @@ interface NavbarProps {
   activeWallet: WalletSummary | null;
   allWallets: WalletSummary[];
   derivedAccounts: AccountInfo[];
-  activeBalance: string;
   minerStats: MinerGamificationStats | null;
   ranks?: RankInfo[];
   onSelectTab: (tab: TabType) => void;
@@ -46,7 +45,6 @@ export const Navbar: React.FC<NavbarProps> = ({
   activeWallet,
   allWallets,
   derivedAccounts,
-  activeBalance,
   minerStats,
   ranks = [],
   onSelectTab,
@@ -186,47 +184,10 @@ export const Navbar: React.FC<NavbarProps> = ({
         <LanguageSelector />
       </div>
 
-      {/* Right Side: Independent Uniform Indicators + User Card */}
+      {/* Right Side: User Card, Quick Navigation & Lock/Unlock */}
       <div className="flex items-center space-x-2">
         {unlockedAddress ? (
           <>
-            {/* User Balance Indicator */}
-            <div className="h-10 px-3 bg-[#0A0A0C] border border-white/15 rounded-[2px] flex items-center space-x-2">
-              <Wallet className="w-3.5 h-3.5 text-white shrink-0" />
-              <div className="flex flex-col justify-center leading-tight">
-                <span className="text-[9px] font-mono text-zinc-400 uppercase tracking-wider">
-                  {t("common.balance")}
-                </span>
-                <span className="text-[11px] font-mono font-bold text-white whitespace-nowrap">
-                  {activeBalance} ROGUE
-                </span>
-              </div>
-            </div>
-
-            {/* Level & Experience Bar Indicator */}
-            <div
-              className="h-10 px-3 bg-[#0A0A0C] border border-white/15 rounded-[2px] flex items-center space-x-2.5"
-              title={`${rankTitle} (${progressPercent.toFixed(1)}%)`}
-            >
-              <img
-                src={`/badges/lvl${Math.min(6, Math.max(0, level))}.png`}
-                alt={t("gamification.levelAlt", { level })}
-                className="w-5 h-5 object-contain shrink-0 drop-shadow"
-              />
-              <div className="flex flex-col justify-center min-w-[96px]">
-                <div className="flex items-center justify-between space-x-2 text-[10px] font-mono leading-none">
-                  <span className="font-bold text-white uppercase">L{level}</span>
-                  <span className="text-zinc-400">{progressPercent.toFixed(0)}%</span>
-                </div>
-                <div className="w-full bg-zinc-900 border border-white/10 h-1.5 rounded-[1px] overflow-hidden mt-1">
-                  <div
-                    className="bg-white h-full transition-all duration-300"
-                    style={{ width: `${Math.min(100, Math.max(0, progressPercent))}%` }}
-                  />
-                </div>
-              </div>
-            </div>
-
             {/* User Card (Avatar without level, Address Name, Address) */}
             <div className="relative" ref={dropdownRef}>
               <button
