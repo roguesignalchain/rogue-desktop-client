@@ -8,12 +8,7 @@
   "permissions": [
     "core:default",
     "core:window:allow-destroy",
-    "core:window:allow-close",
-    "shell:default",
-    "process:default",
-    "dialog:default",
-    "notification:default",
-    "store:default"
+    "core:window:allow-close"
   ]
 }
 

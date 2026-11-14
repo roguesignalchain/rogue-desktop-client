@@ -113,8 +113,8 @@ export const api = {
     return safeInvoke("get_wallets");
   },
 
-  getMnemonic: async (walletId?: string): Promise<string> => {
-    return safeInvoke("get_mnemonic", { walletId });
+  getMnemonic: async (password: string, walletId?: string): Promise<string> => {
+    return safeInvoke("get_mnemonic", { password, walletId });
   },
 
   getAccounts: async (): Promise<AccountInfo[]> => {
@@ -125,8 +125,8 @@ export const api = {
     return safeInvoke("get_derived_accounts", { walletId, count });
   },
 
-  getPrivateKey: async (accountIndex: number, walletId?: string): Promise<string> => {
-    return safeInvoke("get_private_key", { accountIndex, walletId });
+  getPrivateKey: async (password: string, accountIndex: number, walletId?: string): Promise<string> => {
+    return safeInvoke("get_private_key", { password, accountIndex, walletId });
   },
 
   signTransaction: async (txHashHex: string, walletId?: string, accountIndex?: number): Promise<string> => {

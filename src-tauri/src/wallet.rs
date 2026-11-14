@@ -49,6 +49,61 @@ static UNLOCKED_SALT: Mutex<Option<[u8; 16]>> = Mutex::new(None);
 static UNLOCKED_WALLETS: Mutex<Vec<WalletItem>> = Mutex::new(Vec::new());
 static ACTIVE_WALLET_ID: Mutex<Option<String>> = Mutex::new(None);
 
+fn secure_zero_bytes(buf: &mut [u8]) {
+    for b in buf.iter_mut() {
+        unsafe {
+            std::ptr::write_volatile(b, 0);
+        }
+    }
+    std::sync::atomic::compiler_fence(std::sync::atomic::Ordering::SeqCst);
+}
+
+fn secure_zero_string(s: &mut String) {
+    unsafe {
+        secure_zero_bytes(s.as_bytes_mut());
+    }
+    s.clear();
+}
+
+fn lock_master_key() -> std::sync::MutexGuard<'static, Option<[u8; 32]>> {
+    UNLOCKED_MASTER_KEY.lock().unwrap_or_else(|e| e.into_inner())
+}
+
+fn lock_salt() -> std::sync::MutexGuard<'static, Option<[u8; 16]>> {
+    UNLOCKED_SALT.lock().unwrap_or_else(|e| e.into_inner())
+}
+
+fn lock_wallets() -> std::sync::MutexGuard<'static, Vec<WalletItem>> {
+    UNLOCKED_WALLETS.lock().unwrap_or_else(|e| e.into_inner())
+}
+
+fn lock_active_wallet_id() -> std::sync::MutexGuard<'static, Option<String>> {
+    ACTIVE_WALLET_ID.lock().unwrap_or_else(|e| e.into_inner())
+}
+
+fn verify_master_password(password: &str) -> Result<(), String> {
+    let master_key = lock_master_key()
+        .ok_or_else(|| "Wallet is locked".to_string())?;
+    let salt = lock_salt()
+        .ok_or_else(|| "Wallet is locked".to_string())?;
+
+    let mut derived = [0u8; 32];
+    Argon2::default()
+        .hash_password_into(password.as_bytes(), &salt, &mut derived)
+        .map_err(|e| format!("Argon2 error: {}", e))?;
+
+    let mut diff: u8 = 0;
+    for (a, b) in derived.iter().zip(master_key.iter()) {
+        diff |= a ^ b;
+    }
+    secure_zero_bytes(&mut derived);
+
+    if diff != 0 {
+        return Err("Invalid master password".to_string());
+    }
+    Ok(())
+}
+
 #[tauri::command]
 pub fn generate_mnemonic(words: Option<u32>) -> Result<String, String> {
     let mut rng = rand::thread_rng();
@@ -144,31 +199,44 @@ fn public_key_to_address(pubkey: &PublicKey) -> String {
 fn get_vault_path() -> PathBuf {
     #[cfg(debug_assertions)]
     {
-        let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-        PathBuf::from(home).join(".rogue-wallet.vault")
+        #[cfg(target_os = "windows")]
+        let base = std::env::var_os("USERPROFILE")
+            .or_else(|| std::env::var_os("APPDATA"))
+            .map(PathBuf::from)
+            .unwrap_or_else(|| PathBuf::from("."));
+        #[cfg(not(target_os = "windows"))]
+        let base = std::env::var_os("HOME")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| PathBuf::from("."));
+        base.join(".rogue-wallet.vault")
     }
     #[cfg(not(debug_assertions))]
     {
+        #[cfg(target_os = "windows")]
+        let vault_dir = std::env::var_os("APPDATA")
+            .or_else(|| std::env::var_os("USERPROFILE"))
+            .map(|p| PathBuf::from(p).join("rogue-signal"))
+            .unwrap_or_else(|| PathBuf::from(".rogue-signal"));
+
+        #[cfg(not(target_os = "windows"))]
         let vault_dir = if let Some(data_home) = std::env::var_os("XDG_DATA_HOME") {
             PathBuf::from(data_home).join("rogue-signal")
         } else if let Some(home) = std::env::var_os("HOME") {
             PathBuf::from(home).join(".local").join("share").join("rogue-signal")
-        } else if let Some(appdata) = std::env::var_os("APPDATA") {
-            PathBuf::from(appdata).join("rogue-signal")
         } else {
-            let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-            PathBuf::from(home).join(".rogue-signal")
+            PathBuf::from(".rogue-signal")
         };
+
         let _ = std::fs::create_dir_all(&vault_dir);
         vault_dir.join("wallet.vault")
     }
 }
 
 fn save_vault_locked(wallets: &[WalletItem], active_id: &Option<String>) -> Result<(), String> {
-    let master_key_opt = *UNLOCKED_MASTER_KEY.lock().unwrap();
+    let master_key_opt = *lock_master_key();
     let master_key = master_key_opt.ok_or_else(|| "Vault is locked".to_string())?;
 
-    let salt_opt = *UNLOCKED_SALT.lock().unwrap();
+    let salt_opt = *lock_salt();
     let salt = salt_opt.unwrap_or([0u8; 16]);
 
     let mut nonce_bytes = [0u8; 12];
@@ -193,15 +261,33 @@ fn save_vault_locked(wallets: &[WalletItem], active_id: &Option<String>) -> Resu
         ciphertext: hex::encode(ciphertext),
     };
 
+    let json_data = serde_json::to_string_pretty(&vault).map_err(|e| e.to_string())?;
     let path = get_vault_path();
-    fs::write(&path, serde_json::to_string_pretty(&vault).unwrap())
-        .map_err(|e| format!("Failed to write vault file: {}", e))?;
-
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let _ = fs::set_permissions(&path, fs::Permissions::from_mode(0o600));
+    if let Some(parent) = path.parent() {
+        let _ = std::fs::create_dir_all(parent);
     }
+    let tmp_path = path.with_extension("vault.tmp");
+
+    {
+        use std::io::Write;
+        let mut opts = fs::OpenOptions::new();
+        opts.write(true).create(true).truncate(true);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+            opts.mode(0o600);
+        }
+        let mut file = opts
+            .open(&tmp_path)
+            .map_err(|e| format!("Failed to open temp vault file: {}", e))?;
+        file.write_all(json_data.as_bytes())
+            .map_err(|e| format!("Failed to write temp vault file: {}", e))?;
+        file.sync_all()
+            .map_err(|e| format!("Failed to sync temp vault file: {}", e))?;
+    }
+
+    fs::rename(&tmp_path, &path)
+        .map_err(|e| format!("Failed to atomically replace vault file: {}", e))?;
 
     Ok(())
 }
@@ -278,6 +364,9 @@ pub fn unlock_wallet(password: String) -> Result<Vec<WalletSummary>, String> {
     salt.copy_from_slice(&salt_vec);
 
     let nonce_bytes = hex::decode(&vault.nonce).map_err(|e| e.to_string())?;
+    if nonce_bytes.len() != 12 {
+        return Err("Corrupted vault nonce".to_string());
+    }
     let ciphertext = hex::decode(&vault.ciphertext).map_err(|e| e.to_string())?;
 
     let mut enc_key = [0u8; 32];
@@ -290,7 +379,10 @@ pub fn unlock_wallet(password: String) -> Result<Vec<WalletSummary>, String> {
 
     let decrypted = cipher
         .decrypt(nonce, ciphertext.as_ref())
-        .map_err(|_| "Invalid master password".to_string())?;
+        .map_err(|_| {
+            secure_zero_bytes(&mut enc_key);
+            "Invalid master password".to_string()
+        })?;
 
     let payload: serde_json::Value = serde_json::from_slice(&decrypted).map_err(|e| e.to_string())?;
 
@@ -496,13 +588,14 @@ pub fn get_wallets() -> Result<Vec<WalletSummary>, String> {
 }
 
 #[tauri::command]
-pub fn get_mnemonic(wallet_id: Option<String>) -> Result<String, String> {
-    let wallets = UNLOCKED_WALLETS.lock().unwrap();
+pub fn get_mnemonic(password: String, wallet_id: Option<String>) -> Result<String, String> {
+    verify_master_password(&password)?;
+    let wallets = lock_wallets();
     if wallets.is_empty() {
         return Err("Wallet is locked".to_string());
     }
 
-    let target_id = wallet_id.or_else(|| ACTIVE_WALLET_ID.lock().unwrap().clone());
+    let target_id = wallet_id.or_else(|| lock_active_wallet_id().clone());
     let item = wallets
         .iter()
         .find(|w| Some(&w.id) == target_id.as_ref())
@@ -560,28 +653,45 @@ pub fn get_accounts() -> Result<Vec<AccountInfo>, String> {
 }
 
 #[tauri::command]
-pub fn get_private_key(wallet_id: Option<String>, account_index: u32) -> Result<String, String> {
-    let wallets = UNLOCKED_WALLETS.lock().unwrap();
+pub fn get_private_key(password: String, wallet_id: Option<String>, account_index: u32) -> Result<String, String> {
+    verify_master_password(&password)?;
+    let wallets = lock_wallets();
     if wallets.is_empty() {
         return Err("Wallet is locked".to_string());
     }
 
-    let target_id = wallet_id.or_else(|| ACTIVE_WALLET_ID.lock().unwrap().clone());
+    let target_id = wallet_id.or_else(|| lock_active_wallet_id().clone());
     let item = wallets
         .iter()
         .find(|w| Some(&w.id) == target_id.as_ref())
         .ok_or_else(|| "Billetera no encontrada".to_string())?;
 
-    let privkey = derive_private_key_bip44(&item.mnemonic, account_index)?;
-    Ok(format!("0x{}", hex::encode(privkey)))
+    let mut privkey = derive_private_key_bip44(&item.mnemonic, account_index)?;
+    let hex_key = format!("0x{}", hex::encode(privkey));
+    secure_zero_bytes(&mut privkey);
+    Ok(hex_key)
 }
 
 #[tauri::command]
 pub fn lock_wallet() -> Result<(), String> {
-    *UNLOCKED_MASTER_KEY.lock().unwrap() = None;
-    *UNLOCKED_SALT.lock().unwrap() = None;
-    UNLOCKED_WALLETS.lock().unwrap().clear();
-    *ACTIVE_WALLET_ID.lock().unwrap() = None;
+    if let Some(ref mut key) = *lock_master_key() {
+        secure_zero_bytes(key);
+    }
+    *lock_master_key() = None;
+
+    if let Some(ref mut salt) = *lock_salt() {
+        secure_zero_bytes(salt);
+    }
+    *lock_salt() = None;
+
+    {
+        let mut wallets = lock_wallets();
+        for w in wallets.iter_mut() {
+            secure_zero_string(&mut w.mnemonic);
+        }
+        wallets.clear();
+    }
+    *lock_active_wallet_id() = None;
     Ok(())
 }
 
@@ -866,5 +976,41 @@ mod tests {
         let rec_sig = RecoverableSignature::from_compact(&sig_bytes, RecoveryId::from_i32(rec_id.to_i32()).unwrap()).unwrap();
         let recovered_pk = secp.recover_ecdsa(&msg, &rec_sig).unwrap();
         assert_eq!(public_key_to_address(&recovered_pk).to_lowercase(), expected_addr.to_lowercase());
+    }
+
+    #[test]
+    fn test_zeroize_and_password_verification() {
+        let mut secret_buf = [0xAAu8; 32];
+        secure_zero_bytes(&mut secret_buf);
+        assert_eq!(secret_buf, [0u8; 32]);
+
+        let mut secret_str = String::from("test secret mnemonic");
+        secure_zero_string(&mut secret_str);
+        assert!(secret_str.is_empty());
+
+        // Populate in-memory unlocked state and test verify_master_password & lock_wallet
+        let salt = [0x11u8; 16];
+        let mut key = [0u8; 32];
+        Argon2::default()
+            .hash_password_into(b"CorrectHorseBattery", &salt, &mut key)
+            .unwrap();
+        *lock_master_key() = Some(key);
+        *lock_salt() = Some(salt);
+        *lock_wallets() = vec![WalletItem {
+            id: "w1".to_string(),
+            name: "Test".to_string(),
+            mnemonic: "draft horse index reduce awkward black final airport velvet boy obvious during".to_string(),
+            derived_count: 1,
+        }];
+        *lock_active_wallet_id() = Some("w1".to_string());
+
+        assert!(verify_master_password("WrongPassword").is_err());
+        assert!(verify_master_password("CorrectHorseBattery").is_ok());
+
+        lock_wallet().unwrap();
+        assert!(lock_master_key().is_none());
+        assert!(lock_salt().is_none());
+        assert!(lock_wallets().is_empty());
+        assert!(lock_active_wallet_id().is_none());
     }
 }

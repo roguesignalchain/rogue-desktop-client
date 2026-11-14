@@ -87,6 +87,15 @@ export const WalletView: React.FC<WalletViewProps> = ({
   const [draggedCategoryIndex, setDraggedCategoryIndex] = useState<number | null>(null);
   const [draggedAccountAddress, setDraggedAccountAddress] = useState<string | null>(null);
 
+  // Re-authentication prompt for revealing/copying secrets
+  const [secretPrompt, setSecretPrompt] = useState<{
+    action: "showMnemonic" | "copyMnemonic" | "showPrivKey" | "copyPrivKey";
+    accountIndex?: number;
+  } | null>(null);
+  const [secretPassword, setSecretPassword] = useState("");
+  const [secretError, setSecretError] = useState<string | null>(null);
+  const [verifyingSecret, setVerifyingSecret] = useState(false);
+
   // Load Categories & Metadata from localStorage for active wallet
   useEffect(() => {
     if (!activeWallet) return;
@@ -190,39 +199,74 @@ export const WalletView: React.FC<WalletViewProps> = ({
     localStorage.setItem(`rogue_categories_${activeWallet.id}`, JSON.stringify(updatedCats));
   };
 
+  const scheduleClipboardClear = (copiedValue: string) => {
+    setTimeout(async () => {
+      try {
+        const current = await navigator.clipboard.readText();
+        if (current === copiedValue) {
+          await navigator.clipboard.writeText("");
+        }
+      } catch {
+        // Fallback: best-effort clear
+        navigator.clipboard.writeText("").catch(() => {});
+      }
+    }, 30000);
+  };
+
+  const handleConfirmSecretAuth = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!secretPrompt || !activeWallet) return;
+    try {
+      setVerifyingSecret(true);
+      setSecretError(null);
+      if (secretPrompt.action === "showMnemonic") {
+        setLoadingMnemonic(true);
+        const phrase = await api.getMnemonic(secretPassword, activeWallet.id);
+        setMnemonic(phrase);
+        setShowMnemonic(true);
+      } else if (secretPrompt.action === "copyMnemonic") {
+        const phrase = await api.getMnemonic(secretPassword, activeWallet.id);
+        setMnemonic(phrase);
+        await navigator.clipboard.writeText(phrase);
+        scheduleClipboardClear(phrase);
+        setCopiedMnemonic(true);
+        setTimeout(() => setCopiedMnemonic(false), 2000);
+      } else if (secretPrompt.action === "showPrivKey" && secretPrompt.accountIndex !== undefined) {
+        const privKey = await api.getPrivateKey(secretPassword, secretPrompt.accountIndex, activeWallet.id);
+        setRevealedPrivKeys((prev) => ({ ...prev, [secretPrompt.accountIndex!]: privKey }));
+      } else if (secretPrompt.action === "copyPrivKey" && secretPrompt.accountIndex !== undefined) {
+        const privKey = await api.getPrivateKey(secretPassword, secretPrompt.accountIndex, activeWallet.id);
+        await navigator.clipboard.writeText(privKey);
+        scheduleClipboardClear(privKey);
+        setCopiedPrivKey(secretPrompt.accountIndex);
+        setTimeout(() => setCopiedPrivKey(null), 2500);
+      }
+      setSecretPrompt(null);
+      setSecretPassword("");
+    } catch (err: unknown) {
+      setSecretError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setVerifyingSecret(false);
+      setLoadingMnemonic(false);
+    }
+  };
+
   // Handle Mnemonic
   const handleToggleMnemonic = async () => {
     if (showMnemonic) {
       setShowMnemonic(false);
+      setMnemonic("");
       return;
     }
-    if (!mnemonic && activeWallet) {
-      try {
-        setLoadingMnemonic(true);
-        const phrase = await api.getMnemonic(activeWallet.id);
-        setMnemonic(phrase);
-      } catch (err) {
-        console.warn("Failed to get mnemonic:", err);
-      } finally {
-        setLoadingMnemonic(false);
-      }
-    }
-    setShowMnemonic(true);
+    setSecretError(null);
+    setSecretPassword("");
+    setSecretPrompt({ action: "showMnemonic" });
   };
 
   const handleCopyMnemonic = async () => {
-    try {
-      let phrase = mnemonic;
-      if (!phrase && activeWallet) {
-        phrase = await api.getMnemonic(activeWallet.id);
-        setMnemonic(phrase);
-      }
-      await navigator.clipboard.writeText(phrase);
-      setCopiedMnemonic(true);
-      setTimeout(() => setCopiedMnemonic(false), 2000);
-    } catch (err) {
-      console.warn("Failed to copy mnemonic:", err);
-    }
+    setSecretError(null);
+    setSecretPassword("");
+    setSecretPrompt({ action: "copyMnemonic" });
   };
 
   // Handle Deriving New Account
@@ -274,14 +318,9 @@ export const WalletView: React.FC<WalletViewProps> = ({
 
   const handleCopyPrivateKey = async (index: number) => {
     if (!activeWallet) return;
-    try {
-      const privKey = await api.getPrivateKey(index, activeWallet.id);
-      await navigator.clipboard.writeText(privKey);
-      setCopiedPrivKey(index);
-      setTimeout(() => setCopiedPrivKey(null), 2500);
-    } catch (err) {
-      console.error("Failed to copy private key:", err);
-    }
+    setSecretError(null);
+    setSecretPassword("");
+    setSecretPrompt({ action: "copyPrivKey", accountIndex: index });
   };
 
   const handleToggleRevealPrivateKey = async (index: number) => {
@@ -293,12 +332,9 @@ export const WalletView: React.FC<WalletViewProps> = ({
       });
     } else {
       if (!activeWallet) return;
-      try {
-        const privKey = await api.getPrivateKey(index, activeWallet.id);
-        setRevealedPrivKeys((prev) => ({ ...prev, [index]: privKey }));
-      } catch (err) {
-        console.error("Failed to reveal private key:", err);
-      }
+      setSecretError(null);
+      setSecretPassword("");
+      setSecretPrompt({ action: "showPrivKey", accountIndex: index });
     }
   };
 
@@ -1095,6 +1131,52 @@ export const WalletView: React.FC<WalletViewProps> = ({
           </button>
         </form>
       </div>
+
+      {secretPrompt && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4">
+          <form
+            onSubmit={handleConfirmSecretAuth}
+            className="w-full max-w-sm bg-zinc-950 border border-white/20 rounded-[2px] p-5 space-y-4"
+          >
+            <div className="flex items-center space-x-2 text-white font-semibold text-sm">
+              <Key className="w-4 h-4" />
+              <span>{t("wallet.unlockModal.passwordLabel", "Master Password")}</span>
+            </div>
+            <input
+              type="password"
+              value={secretPassword}
+              onChange={(e) => setSecretPassword(e.target.value)}
+              placeholder="••••••••"
+              autoFocus
+              required
+              className="w-full bg-black border border-zinc-800 focus:border-white rounded-[2px] px-3 py-2 text-xs font-mono text-white outline-none"
+            />
+            {secretError && (
+              <div className="text-xs font-mono text-rose-400">{secretError}</div>
+            )}
+            <div className="flex items-center justify-end space-x-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setSecretPrompt(null);
+                  setSecretPassword("");
+                  setSecretError(null);
+                }}
+                className="px-3 py-1.5 text-xs bg-zinc-900 hover:bg-zinc-800 text-zinc-300 rounded-[2px] border border-zinc-700"
+              >
+                {t("common.cancel", "Cancel")}
+              </button>
+              <button
+                type="submit"
+                disabled={verifyingSecret}
+                className="px-3 py-1.5 text-xs bg-white text-black font-bold hover:bg-zinc-200 disabled:opacity-50 rounded-[2px]"
+              >
+                {verifyingSecret ? "..." : t("common.confirm", "Confirm")}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 };

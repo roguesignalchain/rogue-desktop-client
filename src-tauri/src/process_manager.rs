@@ -258,8 +258,33 @@ fn send_miner_stop_sync(http_port: u16) {
     }
 }
 
+fn validate_node_config(config: &NodeConfig) -> Result<(), String> {
+    if config.http_port == 0 || config.p2p_port == 0 {
+        return Err("HTTP and P2P ports must be non-zero".to_string());
+    }
+    if let Some(ref coinbase) = config.coinbase {
+        let trimmed = coinbase.trim();
+        if !trimmed.is_empty() {
+            let hex_part = trimmed.strip_prefix("0x").or_else(|| trimmed.strip_prefix("0X"))
+                .ok_or_else(|| "Invalid coinbase address: must start with 0x".to_string())?;
+            if hex_part.len() != 40 || !hex_part.chars().all(|c| c.is_ascii_hexdigit()) {
+                return Err("Invalid coinbase address: must be 20-byte hex".to_string());
+            }
+        }
+    }
+    if let Some(ref bootnodes) = config.bootnodes {
+        for entry in bootnodes.split(',').map(|s| s.trim()).filter(|s| !s.is_empty()) {
+            if !entry.starts_with("enode://") || !entry.contains('@') || entry.chars().any(|c| c.is_whitespace()) {
+                return Err(format!("Invalid bootnode enode URI: {}", entry));
+            }
+        }
+    }
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn start_node(app: AppHandle, config: NodeConfig) -> Result<String, String> {
+    validate_node_config(&config)?;
     {
         let mut proc_lock = lock_node_process();
         if let Some(ref mut managed) = *proc_lock {
@@ -313,7 +338,7 @@ pub async fn start_node(app: AppHandle, config: NodeConfig) -> Result<String, St
         .arg("--http.api")
         .arg("eth,net,web3,miner,txpool,admin,randomx")
         .arg("--http.corsdomain")
-        .arg("tauri://localhost,http://tauri.localhost,https://tauri.localhost,http://localhost:1420,http://127.0.0.1:1420");
+        .arg("tauri://localhost,http://tauri.localhost,https://tauri.localhost");
 
     if config.ws_port > 0 && config.ws_port != config.http_port {
         cmd.arg("--ws")
@@ -324,7 +349,7 @@ pub async fn start_node(app: AppHandle, config: NodeConfig) -> Result<String, St
             .arg("--ws.api")
             .arg("eth,net,web3,miner,admin,randomx")
             .arg("--ws.origins")
-            .arg("tauri://localhost,http://tauri.localhost,https://tauri.localhost,http://localhost:1420,http://127.0.0.1:1420");
+            .arg("tauri://localhost,http://tauri.localhost,https://tauri.localhost");
     }
 
     cmd.arg("--port")
@@ -485,6 +510,9 @@ pub async fn clean_chaindata(datadir: Option<String>) -> Result<String, String> 
     let _ = stop_node().await;
 
     let resolved = resolve_datadir(datadir.as_deref());
+    if resolved.parent().is_none() {
+        return Err("Refusing to clean chaindata at filesystem root".to_string());
+    }
     let geth_dir = resolved.join("geth");
     if geth_dir.exists() {
         std::fs::remove_dir_all(&geth_dir)
@@ -730,5 +758,20 @@ mod tests {
         remove_pid_file(&pid_path);
         assert_eq!(read_pid_file(&pid_path), None);
         let _ = std::fs::remove_dir_all(&tmp_dir);
+    }
+
+    #[test]
+    fn test_validate_node_config_rejects_invalid_inputs() {
+        let mut cfg = NodeConfig::default();
+        assert!(validate_node_config(&cfg).is_ok());
+
+        cfg.coinbase = Some("not-an-address".to_string());
+        assert!(validate_node_config(&cfg).is_err());
+
+        cfg.coinbase = Some("0x0544802665bc7c22124348e745a7abaa8420e197".to_string());
+        assert!(validate_node_config(&cfg).is_ok());
+
+        cfg.bootnodes = Some("http://evil.com".to_string());
+        assert!(validate_node_config(&cfg).is_err());
     }
 }

@@ -1,4 +1,5 @@
-import { createPublicClient, defineChain, http, type Address } from "viem";
+import { createPublicClient, custom, defineChain, type Address } from "viem";
+import { api } from "../services/api";
 import type { MinerGamificationStats, RankInfo } from "../types";
 
 export const ROGUE_REPUTATION_ADDRESS = "0x0000000000000000000000000000000000000020" as const;
@@ -97,7 +98,11 @@ export function normalizeReputationLang(lang?: string): string {
 function getReputationClient(rpcUrl: string) {
   return createPublicClient({
     chain: rogueSignalChain,
-    transport: http(rpcUrl),
+    transport: custom({
+      async request({ method, params }) {
+        return api.callRpc(rpcUrl, method, Array.isArray(params) ? params : []);
+      },
+    }),
   });
 }
 

@@ -10,11 +10,6 @@ use tauri::{
 
 pub fn run() {
     tauri::Builder::default()
-        .plugin(tauri_plugin_shell::init())
-        .plugin(tauri_plugin_process::init())
-        .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_notification::init())
-        .plugin(tauri_plugin_store::Builder::new().build())
         .setup(|app| {
             let show_i = MenuItem::with_id(app, "show", "Mostrar Ventana", true, None::<&str>)?;
             let quit_i = MenuItem::with_id(app, "quit", "Detener Nodo y Salir", true, None::<&str>)?;
