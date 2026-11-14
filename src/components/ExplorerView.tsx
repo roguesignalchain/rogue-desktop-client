@@ -16,6 +16,7 @@ import {
 import { api } from "../services/api";
 import type { Block, ExplorerRoute } from "../types";
 import { BlockDetailView } from "./explorer/BlockDetailView";
+import { TransactionDetailView } from "./explorer/TransactionDetailView";
 import { CopyButton } from "./explorer/CopyButton";
 
 interface ExplorerViewProps {
@@ -244,17 +245,12 @@ export const ExplorerView: React.FC<ExplorerViewProps> = ({
       )}
 
       {currentRoute.view === "tx" && (
-        <div className="p-6 bg-zinc-900/40 border border-zinc-800 rounded-[2px] space-y-3 font-mono text-xs">
-          <button
-            onClick={goBack}
-            className="inline-flex items-center space-x-1.5 text-zinc-400 hover:text-white"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            <span>{t("explorer.back", "Back")}</span>
-          </button>
-          <div className="text-white font-bold">Transaction: {currentRoute.hash}</div>
-          <div className="text-zinc-400">Detailed transaction view coming in next step.</div>
-        </div>
+        <TransactionDetailView
+          rpcUrl={rpcUrl}
+          hash={currentRoute.hash}
+          onNavigate={navigate}
+          onBack={goBack}
+        />
       )}
 
       {currentRoute.view === "address" && (
