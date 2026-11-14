@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import {
   LayoutDashboard,
   Wallet,
+  ArrowLeftRight,
   Pickaxe,
   Compass,
   Terminal,
@@ -12,7 +13,7 @@ import {
 } from "lucide-react";
 import { NodeStatus, SyncStatus } from "../types";
 
-export type TabType = "dashboard" | "wallet" | "mining" | "explorer" | "console" | "settings";
+export type TabType = "dashboard" | "wallet" | "transfers" | "mining" | "explorer" | "console" | "settings";
 
 interface SidebarProps {
   currentTab: TabType;
@@ -40,6 +41,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const navItems = [
     { id: "dashboard", label: t("common.dashboard"), icon: LayoutDashboard },
     { id: "wallet", label: t("common.wallet"), icon: Wallet },
+    { id: "transfers", label: t("common.transfers"), icon: ArrowLeftRight },
     { id: "mining", label: t("common.mining"), icon: Pickaxe },
     { id: "explorer", label: t("common.explorer"), icon: Compass },
     { id: "console", label: t("common.console"), icon: Terminal },

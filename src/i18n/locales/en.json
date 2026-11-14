@@ -3,6 +3,7 @@
     "appName": "ROGUE SIGNAL",
     "dashboard": "Dashboard",
     "wallet": "Wallet",
+    "transfers": "Transfers",
     "mining": "CPU Mining",
     "explorer": "Mini Explorer",
     "console": "Node Console",
@@ -162,7 +163,37 @@
     "status": {
       "sending": "Estimating gas and submitting transaction to network...",
       "success": "Transaction broadcasted successfully! TxHash: {{txHash}}"
-    }
+    },
+    "totalWalletBalance": "Total Vault Balance",
+    "goToTransfers": "Send / Receive",
+    "searchPlaceholder": "Filter accounts by name or 0x address...",
+    "noMatchingAccounts": "No accounts match \"{{query}}\".",
+    "quickSend": "Send",
+    "tabs": {
+      "accounts": "Accounts & Categories",
+      "security": "Security & Backup"
+    },
+    "securityTabDesc": "Manage your BIP-39 recovery phrase. Always keep a physical offline backup and never share it with anyone."
+  },
+  "transfers": {
+    "title": "Transfers",
+    "subtitle": "Send and receive ROGUE across Rogue Signal (Chain ID: 800055)",
+    "fromAccount": "From Account",
+    "switchAccount": "Change source",
+    "myAccounts": "My Accounts",
+    "sendToOwn": "Send to one of my accounts:",
+    "receiveTitle": "Receive ROGUE",
+    "receiveDesc": "Share this address to receive ROGUE on the active account.",
+    "otherAccountsTitle": "Other Vault Accounts",
+    "otherAccountsDesc": "Quickly switch source account or copy an address as recipient.",
+    "useAsSource": "Use as Source",
+    "useAsRecipient": "Use as Recipient",
+    "estimatedFee": "Estimated Fee",
+    "totalDebit": "Total Debit",
+    "copyTxHash": "Copy TxHash",
+    "validAddress": "Valid EVM address",
+    "invalidAddressHint": "Must start with 0x and be 42 hex characters",
+    "chainBadge": "ROGUE SIGNAL • CHAIN 800055"
   },
   "walletModal": {
     "unlockVault": "Unlock Vault",

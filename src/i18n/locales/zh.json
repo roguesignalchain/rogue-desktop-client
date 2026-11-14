@@ -3,6 +3,7 @@
     "appName": "ROGUE SIGNAL",
     "dashboard": "仪表板",
     "wallet": "钱包",
+    "transfers": "转账",
     "mining": "CPU 挖矿",
     "explorer": "迷你浏览器",
     "console": "节点控制台",
@@ -162,7 +163,37 @@
     "status": {
       "sending": "正在预估 Gas 并向网络提交交易...",
       "success": "交易已成功广播！TxHash: {{txHash}}"
-    }
+    },
+    "totalWalletBalance": "保险库总余额",
+    "goToTransfers": "发送 / 接收",
+    "searchPlaceholder": "按名称或 0x 地址筛选账户...",
+    "noMatchingAccounts": "没有匹配 \"{{query}}\" 的账户。",
+    "quickSend": "发送",
+    "tabs": {
+      "accounts": "账户与分类",
+      "security": "安全与备份"
+    },
+    "securityTabDesc": "管理您的 BIP-39 恢复助记词。请务必保留离线物理备份，切勿向任何人泄露。"
+  },
+  "transfers": {
+    "title": "转账",
+    "subtitle": "在 Rogue Signal 网络中收发 ROGUE (Chain ID: 800055)",
+    "fromAccount": "发送账户",
+    "switchAccount": "切换发送方",
+    "myAccounts": "我的账户",
+    "sendToOwn": "发送到我的其他账户：",
+    "receiveTitle": "接收 ROGUE",
+    "receiveDesc": "分享此地址以在当前活跃账户接收 ROGUE。",
+    "otherAccountsTitle": "保险库其他账户",
+    "otherAccountsDesc": "快速切换发送账户或将地址设为接收方。",
+    "useAsSource": "设为发送方",
+    "useAsRecipient": "设为接收方",
+    "estimatedFee": "预估手续费",
+    "totalDebit": "总计扣除",
+    "copyTxHash": "复制交易哈希",
+    "validAddress": "有效的 EVM 地址",
+    "invalidAddressHint": "必须以 0x 开头且包含 42 个十六进制字符",
+    "chainBadge": "ROGUE SIGNAL • CHAIN 800055"
   },
   "walletModal": {
     "unlockVault": "解锁保险库",

@@ -4,6 +4,7 @@ import { Navbar } from "./components/Navbar";
 import { Sidebar, TabType } from "./components/Sidebar";
 import { Dashboard } from "./components/Dashboard";
 import { WalletView } from "./components/WalletView";
+import { TransfersView } from "./components/TransfersView";
 import { MiningView } from "./components/MiningView";
 import { ExplorerView } from "./components/ExplorerView";
 import { NodeConsoleView } from "./components/NodeConsoleView";
@@ -642,6 +643,22 @@ export const App: React.FC = () => {
               }}
               onSelectAddress={handleSelectAddress}
               onWalletRenamed={handleWalletRenamed}
+              onNavigateToTransfers={() => setCurrentTab("transfers")}
+            />
+          )}
+
+          {currentTab === "transfers" && (
+            <TransfersView
+              unlockedAddress={unlockedAddress}
+              activeWallet={activeWallet}
+              balance={balance}
+              rpcUrl={rpcUrl}
+              onRefreshBalance={refreshMetrics}
+              onOpenWalletModal={(mode) => {
+                setWalletModalMode(mode || "create");
+                setIsWalletModalOpen(true);
+              }}
+              onSelectAddress={handleSelectAddress}
             />
           )}
 

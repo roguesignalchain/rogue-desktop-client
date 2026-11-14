@@ -3,6 +3,7 @@
     "appName": "ROGUE SIGNAL",
     "dashboard": "Dashboard",
     "wallet": "Billetera",
+    "transfers": "Transferencias",
     "mining": "Minería CPU",
     "explorer": "Mini Explorador",
     "console": "Consola del Nodo",
@@ -162,7 +163,37 @@
     "status": {
       "sending": "Estimando gas y enviando transacción a la red...",
       "success": "¡Transacción transmitida exitosamente! TxHash: {{txHash}}"
-    }
+    },
+    "totalWalletBalance": "Saldo Total de Bóveda",
+    "goToTransfers": "Enviar / Recibir",
+    "searchPlaceholder": "Filtrar cuentas por nombre o dirección 0x...",
+    "noMatchingAccounts": "No hay cuentas que coincidan con \"{{query}}\".",
+    "quickSend": "Enviar",
+    "tabs": {
+      "accounts": "Cuentas y Categorías",
+      "security": "Seguridad y Respaldo"
+    },
+    "securityTabDesc": "Gestiona tu frase de recuperación BIP-39. Guarda siempre una copia física sin conexión y nunca la compartas."
+  },
+  "transfers": {
+    "title": "Transferencias",
+    "subtitle": "Envía y recibe ROGUE en Rogue Signal (Chain ID: 800055)",
+    "fromAccount": "Cuenta de Origen",
+    "switchAccount": "Cambiar origen",
+    "myAccounts": "Mis Cuentas",
+    "sendToOwn": "Enviar a una de mis cuentas:",
+    "receiveTitle": "Recibir ROGUE",
+    "receiveDesc": "Comparte esta dirección para recibir ROGUE en tu cuenta activa.",
+    "otherAccountsTitle": "Otras Cuentas de la Bóveda",
+    "otherAccountsDesc": "Cambia rápidamente la cuenta origen o copia una dirección como destinatario.",
+    "useAsSource": "Usar como Origen",
+    "useAsRecipient": "Usar como Destino",
+    "estimatedFee": "Comisión Estimada",
+    "totalDebit": "Total a Debitar",
+    "copyTxHash": "Copiar TxHash",
+    "validAddress": "Dirección EVM válida",
+    "invalidAddressHint": "Debe iniciar con 0x y tener 42 caracteres hexadecimales",
+    "chainBadge": "ROGUE SIGNAL • CHAIN 800055"
   },
   "walletModal": {
     "unlockVault": "Desbloquear Bóveda",

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Send,
@@ -16,10 +16,11 @@ import {
   Trash2,
   FolderPlus,
   GripVertical,
+  Search,
+  Lock,
 } from "lucide-react";
 import { api } from "../services/api";
 import { AccountInfo, WalletSummary, WalletCategory } from "../types";
-import { parseEther, formatEther, isAddress } from "viem";
 
 export interface AccountWithMeta extends AccountInfo {
   balance: string;
@@ -37,6 +38,7 @@ interface WalletViewProps {
   onOpenWalletModal: (mode?: "unlock" | "create" | "import") => void;
   onSelectAddress?: (address: string) => void;
   onWalletRenamed?: (walletId: string, newName: string) => void;
+  onNavigateToTransfers?: () => void;
 }
 
 export const WalletView: React.FC<WalletViewProps> = ({
@@ -44,12 +46,16 @@ export const WalletView: React.FC<WalletViewProps> = ({
   activeWallet,
   balance,
   rpcUrl,
-  onRefreshBalance,
   onOpenWalletModal,
   onSelectAddress,
   onWalletRenamed,
+  onNavigateToTransfers,
 }) => {
   const { t } = useTranslation();
+
+  // Internal sub-tab state
+  const [activeSubTab, setActiveSubTab] = useState<"accounts" | "security">("accounts");
+  const [searchQuery, setSearchQuery] = useState("");
 
   // Mnemonic State
   const [mnemonic, setMnemonic] = useState<string>("");
@@ -75,13 +81,6 @@ export const WalletView: React.FC<WalletViewProps> = ({
   const [walletNameInput, setWalletNameInput] = useState("");
   const [editingAccountAddress, setEditingAccountAddress] = useState<string | null>(null);
   const [accountNameInput, setAccountNameInput] = useState("");
-
-  // Transfer Form State
-  const [recipient, setRecipient] = useState("");
-  const [amount, setAmount] = useState("");
-  const [gasTier, setGasTier] = useState<"slow" | "normal" | "fast">("normal");
-  const [statusMsg, setStatusMsg] = useState<{ type: "success" | "error" | "info"; text: string } | null>(null);
-  const [sending, setSending] = useState(false);
 
   // Drag and Drop State
   const [draggedCategoryIndex, setDraggedCategoryIndex] = useState<number | null>(null);
@@ -207,7 +206,6 @@ export const WalletView: React.FC<WalletViewProps> = ({
           await navigator.clipboard.writeText("");
         }
       } catch {
-        // Fallback: best-effort clear
         navigator.clipboard.writeText("").catch(() => {});
       }
     }, 30000);
@@ -380,7 +378,9 @@ export const WalletView: React.FC<WalletViewProps> = ({
 
   const handleSaveCategoryName = () => {
     if (!editingCategory || !editingCategory.name.trim()) return;
-    const updated = categories.map((c) => (c.id === editingCategory.id ? { ...c, name: editingCategory.name.trim() } : c));
+    const updated = categories.map((c) =>
+      c.id === editingCategory.id ? { ...c, name: editingCategory.name.trim() } : c
+    );
     saveCategories(updated);
     setEditingCategory(null);
   };
@@ -389,7 +389,9 @@ export const WalletView: React.FC<WalletViewProps> = ({
     if (categories.length <= 1) return;
     const remainingCats = categories.filter((c) => c.id !== catId);
     const fallbackCatId = remainingCats[0].id;
-    const updatedAccounts = accounts.map((a) => (a.categoryId === catId ? { ...a, categoryId: fallbackCatId } : a));
+    const updatedAccounts = accounts.map((a) =>
+      a.categoryId === catId ? { ...a, categoryId: fallbackCatId } : a
+    );
     setAccounts(updatedAccounts);
     saveAccountMeta(updatedAccounts);
     saveCategories(remainingCats);
@@ -438,76 +440,16 @@ export const WalletView: React.FC<WalletViewProps> = ({
     setDraggedAccountAddress(null);
   };
 
-  const getTierGasPriceWei = (tier: "slow" | "normal" | "fast"): bigint => {
-    const gwei = tier === "slow" ? 1n : tier === "normal" ? 2n : 5n;
-    return gwei * 1_000_000_000n;
-  };
+  const totalVaultBalance = useMemo(() => {
+    if (accounts.length === 0) return balance;
+    const sum = accounts.reduce((acc, item) => {
+      const val = parseFloat(item.balance);
+      return acc + (isNaN(val) ? 0 : val);
+    }, 0);
+    return sum.toFixed(4);
+  }, [accounts, balance]);
 
-  // Send Transfer (Local Legacy Type 0 + EIP-155 signing)
-  const handleSend = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!unlockedAddress) {
-      setStatusMsg({ type: "error", text: t("wallet.errors.unlockFirst") });
-      return;
-    }
-    if (!isAddress(recipient)) {
-      setStatusMsg({ type: "error", text: t("wallet.errors.invalidRecipient") });
-      return;
-    }
-
-    let wei: bigint;
-    try {
-      wei = parseEther(amount.trim());
-    } catch {
-      setStatusMsg({ type: "error", text: t("wallet.errors.invalidAmount") });
-      return;
-    }
-    if (wei <= 0n) {
-      setStatusMsg({ type: "error", text: t("wallet.errors.invalidAmount") });
-      return;
-    }
-
-    try {
-      setSending(true);
-      setStatusMsg({ type: "info", text: t("wallet.status.sending") });
-
-      const [nonce, networkGasPrice] = await Promise.all([
-        api.getNonce(rpcUrl, unlockedAddress),
-        api.getGasPrice(rpcUrl),
-      ]);
-      const tierGasPrice = getTierGasPriceWei(gasTier);
-      const gasPriceWei = networkGasPrice > tierGasPrice ? networkGasPrice : tierGasPrice;
-
-      const activeAcc = accounts.find(
-        (a) => a.address.toLowerCase() === unlockedAddress.toLowerCase()
-      );
-      const rawTx = await api.signRawTransaction({
-        to: recipient,
-        valueWeiHex: "0x" + wei.toString(16),
-        gasLimit: 21000,
-        gasPriceHex: "0x" + gasPriceWei.toString(16),
-        nonce,
-        chainId: 800055,
-        walletId: activeWallet?.id,
-        accountIndex: activeAcc?.index ?? 0,
-      });
-
-      const txHash = await api.callRpc<string>(rpcUrl, "eth_sendRawTransaction", [rawTx]);
-      setStatusMsg({
-        type: "success",
-        text: t("wallet.status.success", { txHash }),
-      });
-      setRecipient("");
-      setAmount("");
-      onRefreshBalance();
-      if (activeWallet) loadAccounts(activeWallet.id, categories);
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : JSON.stringify(err);
-      setStatusMsg({ type: "error", text: t("wallet.errors.sendFailed", { error: msg }) });
-    } finally {
-      setSending(false);
-    }
-  };
+  const normalizedQuery = searchQuery.trim().toLowerCase();
 
   if (!unlockedAddress || !activeWallet) {
     return (
@@ -516,9 +458,7 @@ export const WalletView: React.FC<WalletViewProps> = ({
           <Shield className="w-8 h-8" />
         </div>
         <h2 className="text-xl font-bold text-white">{t("wallet.lockedTitle")}</h2>
-        <p className="text-sm text-zinc-400 max-w-md">
-          {t("wallet.lockedDesc")}
-        </p>
+        <p className="text-sm text-zinc-400 max-w-md">{t("wallet.lockedDesc")}</p>
         <button
           onClick={() => onOpenWalletModal("unlock")}
           className="px-6 py-2.5 bg-white hover:bg-zinc-200 text-black rounded-[2px] text-xs font-mono uppercase tracking-wider font-bold transition shadow-[0_0_15px_rgba(255,255,255,0.15)]"
@@ -530,608 +470,636 @@ export const WalletView: React.FC<WalletViewProps> = ({
   }
 
   const mnemonicWords = mnemonic ? mnemonic.trim().split(/\s+/) : [];
+  const activeAccountObj = accounts.find(
+    (a) => a.address.toLowerCase() === unlockedAddress.toLowerCase()
+  );
 
   return (
     <div className="space-y-6">
-      {/* Active Wallet & Active Account Banner */}
-      <div className="p-6 bg-zinc-900/60 border border-zinc-800 rounded-[2px] space-y-4">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="space-y-1">
-            <div className="flex items-center space-x-2">
+      {/* Active Wallet & Active Account Hero Card */}
+      <div className="p-6 bg-[#0A0A0C] border border-white/10 rounded-[2px] space-y-5">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
+          {/* Left: Wallet Name & Selected Address */}
+          <div className="space-y-2 min-w-0">
+            <div className="flex items-center flex-wrap gap-2">
               {editingWalletName ? (
                 <div className="flex items-center space-x-2">
                   <input
                     type="text"
                     value={walletNameInput}
                     onChange={(e) => setWalletNameInput(e.target.value)}
-                    className="bg-zinc-950 border border-white rounded px-2 py-0.5 text-sm font-bold text-white outline-none"
+                    className="bg-zinc-950 border border-white rounded-[2px] px-2.5 py-1 text-sm font-bold text-white outline-none"
                     autoFocus
                   />
                   <button
                     onClick={handleSaveWalletName}
-                    className="text-xs bg-white text-black font-bold px-2 py-0.5 rounded text-white font-semibold"
+                    className="text-xs bg-white hover:bg-zinc-200 text-black font-bold px-2.5 py-1 rounded-[2px] transition"
                   >
                     {t("common.save")}
                   </button>
                   <button
                     onClick={() => setEditingWalletName(false)}
-                    className="text-xs text-zinc-400 hover:text-white"
+                    className="text-xs text-zinc-400 hover:text-white px-1.5 py-1"
                   >
                     {t("common.cancel")}
                   </button>
                 </div>
               ) : (
                 <div className="flex items-center space-x-2">
-                  <h1 className="text-lg font-black text-white">{activeWallet.name}</h1>
+                  <h1 className="text-xl font-black text-white tracking-tight">
+                    {activeWallet.name}
+                  </h1>
                   <button
                     onClick={() => setEditingWalletName(true)}
-                    className="p-1 text-zinc-500 hover:text-zinc-200"
+                    className="p-1 text-zinc-500 hover:text-zinc-200 transition"
                     title={t("wallet.renameWallet")}
                   >
                     <Pencil className="w-3.5 h-3.5" />
                   </button>
                 </div>
               )}
-              <span className="px-2 py-0.5 rounded-full text-[10px] bg-rose-950/60 text-zinc-200 border border-rose-800/60 font-mono">
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-mono">
                 {t("wallet.activeWalletBadge")}
               </span>
             </div>
 
-            <div className="flex items-center space-x-2 font-mono text-sm text-white pt-1">
-              <span className="text-zinc-400 text-xs font-sans font-semibold">{t("wallet.selectedAddress")}</span>
-              <span className="bg-zinc-950 px-2.5 py-1 rounded-[2px] border border-zinc-800 text-xs">
+            <div className="flex items-center flex-wrap gap-2 font-mono text-xs">
+              <span className="text-zinc-400 font-sans font-semibold">
+                {t("wallet.selectedAddress")}
+              </span>
+              {activeAccountObj && (
+                <span className="text-zinc-200 font-sans font-semibold bg-zinc-900 px-2 py-0.5 rounded-[2px] border border-zinc-800">
+                  {activeAccountObj.name}
+                </span>
+              )}
+              <span className="bg-zinc-950 px-2.5 py-1 rounded-[2px] border border-zinc-800 text-zinc-200 select-all break-all">
                 {unlockedAddress}
               </span>
               <button
                 onClick={() => handleCopyAddress(unlockedAddress)}
-                className="p-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white rounded-[2px] transition"
+                className="p-1.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 hover:text-white rounded-[2px] transition"
                 title={t("wallet.copyActiveAddress")}
               >
                 {copiedAddress === unlockedAddress ? (
-                  <Check className="w-3.5 h-3.5 text-white" />
+                  <Check className="w-3.5 h-3.5 text-emerald-400" />
                 ) : (
                   <Copy className="w-3.5 h-3.5" />
                 )}
               </button>
             </div>
-            <div className="text-[11px] text-zinc-500 font-mono">
-              {t("wallet.bip44Notice")}
-            </div>
+
+            <div className="text-[11px] text-zinc-500 font-mono">{t("wallet.bip44Notice")}</div>
           </div>
 
-          <div className="text-right">
-            <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">{t("wallet.addressBalance")}</span>
-            <div className="text-3xl font-black text-white font-mono mt-1">
-              {balance} <span className="text-sm font-bold text-zinc-400">ROGUE</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* BIP-39 Seed Phrase Section for this Mnemonic */}
-      <div className="p-6 bg-zinc-900/40 border border-zinc-800 rounded-[2px] space-y-4">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-4 border-b border-zinc-800">
-          <div className="flex items-center space-x-2.5">
-            <Key className="w-5 h-5 text-white" />
-            <div>
-              <h2 className="text-sm font-bold text-white uppercase tracking-wider">
-                {t("wallet.seedTitle", { name: activeWallet.name })}
-              </h2>
-              <p className="text-xs text-zinc-400 mt-0.5">
-                {t("wallet.seedSubtitle")}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center space-x-2">
-            <button
-              onClick={handleToggleMnemonic}
-              disabled={loadingMnemonic}
-              className="flex items-center space-x-1.5 px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium rounded-[2px] transition"
-            >
-              {showMnemonic ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              <span>{showMnemonic ? t("wallet.hidePhrase") : t("wallet.revealPhrase")}</span>
-            </button>
-
-            <button
-              onClick={handleCopyMnemonic}
-              className="flex items-center space-x-1.5 px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium rounded-[2px] transition"
-            >
-              {copiedMnemonic ? (
-                <>
-                  <Check className="w-4 h-4 text-white" />
-                  <span className="text-white">{t("common.copied")}</span>
-                </>
-              ) : (
-                <>
-                  <Copy className="w-4 h-4" />
-                  <span>{t("wallet.copyPhrase")}</span>
-                </>
-              )}
-            </button>
-          </div>
-        </div>
-
-        {showMnemonic ? (
-          <div className="space-y-3 pt-1">
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
-              {mnemonicWords.map((word, idx) => (
-                <div
-                  key={idx}
-                  className="flex items-center space-x-2 p-2.5 bg-zinc-950 border border-zinc-800 rounded-[2px] font-mono text-sm"
-                >
-                  <span className="text-zinc-500 text-xs select-none w-5 text-right font-sans font-semibold">
-                    {idx + 1}.
-                  </span>
-                  <span className="text-zinc-200 font-medium select-all">{word}</span>
+          {/* Right: Balances + Quick Transfer CTA */}
+          <div className="flex flex-col sm:flex-row lg:flex-col items-start sm:items-center lg:items-end justify-between gap-4 shrink-0 border-t lg:border-t-0 pt-4 lg:pt-0 border-zinc-800/80">
+            <div className="flex items-baseline gap-6 lg:justify-end">
+              <div className="lg:text-right">
+                <div className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider font-mono">
+                  {t("wallet.totalWalletBalance")}
                 </div>
-              ))}
-            </div>
-
-            <div className="flex items-start space-x-2 p-3 bg-white/5 border border-white/15 rounded-[2px] text-xs text-zinc-200">
-              <AlertTriangle className="w-4 h-4 text-white shrink-0 mt-0.5" />
-              <span>
-                <strong>{t("wallet.criticalSecurity")}</strong> {t("wallet.securityNotice", { name: activeWallet.name })}
-              </span>
-            </div>
-          </div>
-        ) : (
-          <div className="p-4 bg-zinc-950/60 border border-zinc-800/80 rounded-[2px] flex items-center justify-between text-xs text-zinc-400">
-            <div className="flex items-center space-x-2 font-mono">
-              <span className="tracking-widest text-zinc-600">•••••••• •••••••• •••••••• ••••••••</span>
-              <span className="text-zinc-500 text-[11px]">{t("wallet.phraseProtected")}</span>
-            </div>
-            <span className="text-zinc-500 text-[11px]">{t("wallet.clickToReveal")}</span>
-          </div>
-        )}
-      </div>
-
-      {/* Derived Accounts Organized by Categories with Drag and Drop */}
-      <div className="p-6 bg-zinc-900/40 border border-zinc-800 rounded-[2px] space-y-5">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-4 border-b border-zinc-800">
-          <div className="flex items-center space-x-2.5">
-            <Layers className="w-5 h-5 text-white" />
-            <div>
-              <div className="flex items-center space-x-2">
-                <h2 className="text-sm font-bold text-white uppercase tracking-wider">
-                  {t("wallet.addressesAndCategories", { name: activeWallet.name })}
-                </h2>
-                <span className="text-xs font-mono px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 border border-zinc-700">
-                  {accounts.length} {accounts.length === 1 ? t("wallet.accountCount_one", { count: accounts.length }) : t("wallet.accountCount_other", { count: accounts.length })}
-                </span>
+                <div className="text-base font-bold text-zinc-300 font-mono mt-0.5">
+                  {totalVaultBalance} <span className="text-[11px] text-zinc-500">ROGUE</span>
+                </div>
               </div>
-              <p className="text-xs text-zinc-400 mt-0.5">
-                {t("wallet.categoriesDesc")}
-              </p>
+
+              <div className="lg:text-right">
+                <div className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider font-mono">
+                  {t("wallet.addressBalance")}
+                </div>
+                <div className="text-3xl font-black text-white font-mono mt-0.5">
+                  {balance} <span className="text-sm font-bold text-zinc-400">ROGUE</span>
+                </div>
+              </div>
             </div>
-          </div>
 
-          <div className="flex items-center space-x-2">
-            <button
-              onClick={() => setShowAddCategory(!showAddCategory)}
-              className="flex items-center space-x-1.5 px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-[2px] text-xs font-semibold transition"
-            >
-              <FolderPlus className="w-4 h-4 text-white" />
-              <span>{t("wallet.newCategory")}</span>
-            </button>
-
-            <button
-              onClick={handleDeriveAccount}
-              disabled={loadingAccounts}
-              className="flex items-center space-x-1.5 px-3.5 py-1.5 bg-white hover:bg-zinc-200 disabled:opacity-40 text-black rounded-[2px] text-xs font-mono uppercase tracking-wider font-bold shadow-[0_0_15px_rgba(255,255,255,0.15)] transition"
-            >
-              <Plus className="w-4 h-4" />
-              <span>{t("wallet.addDerivedAddress")}</span>
-            </button>
+            {onNavigateToTransfers && (
+              <button
+                onClick={onNavigateToTransfers}
+                className="flex items-center space-x-2 px-4 py-2 bg-white hover:bg-zinc-200 text-black rounded-[2px] text-xs font-mono uppercase tracking-wider font-bold shadow-[0_0_15px_rgba(255,255,255,0.12)] transition"
+              >
+                <Send className="w-3.5 h-3.5" />
+                <span>{t("wallet.goToTransfers")}</span>
+              </button>
+            )}
           </div>
         </div>
+      </div>
 
-        {/* Create Category Form */}
-        {showAddCategory && (
-          <div className="p-3 bg-zinc-950 border border-zinc-800 rounded-[2px] flex items-center space-x-2 animate-in fade-in duration-100">
-            <input
-              type="text"
-              value={newCategoryName}
-              onChange={(e) => setNewCategoryName(e.target.value)}
-              placeholder={t("wallet.newCategoryPlaceholder")}
-              className="flex-1 bg-zinc-900 border border-zinc-800 focus:border-white rounded px-3 py-1.5 text-xs text-white outline-none"
-              autoFocus
-            />
-            <button
-              onClick={handleAddCategory}
-              className="px-3 py-1.5 bg-white hover:bg-zinc-200 text-black text-xs font-mono uppercase tracking-wider font-bold rounded-[2px] transition"
-            >
-              {t("common.create")}
-            </button>
-            <button
-              onClick={() => setShowAddCategory(false)}
-              className="px-2 py-1.5 text-zinc-400 hover:text-white text-xs"
-            >
-              {t("common.cancel")}
-            </button>
-          </div>
-        )}
+      {/* Sub-navigation Tabs: Accounts & Categories vs Security & Backup */}
+      <div className="flex items-center space-x-2 border-b border-zinc-800">
+        <button
+          onClick={() => setActiveSubTab("accounts")}
+          className={`flex items-center space-x-2 px-4 py-2.5 text-xs font-mono uppercase tracking-wider border-b-2 transition ${
+            activeSubTab === "accounts"
+              ? "border-white text-white font-bold"
+              : "border-transparent text-zinc-500 hover:text-zinc-300"
+          }`}
+        >
+          <Layers className="w-3.5 h-3.5" />
+          <span>{t("wallet.tabs.accounts")}</span>
+          <span className="text-[10px] px-1.5 py-0.5 rounded-[2px] bg-zinc-900 text-zinc-400 border border-zinc-800">
+            {accounts.length}
+          </span>
+        </button>
 
-        {/* Categories List with Drag and Drop */}
-        <div className="space-y-4">
-          {categories.map((cat, catIndex) => {
-            const catAccounts = accounts.filter((a) => a.categoryId === cat.id);
+        <button
+          onClick={() => setActiveSubTab("security")}
+          className={`flex items-center space-x-2 px-4 py-2.5 text-xs font-mono uppercase tracking-wider border-b-2 transition ${
+            activeSubTab === "security"
+              ? "border-white text-white font-bold"
+              : "border-transparent text-zinc-500 hover:text-zinc-300"
+          }`}
+        >
+          <Lock className="w-3.5 h-3.5" />
+          <span>{t("wallet.tabs.security")}</span>
+        </button>
+      </div>
 
-            return (
-              <div
-                key={cat.id}
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={(e) => {
-                  const dragType = e.dataTransfer.getData("type");
-                  if (dragType === "category") {
-                    handleCategoryDrop(e, catIndex);
-                  } else {
-                    handleAccountDropOnCategory(e, cat.id);
-                  }
-                }}
-                className="bg-zinc-950/60 border border-zinc-800/90 rounded-[2px] overflow-hidden"
+      {/* TAB 1: Derived Accounts Organized by Categories */}
+      {activeSubTab === "accounts" && (
+        <div className="p-6 bg-[#0A0A0C] border border-white/10 rounded-[2px] space-y-5">
+          {/* Toolbar */}
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-zinc-800/80">
+            <div>
+              <h2 className="text-sm font-bold text-white uppercase tracking-wider font-mono">
+                {t("wallet.addressesAndCategories", { name: activeWallet.name })}
+              </h2>
+              <p className="text-xs text-zinc-400 mt-0.5">{t("wallet.categoriesDesc")}</p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="relative">
+                <Search className="w-3.5 h-3.5 text-zinc-500 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder={t("wallet.searchPlaceholder")}
+                  className="bg-zinc-950 border border-zinc-800 focus:border-white rounded-[2px] pl-8 pr-3 py-1.5 text-xs text-white font-mono outline-none w-56 transition"
+                />
+              </div>
+
+              <button
+                onClick={() => setShowAddCategory(!showAddCategory)}
+                className="flex items-center space-x-1.5 px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-200 rounded-[2px] text-xs font-semibold transition"
               >
-                {/* Category Header (Draggable) */}
+                <FolderPlus className="w-3.5 h-3.5 text-white" />
+                <span>{t("wallet.newCategory")}</span>
+              </button>
+
+              <button
+                onClick={handleDeriveAccount}
+                disabled={loadingAccounts}
+                className="flex items-center space-x-1.5 px-3.5 py-1.5 bg-white hover:bg-zinc-200 disabled:opacity-40 text-black rounded-[2px] text-xs font-mono uppercase tracking-wider font-bold shadow-[0_0_15px_rgba(255,255,255,0.12)] transition"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>{t("wallet.addDerivedAddress")}</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Create Category Form */}
+          {showAddCategory && (
+            <div className="p-3 bg-zinc-950 border border-zinc-800 rounded-[2px] flex items-center space-x-2">
+              <input
+                type="text"
+                value={newCategoryName}
+                onChange={(e) => setNewCategoryName(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleAddCategory()}
+                placeholder={t("wallet.newCategoryPlaceholder")}
+                className="flex-1 bg-zinc-900 border border-zinc-800 focus:border-white rounded-[2px] px-3 py-1.5 text-xs text-white outline-none"
+                autoFocus
+              />
+              <button
+                onClick={handleAddCategory}
+                className="px-3 py-1.5 bg-white hover:bg-zinc-200 text-black text-xs font-mono uppercase tracking-wider font-bold rounded-[2px] transition"
+              >
+                {t("common.create")}
+              </button>
+              <button
+                onClick={() => setShowAddCategory(false)}
+                className="px-2 py-1.5 text-zinc-400 hover:text-white text-xs"
+              >
+                {t("common.cancel")}
+              </button>
+            </div>
+          )}
+
+          {/* Categories List with Drag and Drop */}
+          <div className="space-y-4">
+            {categories.map((cat, catIndex) => {
+              const allCatAccounts = accounts.filter((a) => a.categoryId === cat.id);
+              const catAccounts = normalizedQuery
+                ? allCatAccounts.filter(
+                    (a) =>
+                      a.name.toLowerCase().includes(normalizedQuery) ||
+                      a.address.toLowerCase().includes(normalizedQuery)
+                  )
+                : allCatAccounts;
+
+              if (normalizedQuery && catAccounts.length === 0) {
+                return null;
+              }
+
+              return (
                 <div
-                  draggable
-                  onDragStart={(e) => handleCategoryDragStart(e, catIndex)}
-                  className="px-4 py-2.5 bg-zinc-900/60 border-b border-zinc-800/70 flex items-center justify-between cursor-move"
+                  key={cat.id}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => {
+                    const dragType = e.dataTransfer.getData("type");
+                    if (dragType === "category") {
+                      handleCategoryDrop(e, catIndex);
+                    } else {
+                      handleAccountDropOnCategory(e, cat.id);
+                    }
+                  }}
+                  className="bg-zinc-950/60 border border-zinc-800/90 rounded-[2px] overflow-hidden"
                 >
-                  <div className="flex items-center space-x-2">
-                    <GripVertical className="w-4 h-4 text-zinc-600 hover:text-zinc-400" />
-                    {editingCategory?.id === cat.id ? (
-                      <div className="flex items-center space-x-1.5" onClick={(e) => e.stopPropagation()}>
-                        <input
-                          type="text"
-                          value={editingCategory.name}
-                          onChange={(e) => setEditingCategory({ ...editingCategory, name: e.target.value })}
-                          className="bg-zinc-950 border border-white rounded px-2 py-0.5 text-xs text-white outline-none font-bold"
-                          autoFocus
-                        />
-                        <button
-                          onClick={handleSaveCategoryName}
-                          className="text-[10px] bg-white text-black font-bold text-white px-2 py-0.5 rounded font-semibold"
+                  {/* Category Header (Draggable) */}
+                  <div
+                    draggable
+                    onDragStart={(e) => handleCategoryDragStart(e, catIndex)}
+                    className="px-4 py-2.5 bg-zinc-900/70 border-b border-zinc-800/70 flex items-center justify-between cursor-move"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <GripVertical className="w-4 h-4 text-zinc-600 hover:text-zinc-400" />
+                      {editingCategory?.id === cat.id ? (
+                        <div
+                          className="flex items-center space-x-1.5"
+                          onClick={(e) => e.stopPropagation()}
                         >
-                          {t("common.save")}
-                        </button>
-                        <button
-                          onClick={() => setEditingCategory(null)}
-                          className="text-[10px] text-zinc-400 hover:text-white"
-                        >
-                          {t("common.cancel")}
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="flex items-center space-x-2">
-                        <span className="text-xs font-bold text-white tracking-wide">{cat.name}</span>
-                        <span className="text-[10px] font-mono text-zinc-500 bg-zinc-900 px-1.5 py-0.5 rounded">
-                          {catAccounts.length}
-                        </span>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setEditingCategory({ id: cat.id, name: cat.name });
-                          }}
-                          className="p-1 text-zinc-500 hover:text-zinc-200"
-                          title={t("wallet.renameCategory")}
-                        >
-                          <Pencil className="w-3 h-3" />
-                        </button>
-                      </div>
+                          <input
+                            type="text"
+                            value={editingCategory.name}
+                            onChange={(e) =>
+                              setEditingCategory({ ...editingCategory, name: e.target.value })
+                            }
+                            className="bg-zinc-950 border border-white rounded-[2px] px-2 py-0.5 text-xs text-white outline-none font-bold"
+                            autoFocus
+                          />
+                          <button
+                            onClick={handleSaveCategoryName}
+                            className="text-[10px] bg-white hover:bg-zinc-200 text-black font-bold px-2 py-0.5 rounded-[2px]"
+                          >
+                            {t("common.save")}
+                          </button>
+                          <button
+                            onClick={() => setEditingCategory(null)}
+                            className="text-[10px] text-zinc-400 hover:text-white"
+                          >
+                            {t("common.cancel")}
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center space-x-2">
+                          <span className="text-xs font-bold text-white tracking-wide">
+                            {cat.name}
+                          </span>
+                          <span className="text-[10px] font-mono text-zinc-400 bg-zinc-950 px-1.5 py-0.5 rounded-[2px] border border-zinc-800">
+                            {catAccounts.length}
+                          </span>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEditingCategory({ id: cat.id, name: cat.name });
+                            }}
+                            className="p-1 text-zinc-500 hover:text-zinc-200"
+                            title={t("wallet.renameCategory")}
+                          >
+                            <Pencil className="w-3 h-3" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    {categories.length > 1 && (
+                      <button
+                        onClick={() => handleDeleteCategory(cat.id)}
+                        className="p-1 text-zinc-600 hover:text-rose-400 transition"
+                        title={t("wallet.deleteCategoryTooltip")}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                     )}
                   </div>
 
-                  {categories.length > 1 && (
-                    <button
-                      onClick={() => handleDeleteCategory(cat.id)}
-                      className="p-1 text-zinc-600 hover:text-white transition"
-                      title={t("wallet.deleteCategoryTooltip")}
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  )}
-                </div>
+                  {/* Accounts inside this Category */}
+                  <div className="p-3 space-y-2.5 min-h-[50px]">
+                    {catAccounts.length === 0 ? (
+                      <div className="p-4 text-center text-xs text-zinc-600 border border-dashed border-zinc-800/80 rounded-[2px]">
+                        {t("wallet.dragAddressesHere")}
+                      </div>
+                    ) : (
+                      catAccounts.map((acc) => {
+                        const isActive = acc.address.toLowerCase() === unlockedAddress?.toLowerCase();
+                        const isPrivKeyRevealed = !!revealedPrivKeys[acc.index];
 
-                {/* Accounts inside this Category */}
-                <div className="p-3 space-y-2.5 min-h-[50px]">
-                  {catAccounts.length === 0 ? (
-                    <div className="p-4 text-center text-xs text-zinc-600 border border-dashed border-zinc-800/80 rounded-[2px]">
-                      {t("wallet.dragAddressesHere")}
-                    </div>
-                  ) : (
-                    catAccounts.map((acc) => {
-                      const isActive = acc.address.toLowerCase() === unlockedAddress?.toLowerCase();
-                      const isPrivKeyRevealed = !!revealedPrivKeys[acc.index];
-
-                      return (
-                        <div
-                          key={acc.address}
-                          draggable
-                          onDragStart={(e) => handleAccountDragStart(e, acc.address)}
-                          className={`p-3.5 rounded-[2px] border transition ${
-                            isActive
-                              ? "bg-white/10 border-white/40 shadow-sm"
-                              : "bg-zinc-900/40 border-zinc-800/70 hover:border-zinc-700"
-                          }`}
-                        >
-                          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-                            {/* Drag handle & Account Details */}
-                            <div className="flex items-start space-x-2.5 min-w-0">
-                              <div className="cursor-move pt-1 text-zinc-600 hover:text-zinc-300">
-                                <GripVertical className="w-4 h-4" />
-                              </div>
-
-                              <div className="min-w-0 space-y-1">
-                                <div className="flex items-center space-x-2 flex-wrap gap-y-1">
-                                  {editingAccountAddress === acc.address ? (
-                                    <div className="flex items-center space-x-1.5">
-                                      <input
-                                        type="text"
-                                        value={accountNameInput}
-                                        onChange={(e) => setAccountNameInput(e.target.value)}
-                                        className="bg-zinc-950 border border-white rounded px-1.5 py-0.5 text-xs text-white outline-none"
-                                        autoFocus
-                                      />
-                                      <button
-                                        onClick={() => handleSaveAccountName(acc.address)}
-                                        className="text-[10px] bg-white text-black font-bold text-white px-1.5 py-0.5 rounded font-semibold"
-                                      >
-                                        {t("common.save")}
-                                      </button>
-                                      <button
-                                        onClick={() => setEditingAccountAddress(null)}
-                                        className="text-[10px] text-zinc-400 hover:text-white"
-                                      >
-                                        {t("common.cancel")}
-                                      </button>
-                                    </div>
-                                  ) : (
-                                    <div className="flex items-center space-x-1.5">
-                                      <span className="text-xs font-bold text-white">{acc.name}</span>
-                                      <button
-                                        onClick={() => {
-                                          setEditingAccountAddress(acc.address);
-                                          setAccountNameInput(acc.name);
-                                        }}
-                                        className="p-0.5 text-zinc-500 hover:text-zinc-200"
-                                        title={t("wallet.renameAddress")}
-                                      >
-                                        <Pencil className="w-2.5 h-2.5" />
-                                      </button>
-                                    </div>
-                                  )}
-
-                                  <span className="text-[10px] font-mono text-zinc-500 bg-zinc-900 px-1 rounded border border-zinc-800">
-                                    {acc.path}
-                                  </span>
-
-                                  {isActive ? (
-                                    <span className="flex items-center space-x-1 text-[10px] text-white bg-white/10 border border-white/20 px-1.5 py-0.5 rounded-full font-mono font-semibold">
-                                      <CheckCircle2 className="w-3 h-3 text-white" />
-                                      <span>{t("common.active")}</span>
-                                    </span>
-                                  ) : (
-                                    onSelectAddress && (
-                                      <button
-                                        onClick={() => onSelectAddress(acc.address)}
-                                        className="text-[10px] text-zinc-400 hover:text-white bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 px-2 py-0.5 rounded transition"
-                                      >
-                                        {t("wallet.useAsActive")}
-                                      </button>
-                                    )
-                                  )}
+                        return (
+                          <div
+                            key={acc.address}
+                            draggable
+                            onDragStart={(e) => handleAccountDragStart(e, acc.address)}
+                            className={`p-3.5 rounded-[2px] border transition ${
+                              isActive
+                                ? "bg-white/[0.06] border-white/40 shadow-[0_0_15px_rgba(255,255,255,0.04)]"
+                                : "bg-zinc-900/40 border-zinc-800/70 hover:border-zinc-700"
+                            }`}
+                          >
+                            <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3">
+                              {/* Drag handle & Account Details */}
+                              <div className="flex items-start space-x-2.5 min-w-0">
+                                <div className="cursor-move pt-1 text-zinc-600 hover:text-zinc-300">
+                                  <GripVertical className="w-4 h-4" />
                                 </div>
 
-                                <div className="flex items-center space-x-2">
-                                  <span className="font-mono text-xs text-zinc-300 truncate select-all">
-                                    {acc.address}
-                                  </span>
-                                  <button
-                                    onClick={() => handleCopyAddress(acc.address)}
-                                    className="p-1 hover:bg-zinc-800 rounded text-zinc-400 hover:text-white transition shrink-0"
-                                    title={t("wallet.copyAddress")}
-                                  >
-                                    {copiedAddress === acc.address ? (
-                                      <Check className="w-3.5 h-3.5 text-white" />
+                                <div className="min-w-0 space-y-1">
+                                  <div className="flex items-center space-x-2 flex-wrap gap-y-1">
+                                    {editingAccountAddress === acc.address ? (
+                                      <div className="flex items-center space-x-1.5">
+                                        <input
+                                          type="text"
+                                          value={accountNameInput}
+                                          onChange={(e) => setAccountNameInput(e.target.value)}
+                                          className="bg-zinc-950 border border-white rounded-[2px] px-1.5 py-0.5 text-xs text-white outline-none"
+                                          autoFocus
+                                        />
+                                        <button
+                                          onClick={() => handleSaveAccountName(acc.address)}
+                                          className="text-[10px] bg-white hover:bg-zinc-200 text-black font-bold px-1.5 py-0.5 rounded-[2px]"
+                                        >
+                                          {t("common.save")}
+                                        </button>
+                                        <button
+                                          onClick={() => setEditingAccountAddress(null)}
+                                          className="text-[10px] text-zinc-400 hover:text-white"
+                                        >
+                                          {t("common.cancel")}
+                                        </button>
+                                      </div>
                                     ) : (
-                                      <Copy className="w-3.5 h-3.5" />
+                                      <div className="flex items-center space-x-1.5">
+                                        <span className="text-xs font-bold text-white">
+                                          {acc.name}
+                                        </span>
+                                        <button
+                                          onClick={() => {
+                                            setEditingAccountAddress(acc.address);
+                                            setAccountNameInput(acc.name);
+                                          }}
+                                          className="p-0.5 text-zinc-500 hover:text-zinc-200"
+                                          title={t("wallet.renameAddress")}
+                                        >
+                                          <Pencil className="w-2.5 h-2.5" />
+                                        </button>
+                                      </div>
+                                    )}
+
+                                    <span className="text-[10px] font-mono text-zinc-500 bg-zinc-950 px-1.5 py-0.5 rounded-[2px] border border-zinc-800">
+                                      {acc.path}
+                                    </span>
+
+                                    {isActive ? (
+                                      <span className="flex items-center space-x-1 text-[10px] text-emerald-300 bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 rounded-full font-mono font-semibold">
+                                        <CheckCircle2 className="w-3 h-3" />
+                                        <span>{t("common.active")}</span>
+                                      </span>
+                                    ) : (
+                                      onSelectAddress && (
+                                        <button
+                                          onClick={() => onSelectAddress(acc.address)}
+                                          className="text-[10px] text-zinc-400 hover:text-white bg-zinc-950 hover:bg-zinc-800 border border-zinc-800 px-2 py-0.5 rounded-[2px] transition font-mono"
+                                        >
+                                          {t("wallet.useAsActive")}
+                                        </button>
+                                      )
+                                    )}
+                                  </div>
+
+                                  <div className="flex items-center space-x-2">
+                                    <span className="font-mono text-xs text-zinc-300 truncate select-all">
+                                      {acc.address}
+                                    </span>
+                                    <button
+                                      onClick={() => handleCopyAddress(acc.address)}
+                                      className="p-1 hover:bg-zinc-800 rounded-[2px] text-zinc-400 hover:text-white transition shrink-0"
+                                      title={t("wallet.copyAddress")}
+                                    >
+                                      {copiedAddress === acc.address ? (
+                                        <Check className="w-3.5 h-3.5 text-emerald-400" />
+                                      ) : (
+                                        <Copy className="w-3.5 h-3.5" />
+                                      )}
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Balance & Actions */}
+                              <div className="flex items-center justify-between xl:justify-end space-x-4 shrink-0 pt-2 xl:pt-0 border-t xl:border-t-0 border-zinc-800/60">
+                                <div className="xl:text-right">
+                                  <div className="text-[10px] text-zinc-500 uppercase tracking-wider font-mono">
+                                    {t("common.balance")}
+                                  </div>
+                                  <div className="text-sm font-bold font-mono text-white">
+                                    {acc.balance}{" "}
+                                    <span className="text-[10px] text-zinc-400">ROGUE</span>
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center space-x-1.5">
+                                  {onNavigateToTransfers && (
+                                    <button
+                                      onClick={() => {
+                                        if (!isActive && onSelectAddress) {
+                                          onSelectAddress(acc.address);
+                                        }
+                                        onNavigateToTransfers();
+                                      }}
+                                      className="flex items-center space-x-1 px-2.5 py-1.5 bg-zinc-900 hover:bg-white text-zinc-200 hover:text-black border border-zinc-700 hover:border-white text-[11px] font-mono font-semibold rounded-[2px] transition"
+                                      title={t("wallet.goToTransfers")}
+                                    >
+                                      <Send className="w-3 h-3" />
+                                      <span>{t("wallet.quickSend")}</span>
+                                    </button>
+                                  )}
+
+                                  <button
+                                    onClick={() => handleCopyPrivateKey(acc.index)}
+                                    className="flex items-center space-x-1 px-2.5 py-1.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 hover:text-white text-xs rounded-[2px] transition"
+                                    title={t("wallet.copyPrivKey")}
+                                  >
+                                    {copiedPrivKey === acc.index ? (
+                                      <>
+                                        <Check className="w-3.5 h-3.5 text-emerald-400" />
+                                        <span className="text-emerald-300 text-[11px] font-mono">
+                                          {t("common.copied")}
+                                        </span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Key className="w-3.5 h-3.5" />
+                                        <span className="text-[11px] font-mono">Key</span>
+                                      </>
+                                    )}
+                                  </button>
+
+                                  <button
+                                    onClick={() => handleToggleRevealPrivateKey(acc.index)}
+                                    className="p-1.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 hover:text-white rounded-[2px] transition"
+                                    title={
+                                      isPrivKeyRevealed
+                                        ? t("wallet.hidePrivKey")
+                                        : t("wallet.revealPrivKey")
+                                    }
+                                  >
+                                    {isPrivKeyRevealed ? (
+                                      <EyeOff className="w-3.5 h-3.5" />
+                                    ) : (
+                                      <Eye className="w-3.5 h-3.5" />
                                     )}
                                   </button>
                                 </div>
                               </div>
                             </div>
 
-                            {/* Balance & Private Key actions */}
-                            <div className="flex items-center justify-between lg:justify-end space-x-4 shrink-0 pt-2 lg:pt-0 border-t lg:border-t-0 border-zinc-800/60">
-                              <div className="text-right">
-                                <div className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold">{t("common.balance")}</div>
-                                <div className="text-sm font-bold font-mono text-white">
-                                  {acc.balance} <span className="text-[10px] text-zinc-400">ROGUE</span>
+                            {/* Inline Revealed Private Key Drawer */}
+                            {isPrivKeyRevealed && (
+                              <div className="mt-3 pt-3 border-t border-zinc-800/80 space-y-2">
+                                <div className="flex items-center justify-between text-[11px] text-zinc-400">
+                                  <span className="font-semibold text-white flex items-center space-x-1">
+                                    <Key className="w-3 h-3 text-white" />
+                                    <span>{t("wallet.privKeyTitle", { name: acc.name })}</span>
+                                  </span>
+                                  <span className="text-[10px] text-zinc-500">
+                                    {t("wallet.hex64")}
+                                  </span>
+                                </div>
+
+                                <div className="flex items-center space-x-2 p-2 bg-zinc-950 border border-rose-900/40 rounded-[2px]">
+                                  <span className="font-mono text-xs text-zinc-200 break-all select-all flex-1">
+                                    {revealedPrivKeys[acc.index]}
+                                  </span>
+                                  <button
+                                    onClick={() => handleCopyPrivateKey(acc.index)}
+                                    className="p-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white rounded-[2px] transition shrink-0"
+                                    title={t("wallet.copyPrivKey")}
+                                  >
+                                    {copiedPrivKey === acc.index ? (
+                                      <Check className="w-3.5 h-3.5 text-emerald-400" />
+                                    ) : (
+                                      <Copy className="w-3.5 h-3.5" />
+                                    )}
+                                  </button>
                                 </div>
                               </div>
-
-                              <div className="flex items-center space-x-1.5">
-                                <button
-                                  onClick={() => handleCopyPrivateKey(acc.index)}
-                                  className="flex items-center space-x-1 px-2.5 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium rounded-[2px] transition"
-                                  title={t("wallet.copyPrivKey")}
-                                >
-                                  {copiedPrivKey === acc.index ? (
-                                    <>
-                                      <Check className="w-3.5 h-3.5 text-white" />
-                                      <span className="text-white text-[11px]">{t("common.copied")}</span>
-                                    </>
-                                  ) : (
-                                    <>
-                                      <Key className="w-3.5 h-3.5 text-white" />
-                                      <span className="text-[11px]">{t("wallet.copyPrivKey")}</span>
-                                    </>
-                                  )}
-                                </button>
-
-                                <button
-                                  onClick={() => handleToggleRevealPrivateKey(acc.index)}
-                                  className="p-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white rounded-[2px] transition"
-                                  title={isPrivKeyRevealed ? t("wallet.hidePrivKey") : t("wallet.revealPrivKey")}
-                                >
-                                  {isPrivKeyRevealed ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                                </button>
-                              </div>
-                            </div>
+                            )}
                           </div>
-
-                          {/* Inline Revealed Private Key Drawer */}
-                          {isPrivKeyRevealed && (
-                            <div className="mt-3 pt-3 border-t border-zinc-800/80 space-y-2 animate-in fade-in duration-150">
-                              <div className="flex items-center justify-between text-[11px] text-zinc-400">
-                                <span className="font-semibold text-white flex items-center space-x-1">
-                                  <Key className="w-3 h-3 text-white" />
-                                  <span>{t("wallet.privKeyTitle", { name: acc.name })}</span>
-                                </span>
-                                <span className="text-[10px] text-zinc-500">{t("wallet.hex64")}</span>
-                              </div>
-
-                              <div className="flex items-center space-x-2 p-2 bg-zinc-900 border border-rose-900/40 rounded-[2px]">
-                                <span className="font-mono text-xs text-zinc-200 break-all select-all flex-1">
-                                  {revealedPrivKeys[acc.index]}
-                                </span>
-                                <button
-                                  onClick={() => handleCopyPrivateKey(acc.index)}
-                                  className="p-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white rounded transition shrink-0"
-                                  title={t("wallet.copyPrivKey")}
-                                >
-                                  {copiedPrivKey === acc.index ? (
-                                    <Check className="w-3.5 h-3.5 text-white" />
-                                  ) : (
-                                    <Copy className="w-3.5 h-3.5" />
-                                  )}
-                                </button>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })
-                  )}
+                        );
+                      })
+                    )}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
+              );
+            })}
 
-      {/* Send Transfer Card */}
-      <div className="p-6 bg-zinc-900/40 border border-zinc-800 rounded-[2px]">
-        <div className="flex items-center space-x-2 pb-4 border-b border-zinc-800">
-          <Send className="w-4 h-4 text-white" />
-          <h2 className="text-sm font-bold text-white uppercase tracking-wider">{t("wallet.transferTitle")}</h2>
-        </div>
-
-        <form onSubmit={handleSend} className="mt-6 space-y-4 max-w-xl">
-          <div>
-            <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1">
-              {t("wallet.recipientAddress")}
-            </label>
-            <input
-              type="text"
-              value={recipient}
-              onChange={(e) => setRecipient(e.target.value.trim())}
-              placeholder="0x..."
-              className="w-full bg-zinc-950 border border-zinc-800 focus:border-white rounded-[2px] px-3.5 py-2 text-sm text-white font-mono outline-none transition"
-              required
-            />
+            {normalizedQuery &&
+              accounts.filter(
+                (a) =>
+                  a.name.toLowerCase().includes(normalizedQuery) ||
+                  a.address.toLowerCase().includes(normalizedQuery)
+              ).length === 0 && (
+                <div className="p-8 text-center text-xs font-mono text-zinc-500 border border-dashed border-zinc-800 rounded-[2px]">
+                  {t("wallet.noMatchingAccounts", { query: searchQuery })}
+                </div>
+              )}
           </div>
+        </div>
+      )}
 
-          <div>
-            <div className="flex justify-between text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1">
-              <span>{t("wallet.transferAmount")}</span>
-              <span>{t("wallet.availableBalance", { balance })}</span>
+      {/* TAB 2: Security & Backup (BIP-39 Seed Phrase) */}
+      {activeSubTab === "security" && (
+        <div className="p-6 bg-[#0A0A0C] border border-white/10 rounded-[2px] space-y-5">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-4 border-b border-zinc-800">
+            <div className="flex items-start space-x-3">
+              <Key className="w-5 h-5 text-white mt-0.5 shrink-0" />
+              <div>
+                <h2 className="text-sm font-bold text-white uppercase tracking-wider font-mono">
+                  {t("wallet.seedTitle", { name: activeWallet.name })}
+                </h2>
+                <p className="text-xs text-zinc-400 mt-0.5">{t("wallet.seedSubtitle")}</p>
+                <p className="text-[11px] text-zinc-500 mt-1">{t("wallet.securityTabDesc")}</p>
+              </div>
             </div>
-            <div className="relative">
-              <input
-                type="number"
-                step="any"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                placeholder="0.00"
-                className="w-full bg-zinc-950 border border-zinc-800 focus:border-white rounded-[2px] px-3.5 py-2 text-sm text-white font-mono outline-none transition pr-20"
-                required
-              />
+
+            <div className="flex items-center space-x-2 shrink-0">
               <button
-                type="button"
-                onClick={async () => {
-                  if (!unlockedAddress) return;
-                  try {
-                    const balWei = await api.getBalanceWei(rpcUrl, unlockedAddress);
-                    const feeWei = 21000n * getTierGasPriceWei(gasTier);
-                    const maxWei = balWei > feeWei ? balWei - feeWei : 0n;
-                    setAmount(formatEther(maxWei));
-                  } catch {
-                    setAmount(balance);
-                  }
-                }}
-                className="absolute right-2 top-1.5 px-2.5 py-1 bg-zinc-800 hover:bg-zinc-700 text-xs text-zinc-300 rounded font-mono transition"
+                onClick={handleToggleMnemonic}
+                disabled={loadingMnemonic}
+                className="flex items-center space-x-1.5 px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-200 text-xs font-medium rounded-[2px] transition"
               >
-                {t("wallet.max")}
+                {showMnemonic ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                <span>{showMnemonic ? t("wallet.hidePhrase") : t("wallet.revealPhrase")}</span>
+              </button>
+
+              <button
+                onClick={handleCopyMnemonic}
+                className="flex items-center space-x-1.5 px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-200 text-xs font-medium rounded-[2px] transition"
+              >
+                {copiedMnemonic ? (
+                  <>
+                    <Check className="w-4 h-4 text-emerald-400" />
+                    <span className="text-emerald-300">{t("common.copied")}</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-4 h-4" />
+                    <span>{t("wallet.copyPhrase")}</span>
+                  </>
+                )}
               </button>
             </div>
           </div>
 
-          {/* EIP-1559 Gas Presets */}
-          <div>
-            <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">
-              {t("wallet.gasSpeedTitle")}
-            </label>
-            <div className="grid grid-cols-3 gap-3">
-              {(
-                [
-                  { id: "slow", label: t("wallet.gas.slow"), fee: "1 Gwei", time: "~60s" },
-                  { id: "normal", label: t("wallet.gas.normal"), fee: "2 Gwei", time: "~30s" },
-                  { id: "fast", label: t("wallet.gas.fast"), fee: "5 Gwei", time: "<30s" },
-                ] as const
-              ).map((tier) => (
-                <div
-                  key={tier.id}
-                  onClick={() => setGasTier(tier.id)}
-                  className={`p-3 rounded-[2px] border text-center cursor-pointer transition ${
-                    gasTier === tier.id
-                      ? "bg-rose-500/10 border-white text-zinc-200"
-                      : "bg-zinc-950/60 border-zinc-800 text-zinc-400 hover:border-zinc-700"
-                  }`}
-                >
-                  <div className="text-xs font-bold">{tier.label}</div>
-                  <div className="text-[11px] font-mono mt-0.5">{tier.fee}</div>
-                  <div className="text-[10px] text-zinc-500 mt-0.5">{tier.time}</div>
-                </div>
-              ))}
-            </div>
-          </div>
+          {showMnemonic ? (
+            <div className="space-y-4 pt-1">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
+                {mnemonicWords.map((word, idx) => (
+                  <div
+                    key={idx}
+                    className="flex items-center space-x-2 p-2.5 bg-zinc-950 border border-zinc-800 rounded-[2px] font-mono text-sm"
+                  >
+                    <span className="text-zinc-500 text-xs select-none w-5 text-right font-sans font-semibold">
+                      {idx + 1}.
+                    </span>
+                    <span className="text-zinc-200 font-medium select-all">{word}</span>
+                  </div>
+                ))}
+              </div>
 
-          {statusMsg && (
-            <div
-              className={`p-3 rounded-[2px] text-xs font-mono border ${
-                statusMsg.type === "success"
-                  ? "bg-emerald-950/40 border-emerald-800 text-zinc-300"
-                  : statusMsg.type === "error"
-                  ? "bg-rose-950/40 border-rose-800 text-zinc-200"
-                  : "bg-zinc-900 border-zinc-700 text-zinc-300"
-              }`}
-            >
-              {statusMsg.text}
+              <div className="flex items-start space-x-2 p-3.5 bg-rose-950/20 border border-rose-800/40 rounded-[2px] text-xs text-zinc-200">
+                <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                <span>
+                  <strong>{t("wallet.criticalSecurity")}</strong>{" "}
+                  {t("wallet.securityNotice", { name: activeWallet.name })}
+                </span>
+              </div>
+            </div>
+          ) : (
+            <div className="p-5 bg-zinc-950/70 border border-zinc-800/80 rounded-[2px] flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-zinc-400">
+              <div className="flex items-center space-x-2 font-mono">
+                <span className="tracking-widest text-zinc-600">
+                  •••••••• •••••••• •••••••• ••••••••
+                </span>
+                <span className="text-zinc-500 text-[11px]">{t("wallet.phraseProtected")}</span>
+              </div>
+              <span className="text-zinc-500 text-[11px]">{t("wallet.clickToReveal")}</span>
             </div>
           )}
+        </div>
+      )}
 
-          <button
-            type="submit"
-            disabled={sending}
-            className="w-full flex items-center justify-center space-x-2 py-2.5 bg-white text-black font-bold hover:bg-rose-500 disabled:opacity-50 text-white rounded-[2px] text-sm font-semibold shadow-md transition"
-          >
-            <Send className="w-4 h-4" />
-            <span>{sending ? t("wallet.transmitting") : t("wallet.sendRogue")}</span>
-          </button>
-        </form>
-      </div>
-
+      {/* Master Password Re-Auth Modal */}
       {secretPrompt && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4">
           <form
@@ -1151,9 +1119,7 @@ export const WalletView: React.FC<WalletViewProps> = ({
               required
               className="w-full bg-black border border-zinc-800 focus:border-white rounded-[2px] px-3 py-2 text-xs font-mono text-white outline-none"
             />
-            {secretError && (
-              <div className="text-xs font-mono text-rose-400">{secretError}</div>
-            )}
+            {secretError && <div className="text-xs font-mono text-rose-400">{secretError}</div>}
             <div className="flex items-center justify-end space-x-2">
               <button
                 type="button"
