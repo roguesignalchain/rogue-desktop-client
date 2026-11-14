@@ -138,7 +138,7 @@
     "revealPrivKey": "查看私钥",
     "privKeyTitle": "{{name}} 的私钥 (ECDSA secp256k1)",
     "hex64": "64位十六进制字符",
-    "transferTitle": "转账 ROGUE (Legacy)",
+    "transferTitle": "转账 ROGUE",
     "recipientAddress": "接收方地址",
     "transferAmount": "转账金额 (ROGUE)",
     "availableBalance": "可用余额: {{balance}} ROGUE",

@@ -138,7 +138,7 @@
     "revealPrivKey": "Reveal private key",
     "privKeyTitle": "Private Key (ECDSA secp256k1) for {{name}}",
     "hex64": "64-character hexadecimal",
-    "transferTitle": "Transfer ROGUE (Legacy)",
+    "transferTitle": "Transfer ROGUE",
     "recipientAddress": "Recipient Address",
     "transferAmount": "Transfer Amount (ROGUE)",
     "availableBalance": "Available: {{balance}} ROGUE",

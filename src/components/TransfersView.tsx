@@ -243,20 +243,6 @@ export const TransfersView: React.FC<TransfersViewProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-zinc-800">
-        <div>
-          <h1 className="text-xl font-black text-white tracking-tight flex items-center space-x-2">
-            <Send className="w-5 h-5 text-white" />
-            <span>{t("transfers.title")}</span>
-          </h1>
-          <p className="text-xs text-zinc-400 mt-0.5">{t("transfers.subtitle")}</p>
-        </div>
-        <span className="self-start sm:self-auto text-[10px] font-mono px-2.5 py-1 bg-zinc-900 border border-zinc-800 text-zinc-400 rounded-[2px]">
-          {t("transfers.chainBadge")}
-        </span>
-      </div>
-
       {/* Main 2-column Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Left: Send Form (7 cols) */}
