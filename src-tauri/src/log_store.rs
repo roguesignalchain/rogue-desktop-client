@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::fs::{self, File, OpenOptions};
-use std::io::{BufRead, BufReader, Write};
+use std::io::{BufRead, BufReader, BufWriter, Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -8,21 +8,36 @@ use std::time::{SystemTime, UNIX_EPOCH};
 const MAX_LOG_FILE_BYTES: u64 = 10 * 1024 * 1024; // 10 MB per file
 const MAX_ROTATED_FILES: usize = 5; // Keep node.log + node.log.1..node.log.5 (~50 MB max)
 
-static LOG_MUTEX: Mutex<Option<PathBuf>> = Mutex::new(None);
+struct LogState {
+    dir: Option<PathBuf>,
+    writer: Option<BufWriter<File>>,
+    current_size: u64,
+}
 
-fn lock_logs_dir() -> std::sync::MutexGuard<'static, Option<PathBuf>> {
+static LOG_MUTEX: Mutex<LogState> = Mutex::new(LogState {
+    dir: None,
+    writer: None,
+    current_size: 0,
+});
+
+fn lock_log_state() -> std::sync::MutexGuard<'static, LogState> {
     LOG_MUTEX.lock().unwrap_or_else(|e| e.into_inner())
 }
 
 pub fn set_active_logs_dir(dir: PathBuf) {
     let _ = fs::create_dir_all(&dir);
-    let mut guard = lock_logs_dir();
-    *guard = Some(dir);
+    let mut guard = lock_log_state();
+    if let Some(ref mut w) = guard.writer {
+        let _ = w.flush();
+    }
+    guard.writer = None;
+    guard.current_size = 0;
+    guard.dir = Some(dir);
 }
 
 pub fn get_active_logs_dir() -> PathBuf {
-    let guard = lock_logs_dir();
-    if let Some(ref dir) = *guard {
+    let guard = lock_log_state();
+    if let Some(ref dir) = guard.dir {
         return dir.clone();
     }
     drop(guard);
@@ -109,9 +124,51 @@ pub fn append_line_to_dir(logs_dir: &Path, source: &str, line: &str) -> Result<(
 }
 
 pub fn append_line(source: &str, line: &str) {
-    let dir = get_active_logs_dir();
-    let _guard = LOG_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
-    let _ = append_line_to_dir(&dir, source, line);
+    let fallback_dir = {
+        let guard = lock_log_state();
+        guard.dir.clone()
+    };
+    let dir = match fallback_dir {
+        Some(d) => d,
+        None => {
+            let d = crate::process_manager::default_logs_dir();
+            let _ = fs::create_dir_all(&d);
+            d
+        }
+    };
+
+    let mut guard = lock_log_state();
+    if guard.dir.is_none() {
+        let _ = fs::create_dir_all(&dir);
+        guard.dir = Some(dir.clone());
+    }
+
+    if guard.current_size >= MAX_LOG_FILE_BYTES {
+        if let Some(ref mut w) = guard.writer {
+            let _ = w.flush();
+        }
+        guard.writer = None;
+        rotate_if_needed(&dir, MAX_LOG_FILE_BYTES, MAX_ROTATED_FILES);
+        guard.current_size = 0;
+    }
+
+    if guard.writer.is_none() {
+        let _ = fs::create_dir_all(&dir);
+        let active_file = dir.join("node.log");
+        if let Ok(file) = OpenOptions::new().create(true).append(true).open(&active_file) {
+            guard.current_size = file.metadata().map(|m| m.len()).unwrap_or(0);
+            guard.writer = Some(BufWriter::new(file));
+        }
+    }
+
+    if let Some(ref mut writer) = guard.writer {
+        let clean_line = line.trim_end_matches(&['\r', '\n'][..]);
+        let ts = current_utc_timestamp();
+        let formatted = format!("[{}] [{}] {}\n", ts, source, clean_line);
+        if writer.write_all(formatted.as_bytes()).is_ok() {
+            guard.current_size += formatted.len() as u64;
+        }
+    }
 }
 
 fn collect_log_files_chronological(logs_dir: &Path) -> Vec<PathBuf> {
@@ -137,27 +194,71 @@ pub struct LogPageResult {
     pub logs_dir: String,
 }
 
+fn count_file_lines(path: &Path) -> Result<usize, String> {
+    let file = File::open(path).map_err(|e| format!("Failed to open {:?}: {}", path, e))?;
+    let mut reader = BufReader::new(file);
+    let mut count = 0usize;
+    let mut buf = [0u8; 32 * 1024];
+    let mut last_byte = None;
+    loop {
+        let n = reader.read(&mut buf).map_err(|e| format!("Failed to read {:?}: {}", path, e))?;
+        if n == 0 {
+            break;
+        }
+        count += buf[..n].iter().filter(|&&b| b == b'\n').count();
+        last_byte = Some(buf[n - 1]);
+    }
+    if matches!(last_byte, Some(b) if b != b'\n') {
+        count += 1;
+    }
+    Ok(count)
+}
+
 pub fn read_paginated_from_dir(
     logs_dir: &Path,
     offset_from_end: usize,
     limit: usize,
 ) -> Result<LogPageResult, String> {
     let files = collect_log_files_chronological(logs_dir);
-    let mut all_lines = Vec::new();
+    let mut file_counts = Vec::with_capacity(files.len());
+    let mut total_lines = 0usize;
 
-    for path in files {
-        let file = File::open(&path).map_err(|e| format!("Failed to open {:?}: {}", path, e))?;
-        let reader = BufReader::new(file);
-        for line in reader.lines().map_while(Result::ok) {
-            all_lines.push(line);
-        }
+    for path in &files {
+        let c = count_file_lines(path)?;
+        total_lines += c;
+        file_counts.push((path, c));
     }
 
-    let total_lines = all_lines.len();
     let safe_limit = limit.clamp(1, 5_000);
     let end = total_lines.saturating_sub(offset_from_end);
     let start = end.saturating_sub(safe_limit);
-    let slice = all_lines[start..end].to_vec();
+    let mut slice = Vec::with_capacity(end.saturating_sub(start));
+
+    let mut global_idx = 0usize;
+    for (path, count) in file_counts {
+        let file_start = global_idx;
+        let file_end = global_idx + count;
+        global_idx = file_end;
+
+        if file_end <= start {
+            continue;
+        }
+        if file_start >= end {
+            break;
+        }
+
+        let file = File::open(path).map_err(|e| format!("Failed to open {:?}: {}", path, e))?;
+        let reader = BufReader::new(file);
+        for (local_idx, line) in reader.lines().map_while(Result::ok).enumerate() {
+            let line_global = file_start + local_idx;
+            if line_global >= end {
+                break;
+            }
+            if line_global >= start {
+                slice.push(line);
+            }
+        }
+    }
 
     Ok(LogPageResult {
         lines: slice,
@@ -170,7 +271,6 @@ pub fn read_paginated_from_dir(
 /// Redact sensitive secrets (mnemonic, private key, password, passphrase) from log lines
 /// before exporting a diagnostic bundle for user support.
 pub fn sanitize_log_line(line: &str) -> String {
-    let lower = line.to_lowercase();
     let sensitive_keys = [
         "mnemonic",
         "privatekey",
@@ -182,11 +282,14 @@ pub fn sanitize_log_line(line: &str) -> String {
         "seedphrase",
     ];
 
+    let lower = line.to_lowercase();
     if sensitive_keys.iter().any(|k| lower.contains(k)) {
-        // Preserve timestamp & prefix if present, redact payload after sensitive key
-        if let Some(pos) = sensitive_keys.iter().filter_map(|k| lower.find(k)).min() {
-            let prefix = &line[..pos];
-            return format!("{}[REDACTED_SENSITIVE_DATA]", prefix);
+        // Scan char boundaries in the original string so slicing is always valid UTF-8
+        for (idx, _) in line.char_indices() {
+            let tail_lower = line[idx..].to_lowercase();
+            if sensitive_keys.iter().any(|k| tail_lower.starts_with(k)) {
+                return format!("{}[REDACTED_SENSITIVE_DATA]", &line[..idx]);
+            }
         }
         return "[REDACTED_SENSITIVE_DATA]".to_string();
     }
@@ -227,22 +330,27 @@ pub fn append_app_log(level: String, message: String) -> Result<(), String> {
         "ERROR" | "WARN" | "INFO" | "DEBUG" => level.to_uppercase(),
         _ => "INFO".to_string(),
     };
-    let dir = get_active_logs_dir();
-    let _guard = LOG_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
-    append_line_to_dir(&dir, "App", &format!("{} {}", tag, message))
+    append_line("App", &format!("{} {}", tag, message));
+    Ok(())
 }
 
 #[tauri::command]
 pub fn read_node_logs(offset_from_end: usize, limit: usize) -> Result<LogPageResult, String> {
     let dir = get_active_logs_dir();
-    let _guard = LOG_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
+    let mut guard = lock_log_state();
+    if let Some(ref mut w) = guard.writer {
+        let _ = w.flush();
+    }
     read_paginated_from_dir(&dir, offset_from_end, limit)
 }
 
 #[tauri::command]
 pub fn export_diagnostic_log(target_path: String, diagnostic_header: String) -> Result<usize, String> {
     let dir = get_active_logs_dir();
-    let _guard = LOG_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
+    let mut guard = lock_log_state();
+    if let Some(ref mut w) = guard.writer {
+        let _ = w.flush();
+    }
     export_diagnostic_to_path(&dir, Path::new(&target_path), &diagnostic_header)
 }
 

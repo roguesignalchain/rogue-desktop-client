@@ -128,14 +128,18 @@ export const App: React.FC = () => {
         const { listen } = await import("@tauri-apps/api/event");
         if (isCancelled) return;
 
-        const unlistenNode = await listen<string>("node-log", (event) => {
-          const line = event.payload;
-          setLogs((prev) => [...prev.slice(-1500), `[Geth] ${line}`]);
+        const unlistenBatch = await listen<string[]>("node-log-batch", (event) => {
+          const lines = event.payload;
+          if (!Array.isArray(lines) || lines.length === 0) return;
+          setLogs((prev) => [
+            ...prev,
+            ...lines.map((line) => `[Geth] ${line}`),
+          ].slice(-1500));
         });
         if (isCancelled) {
-          unlistenNode();
+          unlistenBatch();
         } else {
-          cleanups.push(unlistenNode);
+          cleanups.push(unlistenBatch);
         }
       } catch (err) {
         // Outside of Tauri context or mocking
@@ -225,7 +229,7 @@ export const App: React.FC = () => {
     setActiveWallet(null);
     setAllWallets([]);
     setDerivedAccounts([]);
-    setLogs((prev) => [...prev, t("logs.vaultLocked")]);
+    setLogs((prev) => [...prev.slice(-1500), t("logs.vaultLocked")]);
   };
 
   const handleWalletUnlocked = async (
@@ -265,7 +269,7 @@ export const App: React.FC = () => {
     } catch {
       // Node might not be ready yet
     }
-    setLogs((prev) => [...prev, t("logs.vaultUnlocked", { name: found.name, address: targetAddr })]);
+    setLogs((prev) => [...prev.slice(-1500), t("logs.vaultUnlocked", { name: found.name, address: targetAddr })]);
   };
 
   const handleSwitchWalletRequest = async (walletId: string) => {
@@ -432,7 +436,7 @@ export const App: React.FC = () => {
         const elapsed = (Date.now() - lastActivityRef.current) / 1000 / 60;
         if (elapsed >= autoLockMinutes) {
           handleLockWallet();
-          setLogs((prev) => [...prev, t("logs.autoLockedInactivity")]);
+          setLogs((prev) => [...prev.slice(-1500), t("logs.autoLockedInactivity")]);
         }
       }
     }, 15000);
@@ -629,7 +633,7 @@ export const App: React.FC = () => {
           attempts++;
           const delay = Math.pow(2, attempts) * 1000;
           setLogs((prev) => [
-            ...prev,
+            ...prev.slice(-1500),
             `[Auto-Start] Retry attempt ${attempts}/3 in ${delay / 1000}s...`,
           ]);
           retryTimer = setTimeout(tryAutoStart, delay);
@@ -650,7 +654,7 @@ export const App: React.FC = () => {
     for (const enode of enodes) {
       try {
         await api.addPeer(rpcUrl, enode);
-        setLogs((prev) => [...prev, `[P2P] Added peer/bootnode: ${enode}`]);
+        setLogs((prev) => [...prev.slice(-1500), `[P2P] Added peer/bootnode: ${enode}`]);
       } catch (err) {
         console.warn("Failed to add peer:", err);
       }

@@ -465,29 +465,65 @@ pub async fn start_node(app: AppHandle, config: NodeConfig) -> Result<String, St
     let pid = child.id();
     write_pid_file(&pid_file, pid);
 
-    // Stream logs in background (both stdout and stderr, persisted to rotating node.log)
-    if let Some(stdout) = child.stdout.take() {
+    // Stream logs in background (batched over IPC every ~120ms to avoid flooding the WebView)
+    let (log_tx, log_rx) = std::sync::mpsc::channel::<String>();
+    {
         let app_handle = app.clone();
+        std::thread::spawn(move || {
+            let mut batch: Vec<String> = Vec::with_capacity(64);
+            let mut last_flush = std::time::Instant::now();
+            loop {
+                match log_rx.recv_timeout(std::time::Duration::from_millis(120)) {
+                    Ok(line) => {
+                        batch.push(line);
+                        if batch.len() >= 50 || last_flush.elapsed() >= std::time::Duration::from_millis(120) {
+                            let _ = app_handle.emit("node-log-batch", &batch);
+                            batch.clear();
+                            last_flush = std::time::Instant::now();
+                        }
+                    }
+                    Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+                        if !batch.is_empty() {
+                            let _ = app_handle.emit("node-log-batch", &batch);
+                            batch.clear();
+                            last_flush = std::time::Instant::now();
+                        }
+                    }
+                    Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+                        if !batch.is_empty() {
+                            let _ = app_handle.emit("node-log-batch", &batch);
+                        }
+                        break;
+                    }
+                }
+            }
+        });
+    }
+
+    if let Some(stdout) = child.stdout.take() {
+        let tx = log_tx.clone();
         std::thread::spawn(move || {
             use std::io::{BufRead, BufReader};
             let reader = BufReader::new(stdout);
             for line in reader.lines().flatten() {
                 crate::log_store::append_line("Geth", &line);
-                let _ = app_handle.emit("node-log", line);
+                let _ = tx.send(line);
             }
         });
     }
 
     if let Some(stderr) = child.stderr.take() {
-        let app_handle = app.clone();
+        let tx = log_tx;
         std::thread::spawn(move || {
             use std::io::{BufRead, BufReader};
             let reader = BufReader::new(stderr);
             for line in reader.lines().flatten() {
                 crate::log_store::append_line("Geth", &line);
-                let _ = app_handle.emit("node-log", line);
+                let _ = tx.send(line);
             }
         });
+    } else {
+        drop(log_tx);
     }
 
     {
