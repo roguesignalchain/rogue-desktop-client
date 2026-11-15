@@ -10,12 +10,15 @@ import "@fontsource/jetbrains-mono/500.css";
 import "@fontsource/jetbrains-mono/600.css";
 import "@fontsource/jetbrains-mono/700.css";
 import { App } from "./App";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import "./index.css";
 import "./i18n";
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
-    <App />
+    <ErrorBoundary>
+      <App />
+    </ErrorBoundary>
   </React.StrictMode>
 );
 

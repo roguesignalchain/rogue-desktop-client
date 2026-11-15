@@ -1,18 +1,19 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, lazy, Suspense } from "react";
 import { useTranslation } from "react-i18next";
 import { Navbar } from "./components/Navbar";
 import { Sidebar, TabType } from "./components/Sidebar";
-import { Dashboard } from "./components/Dashboard";
-import { WalletView } from "./components/WalletView";
-import { TransfersView } from "./components/TransfersView";
-import { MiningView } from "./components/MiningView";
-import { ExplorerView } from "./components/ExplorerView";
-import { NodeConsoleView } from "./components/NodeConsoleView";
-import { SettingsView } from "./components/SettingsView";
 import { WalletModal } from "./components/WalletModal";
 import { Block, ExplorerRoute, NodeStatus, SyncStatus, WalletSummary, AccountInfo, MinerGamificationStats, RankInfo } from "./types";
 import { api, formatWeiToRogue } from "./services/api";
 import { Loader2, ShieldAlert, AlertTriangle } from "lucide-react";
+
+const Dashboard = lazy(() => import("./components/Dashboard").then((m) => ({ default: m.Dashboard })));
+const WalletView = lazy(() => import("./components/WalletView").then((m) => ({ default: m.WalletView })));
+const TransfersView = lazy(() => import("./components/TransfersView").then((m) => ({ default: m.TransfersView })));
+const MiningView = lazy(() => import("./components/MiningView").then((m) => ({ default: m.MiningView })));
+const ExplorerView = lazy(() => import("./components/ExplorerView").then((m) => ({ default: m.ExplorerView })));
+const NodeConsoleView = lazy(() => import("./components/NodeConsoleView").then((m) => ({ default: m.NodeConsoleView })));
+const SettingsView = lazy(() => import("./components/SettingsView").then((m) => ({ default: m.SettingsView })));
 
 const DEFAULT_HTTP_PORT = 38845;
 const DEFAULT_WS_PORT = 0; // Disabled by default to avoid port collision with local nodes
@@ -749,6 +750,13 @@ export const App: React.FC = () => {
         />
 
         <main className="flex-1 overflow-y-auto p-6">
+          <Suspense
+            fallback={
+              <div className="h-full flex items-center justify-center text-zinc-500">
+                <Loader2 className="w-6 h-6 animate-spin" />
+              </div>
+            }
+          >
           {currentTab === "dashboard" && (
             <Dashboard
               balance={balance}
@@ -864,6 +872,7 @@ export const App: React.FC = () => {
               onSaveNodeConfig={handleSaveNodeConfig}
             />
           )}
+          </Suspense>
         </main>
       </div>
 
