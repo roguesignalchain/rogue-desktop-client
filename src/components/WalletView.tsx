@@ -136,6 +136,20 @@ export const WalletView: React.FC<WalletViewProps> = ({
     loadAccounts(activeWallet.id, currentCats);
   }, [activeWallet?.id, rpcUrl]);
 
+  // Auto-hide revealed secrets in WebView state after 45 seconds
+  useEffect(() => {
+    const hasRevealedPrivKeys = Object.keys(revealedPrivKeys).length > 0;
+    if (!showMnemonic && !hasRevealedPrivKeys) return;
+
+    const timer = setTimeout(() => {
+      setShowMnemonic(false);
+      setMnemonic("");
+      setRevealedPrivKeys({});
+    }, 45000);
+
+    return () => clearTimeout(timer);
+  }, [showMnemonic, revealedPrivKeys]);
+
   // Load Derived Accounts & Balances
   const loadAccounts = async (walletId: string, currentCats: WalletCategory[]) => {
     try {

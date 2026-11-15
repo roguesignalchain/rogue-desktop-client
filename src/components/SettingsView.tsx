@@ -19,6 +19,7 @@ import {
   Check,
   X,
   Info,
+  FolderOpen,
 } from "lucide-react";
 import { NodeStatus, SystemSpecs } from "../types";
 import { api } from "../services/api";
@@ -75,13 +76,25 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [localRpc, setLocalRpc] = useState(rpcUrl);
   const [localLock, setLocalLock] = useState(autoLockMinutes);
   const [datadir, setDatadir] = useState(nodeDatadir);
-  const [httpPort, setHttpPort] = useState(nodeHttpPort);
-  const [wsPort, setWsPort] = useState(nodeWsPort);
-  const [p2pPort, setP2pPort] = useState(nodeP2pPort);
+  const [p2pPortStr, setP2pPortStr] = useState(String(nodeP2pPort));
+  const [httpPortStr, setHttpPortStr] = useState(String(nodeHttpPort));
+  const [wsPortStr, setWsPortStr] = useState(String(nodeWsPort));
   const [bootnodes, setBootnodes] = useState(nodeBootnodes);
   const [cache, setCache] = useState(nodeCache);
   const [syncmode, setSyncmode] = useState<"full" | "snap">(nodeSyncmode);
   const [verbosity, setVerbosity] = useState(nodeVerbosity);
+
+  const parsePort = (raw: string, fallback: number, allowZero: boolean = false): number => {
+    const n = parseInt(raw.trim(), 10);
+    if (Number.isNaN(n)) return fallback;
+    if (allowZero && n === 0) return 0;
+    if (n < 1 || n > 65535) return fallback;
+    return n;
+  };
+
+  const p2pPort = parsePort(p2pPortStr, nodeP2pPort);
+  const httpPort = parsePort(httpPortStr, nodeHttpPort);
+  const wsPort = parsePort(wsPortStr, nodeWsPort, true);
 
   const [saved, setSaved] = useState(false);
   const [showDangerConfirm, setShowDangerConfirm] = useState(false);
@@ -162,13 +175,28 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     setLocalRpc("http://127.0.0.1:38845");
     setLocalLock(15);
     setDatadir("");
-    setHttpPort(38845);
-    setWsPort(0);
-    setP2pPort(38888);
+    setHttpPortStr("38845");
+    setWsPortStr("0");
+    setP2pPortStr("38888");
     setBootnodes("");
     setCache(256);
     setSyncmode("full");
     setVerbosity(3);
+  };
+
+  const handleBrowseDatadir = async () => {
+    try {
+      const { open } = await import("@tauri-apps/plugin-dialog");
+      const selected = await open({
+        directory: true,
+        multiple: false,
+      });
+      if (typeof selected === "string" && selected.trim()) {
+        setDatadir(selected.trim());
+      }
+    } catch {
+      // Ignore outside Tauri or cancelled
+    }
   };
 
   const syncRpcWithNodePort = () => {
@@ -320,9 +348,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   {t("settings.p2pPort")}
                 </label>
                 <input
-                  type="number"
-                  value={p2pPort}
-                  onChange={(e) => setP2pPort(parseInt(e.target.value) || 38888)}
+                  type="text"
+                  inputMode="numeric"
+                  value={p2pPortStr}
+                  onChange={(e) => setP2pPortStr(e.target.value.replace(/[^0-9]/g, ""))}
+                  onBlur={() => setP2pPortStr(String(parsePort(p2pPortStr, 38888)))}
                   placeholder="38888"
                   className={numberInputClass}
                 />
@@ -336,12 +366,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   {t("settings.httpPort")}
                 </label>
                 <input
-                  type="number"
-                  value={httpPort}
-                  onChange={(e) => {
-                    const port = parseInt(e.target.value) || 38845;
-                    setHttpPort(port);
-                  }}
+                  type="text"
+                  inputMode="numeric"
+                  value={httpPortStr}
+                  onChange={(e) => setHttpPortStr(e.target.value.replace(/[^0-9]/g, ""))}
+                  onBlur={() => setHttpPortStr(String(parsePort(httpPortStr, 38845)))}
                   placeholder="38845"
                   className={numberInputClass}
                 />
@@ -355,9 +384,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   {t("settings.wsPort")}
                 </label>
                 <input
-                  type="number"
-                  value={wsPort}
-                  onChange={(e) => setWsPort(parseInt(e.target.value, 10) || 0)}
+                  type="text"
+                  inputMode="numeric"
+                  value={wsPortStr}
+                  onChange={(e) => setWsPortStr(e.target.value.replace(/[^0-9]/g, ""))}
+                  onBlur={() => setWsPortStr(String(parsePort(wsPortStr, 0, true)))}
                   placeholder="38846"
                   className={numberInputClass}
                 />
@@ -373,13 +404,22 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 <HardDrive className="w-3.5 h-3.5 text-white" />
                 <span>{t("settings.datadirLabel")}</span>
               </label>
-              <input
-                type="text"
-                value={datadir}
-                onChange={(e) => setDatadir(e.target.value)}
-                placeholder="OS Default (~/.local/share/rogue-signal/chaindata)"
-                className={inputBaseClass}
-              />
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={datadir}
+                  onChange={(e) => setDatadir(e.target.value)}
+                  placeholder="OS Default (~/.local/share/rogue-signal/chaindata)"
+                  className={inputBaseClass}
+                />
+                <button
+                  type="button"
+                  onClick={handleBrowseDatadir}
+                  className="px-3 py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-white rounded-[2px] text-xs font-mono flex items-center space-x-1.5 shrink-0 transition"
+                >
+                  <FolderOpen className="w-3.5 h-3.5" />
+                </button>
+              </div>
               <span className="text-[10px] text-zinc-500 mt-1.5 block">
                 {t("settings.datadirHint")}
               </span>
@@ -519,12 +559,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   {t("settings.syncmodeLabel")}
                 </label>
                 <select
-                  value={syncmode}
-                  onChange={(e) => setSyncmode(e.target.value as "full" | "snap")}
-                  className={inputBaseClass}
+                  value="full"
+                  disabled
+                  className={`${inputBaseClass} opacity-75 cursor-not-allowed`}
                 >
                   <option value="full">{t("settings.syncmodeOptions.full")}</option>
-                  <option value="snap" disabled>{t("settings.syncmodeOptions.snap")}</option>
                 </select>
                 <span className="text-[10px] text-zinc-500 mt-1.5 block">
                   {t("settings.syncmodeHint")}
