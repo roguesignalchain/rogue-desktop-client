@@ -112,6 +112,7 @@ pub fn run() {
             wallet::sign_transaction,
             wallet::sign_raw_transaction,
             rpc::call_rpc,
+            rpc::call_rpc_batch,
             update_tray_labels
         ])
         .build(tauri::generate_context!())
