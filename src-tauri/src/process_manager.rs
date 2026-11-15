@@ -500,9 +500,25 @@ fn start_node_sync(app: AppHandle, config: NodeConfig) -> Result<String, String>
 
     crate::log_store::set_active_logs_dir(datadir.join("logs"));
 
-    let mut child = cmd
-        .spawn()
-        .map_err(|e| format!("Failed to start geth node at {:?}: {}", geth_bin, e))?;
+    // Spawn inside a dedicated OS thread that stays alive for the child's lifetime.
+    // On Linux, PR_SET_PDEATHSIG triggers when the spawning *thread* exits, so spawning
+    // directly on Tokio's spawn_blocking pool would send SIGTERM after Tokio's 10s idle timeout.
+    let (spawn_tx, spawn_rx) = std::sync::mpsc::sync_channel::<Result<Child, String>>(1);
+    let (keep_alive_tx, keep_alive_rx) = std::sync::mpsc::sync_channel::<()>(0);
+    std::thread::spawn(move || {
+        let res = cmd
+            .spawn()
+            .map_err(|e| format!("Failed to start geth node at {:?}: {}", geth_bin, e));
+        let ok = res.is_ok();
+        let _ = spawn_tx.send(res);
+        if ok {
+            let _ = keep_alive_rx.recv();
+        }
+    });
+
+    let mut child = spawn_rx
+        .recv()
+        .map_err(|e| format!("Failed to receive node spawn result: {}", e))??;
     let pid = child.id();
     write_pid_file(&pid_file, pid);
 
@@ -511,6 +527,7 @@ fn start_node_sync(app: AppHandle, config: NodeConfig) -> Result<String, String>
     {
         let app_handle = app.clone();
         std::thread::spawn(move || {
+            let _keep_spawner_alive = keep_alive_tx;
             let mut batch: Vec<String> = Vec::with_capacity(64);
             let mut last_flush = std::time::Instant::now();
             loop {
