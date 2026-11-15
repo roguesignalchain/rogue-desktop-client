@@ -6,17 +6,44 @@ pub mod rpc;
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{TrayIconBuilder, TrayIconEvent},
-    Manager, RunEvent,
+    Manager, RunEvent, Wry,
 };
+
+struct TrayMenuItems {
+    show: MenuItem<Wry>,
+    quit: MenuItem<Wry>,
+}
+
+#[tauri::command]
+fn update_tray_labels(
+    show_label: String,
+    quit_label: String,
+    state: tauri::State<'_, TrayMenuItems>,
+) -> Result<(), String> {
+    let _ = state.show.set_text(show_label);
+    let _ = state.quit.set_text(quit_label);
+    Ok(())
+}
 
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            if let Some(win) = app.get_webview_window("main") {
+                let _ = win.show();
+                let _ = win.unminimize();
+                let _ = win.set_focus();
+            }
+        }))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
         .setup(|app| {
-            let show_i = MenuItem::with_id(app, "show", "Mostrar Ventana", true, None::<&str>)?;
-            let quit_i = MenuItem::with_id(app, "quit", "Detener Nodo y Salir", true, None::<&str>)?;
+            let show_i = MenuItem::with_id(app, "show", "Show Window", true, None::<&str>)?;
+            let quit_i = MenuItem::with_id(app, "quit", "Stop Node & Quit", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&show_i, &quit_i])?;
+            app.manage(TrayMenuItems {
+                show: show_i.clone(),
+                quit: quit_i.clone(),
+            });
 
             let _tray = TrayIconBuilder::new()
                 .icon(app.default_window_icon().unwrap().clone())
@@ -84,7 +111,8 @@ pub fn run() {
             wallet::get_private_key,
             wallet::sign_transaction,
             wallet::sign_raw_transaction,
-            rpc::call_rpc
+            rpc::call_rpc,
+            update_tray_labels
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

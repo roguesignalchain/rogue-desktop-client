@@ -519,6 +519,8 @@
       "30": "30 minutos",
       "0": "No bloquear automáticamente"
     },
+    "closeToTrayLabel": "Minimizar a la bandeja del sistema al cerrar",
+    "closeToTrayHint": "Mantiene el nodo ejecutándose en segundo plano al cerrar la ventana. Usa el menú de la bandeja para salir por completo.",
     "savedSuccess": "Guardado con Éxito",
     "saveChanges": "Guardar Cambios",
     "resetDefaults": "Restaurar Valores por Defecto",
@@ -560,6 +562,10 @@
     "walletRemoved": "[Wallet] Billetera eliminada.",
     "addressSelected": "[Wallet] Dirección activa seleccionada: {{address}}",
     "autoLockedInactivity": "[Seguridad] Billetera bloqueada automáticamente por inactividad."
+  },
+  "tray": {
+    "showWindow": "Mostrar Ventana",
+    "quitAndStop": "Detener Nodo y Salir"
   },
   "languages": {
     "en": "English",

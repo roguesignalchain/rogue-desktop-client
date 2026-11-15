@@ -519,6 +519,8 @@
       "30": "30 minutes",
       "0": "Do not lock automatically"
     },
+    "closeToTrayLabel": "Minimize to System Tray on close",
+    "closeToTrayHint": "Keep the node running in the background when closing the window. Use the tray menu to quit completely.",
     "savedSuccess": "Saved Successfully",
     "saveChanges": "Save Changes",
     "resetDefaults": "Reset to Defaults",
@@ -560,6 +562,10 @@
     "walletRemoved": "[Wallet] Wallet removed.",
     "addressSelected": "[Wallet] Active address selected: {{address}}",
     "autoLockedInactivity": "[Security] Wallet automatically locked due to inactivity."
+  },
+  "tray": {
+    "showWindow": "Show Window",
+    "quitAndStop": "Stop Node & Quit"
   },
   "languages": {
     "en": "English",

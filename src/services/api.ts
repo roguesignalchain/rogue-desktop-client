@@ -70,6 +70,14 @@ export const api = {
     return safeInvoke("exit_app");
   },
 
+  updateTrayLabels: async (showLabel: string, quitLabel: string): Promise<void> => {
+    try {
+      await safeInvoke("update_tray_labels", { showLabel, quitLabel });
+    } catch {
+      // Ignore outside Tauri context
+    }
+  },
+
   getNodeStatus: async (): Promise<NodeStatus> => {
     try {
       return await safeInvoke<NodeStatus>("get_node_status");

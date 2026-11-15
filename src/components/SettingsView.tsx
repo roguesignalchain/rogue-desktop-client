@@ -29,6 +29,8 @@ interface SettingsViewProps {
   onSaveRpcUrl: (url: string) => void;
   autoLockMinutes: number;
   onSaveAutoLockMinutes: (mins: number) => void;
+  closeToTray: boolean;
+  onSaveCloseToTray: (enabled: boolean) => void;
   nodeDatadir: string;
   nodeHttpPort: number;
   nodeWsPort: number;
@@ -58,6 +60,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   onSaveRpcUrl,
   autoLockMinutes,
   onSaveAutoLockMinutes,
+  closeToTray,
+  onSaveCloseToTray,
   nodeDatadir,
   nodeHttpPort,
   nodeWsPort,
@@ -75,6 +79,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const { t } = useTranslation();
   const [localRpc, setLocalRpc] = useState(rpcUrl);
   const [localLock, setLocalLock] = useState(autoLockMinutes);
+  const [localCloseToTray, setLocalCloseToTray] = useState(closeToTray);
   const [datadir, setDatadir] = useState(nodeDatadir);
   const [p2pPortStr, setP2pPortStr] = useState(String(nodeP2pPort));
   const [httpPortStr, setHttpPortStr] = useState(String(nodeHttpPort));
@@ -157,6 +162,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     e.preventDefault();
     onSaveRpcUrl(localRpc);
     onSaveAutoLockMinutes(localLock);
+    onSaveCloseToTray(localCloseToTray);
     onSaveNodeConfig({
       datadir,
       httpPort,
@@ -238,6 +244,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const hasUnsavedChanges =
     localRpc !== rpcUrl ||
     localLock !== autoLockMinutes ||
+    localCloseToTray !== closeToTray ||
     datadir !== nodeDatadir ||
     httpPort !== nodeHttpPort ||
     wsPort !== nodeWsPort ||
@@ -624,6 +631,27 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 <option value={30}>{t("settings.autoLockOptions.30")}</option>
                 <option value={0}>{t("settings.autoLockOptions.0")}</option>
               </select>
+            </div>
+
+            {/* Close to System Tray */}
+            <div className="pt-2 border-t border-zinc-800/70">
+              <label className="flex items-start space-x-2.5 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  form="settings-config-form"
+                  checked={localCloseToTray}
+                  onChange={(e) => setLocalCloseToTray(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 accent-white rounded-[2px] bg-zinc-900 border-zinc-700"
+                />
+                <div className="space-y-0.5">
+                  <span className="text-[11px] font-medium text-zinc-200 block">
+                    {t("settings.closeToTrayLabel")}
+                  </span>
+                  <span className="text-[10px] text-zinc-500 block leading-relaxed">
+                    {t("settings.closeToTrayHint")}
+                  </span>
+                </div>
+              </label>
             </div>
 
             {/* Save & Reset Bar */}

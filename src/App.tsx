@@ -36,6 +36,9 @@ export const App: React.FC = () => {
     const saved = localStorage.getItem("rogue_auto_lock");
     return saved ? parseInt(saved, 10) : 15;
   });
+  const [closeToTray, setCloseToTray] = useState<boolean>(() => {
+    return localStorage.getItem("rogue_close_to_tray") === "true";
+  });
 
   // Dedicated Desktop Node configuration
   const [nodeHttpPort, setNodeHttpPort] = useState<number>(() => {
@@ -108,6 +111,12 @@ export const App: React.FC = () => {
   const autoStartInitiated = useRef<boolean>(false);
   const isRefreshingMetricsRef = useRef<boolean>(false);
   const isShuttingDownRef = useRef<boolean>(false);
+  const closeToTrayRef = useRef<boolean>(closeToTray);
+  closeToTrayRef.current = closeToTray;
+
+  useEffect(() => {
+    void api.updateTrayLabels(t("tray.showWindow"), t("tray.quitAndStop"));
+  }, [i18n.language, t]);
 
   // Listen to Tauri log events (clean async unlisten to avoid duplicates)
   useEffect(() => {
@@ -149,6 +158,14 @@ export const App: React.FC = () => {
         const appWindow = getCurrentWindow();
         unlistenClose = await appWindow.onCloseRequested(async (event) => {
           event.preventDefault();
+          if (closeToTrayRef.current) {
+            try {
+              await appWindow.hide();
+            } catch {
+              // ignore
+            }
+            return;
+          }
           isShuttingDownRef.current = true;
           setIsShuttingDown(true);
           try {
@@ -688,6 +705,11 @@ export const App: React.FC = () => {
     localStorage.setItem("rogue_auto_lock", mins.toString());
   };
 
+  const handleSaveCloseToTray = (enabled: boolean) => {
+    setCloseToTray(enabled);
+    localStorage.setItem("rogue_close_to_tray", String(enabled));
+  };
+
   return (
     <div className="flex flex-col h-screen bg-black text-slate-100 overflow-hidden relative">
       <Navbar
@@ -821,6 +843,8 @@ export const App: React.FC = () => {
               onSaveRpcUrl={handleSaveRpcUrl}
               autoLockMinutes={autoLockMinutes}
               onSaveAutoLockMinutes={handleSaveAutoLock}
+              closeToTray={closeToTray}
+              onSaveCloseToTray={handleSaveCloseToTray}
               nodeDatadir={nodeDatadir}
               nodeHttpPort={nodeHttpPort}
               nodeWsPort={nodeWsPort}

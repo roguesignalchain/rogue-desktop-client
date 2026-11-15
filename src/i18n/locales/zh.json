@@ -519,6 +519,8 @@
       "30": "30 分钟",
       "0": "从不自动锁定"
     },
+    "closeToTrayLabel": "关闭窗口时最小化到系统托盘",
+    "closeToTrayHint": "关闭窗口时保持节点在后台运行。可通过系统托盘菜单完全退出。",
     "savedSuccess": "保存成功",
     "saveChanges": "保存更改",
     "resetDefaults": "恢复默认值",
@@ -560,6 +562,10 @@
     "walletRemoved": "[Wallet] 钱包已移除。",
     "addressSelected": "[Wallet] 已选定当前活跃地址: {{address}}",
     "autoLockedInactivity": "[Security] 钱包因长期无操作已自动锁定。"
+  },
+  "tray": {
+    "showWindow": "显示窗口",
+    "quitAndStop": "停止节点并退出"
   },
   "languages": {
     "en": "English",
