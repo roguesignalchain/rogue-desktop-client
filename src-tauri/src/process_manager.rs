@@ -34,6 +34,10 @@ pub struct NodeConfig {
     pub http_port: u16,
     pub ws_port: u16,
     pub p2p_port: u16,
+    #[serde(default)]
+    pub authrpc_port: Option<u16>,
+    #[serde(default)]
+    pub nat: Option<String>,
     pub bootnodes: Option<String>,
     pub mine: bool,
     pub miner_threads: u32,
@@ -51,6 +55,8 @@ impl Default for NodeConfig {
             http_port: 38845,
             ws_port: 0,
             p2p_port: 38888,
+            authrpc_port: None,
+            nat: None,
             bootnodes: None,
             mine: false,
             miner_threads: 2,
@@ -312,6 +318,21 @@ fn validate_node_config(config: &NodeConfig) -> Result<(), String> {
     if config.http_port == 0 || config.p2p_port == 0 {
         return Err("HTTP and P2P ports must be non-zero".to_string());
     }
+    if let Some(auth_port) = config.authrpc_port {
+        if auth_port == 0 {
+            return Err("AuthRPC port must be non-zero".to_string());
+        }
+    }
+    if let Some(ref nat) = config.nat {
+        let trimmed = nat.trim();
+        if !trimmed.is_empty() {
+            let valid = matches!(trimmed, "any" | "none" | "upnp" | "pmp")
+                || (trimmed.starts_with("extip:") && trimmed.len() > 6 && !trimmed.chars().any(|c| c.is_whitespace()));
+            if !valid {
+                return Err(format!("Invalid NAT configuration: {}", trimmed));
+            }
+        }
+    }
     if let Some(ref coinbase) = config.coinbase {
         let trimmed = coinbase.trim();
         if !trimmed.is_empty() {
@@ -334,6 +355,12 @@ fn validate_node_config(config: &NodeConfig) -> Result<(), String> {
 
 #[tauri::command]
 pub async fn start_node(app: AppHandle, config: NodeConfig) -> Result<String, String> {
+    tokio::task::spawn_blocking(move || start_node_sync(app, config))
+        .await
+        .map_err(|e| format!("Failed to join node start task: {}", e))?
+}
+
+fn start_node_sync(app: AppHandle, config: NodeConfig) -> Result<String, String> {
     if STARTING_NODE
         .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
         .is_err()
@@ -410,12 +437,26 @@ pub async fn start_node(app: AppHandle, config: NodeConfig) -> Result<String, St
             .arg("tauri://localhost,http://tauri.localhost,https://tauri.localhost");
     }
 
+    let auth_port = config.authrpc_port.unwrap_or_else(|| {
+        if config.http_port == 38845 {
+            38851
+        } else {
+            config.http_port.saturating_add(6).max(1024)
+        }
+    });
+    let nat_flag = config
+        .nat
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .unwrap_or("any");
+
     cmd.arg("--port")
         .arg(config.p2p_port.to_string())
         .arg("--authrpc.port")
-        .arg("38851")
+        .arg(auth_port.to_string())
         .arg("--nat")
-        .arg("any")
+        .arg(nat_flag)
         .arg("--metrics");
 
     if let Some(ref bootnodes) = config.bootnodes {
@@ -492,6 +533,21 @@ pub async fn start_node(app: AppHandle, config: NodeConfig) -> Result<String, St
                     Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
                         if !batch.is_empty() {
                             let _ = app_handle.emit("node-log-batch", &batch);
+                        }
+                        // Check if node exited unexpectedly (still registered in NODE_PROCESS)
+                        let mut proc_lock = lock_node_process();
+                        if let Some(ref mut managed) = *proc_lock {
+                            if managed.child.id() == pid {
+                                let exit_code = managed
+                                    .child
+                                    .try_wait()
+                                    .ok()
+                                    .flatten()
+                                    .and_then(|s| s.code());
+                                remove_pid_file(&managed.pid_file);
+                                *proc_lock = None;
+                                let _ = app_handle.emit("node-process-exited", exit_code);
+                            }
                         }
                         break;
                     }
@@ -625,37 +681,61 @@ pub async fn exit_app(app: AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+fn validate_chaindata_target(resolved: &Path) -> Result<(), String> {
+    if resolved.parent().is_none() || resolved.components().count() <= 2 {
+        return Err("Refusing to clean chaindata at filesystem root or top-level system directory".to_string());
+    }
+    let geth_dir = resolved.join("geth");
+    if geth_dir.exists() {
+        let has_marker = geth_dir.join("chaindata").exists()
+            || geth_dir.join("lightchaindata").exists()
+            || geth_dir.join("nodekey").exists()
+            || geth_dir.join("LOCK").exists()
+            || resolved.join("core-rogue.pid").exists();
+        if !has_marker {
+            return Err(format!(
+                "Refusing to delete {:?}: directory does not look like a Rogue node datadir",
+                geth_dir
+            ));
+        }
+    }
+    Ok(())
+}
+
 async fn reset_chaindata_internal(datadir: Option<String>, preserve_identity: bool) -> Result<String, String> {
     let _ = stop_node().await;
 
     let resolved = resolve_datadir(datadir.as_deref());
-    if resolved.parent().is_none() {
-        return Err("Refusing to clean chaindata at filesystem root".to_string());
-    }
-    remove_stale_ipc(&resolved);
+    validate_chaindata_target(&resolved)?;
 
-    let geth_dir = resolved.join("geth");
-    if preserve_identity {
-        for sub in ["chaindata", "lightchaindata"] {
-            let target = geth_dir.join(sub);
-            if target.exists() {
-                std::fs::remove_dir_all(&target)
-                    .map_err(|e| format!("Failed to delete {} at {:?}: {}", sub, target, e))?;
+    tokio::task::spawn_blocking(move || {
+        remove_stale_ipc(&resolved);
+
+        let geth_dir = resolved.join("geth");
+        if preserve_identity {
+            for sub in ["chaindata", "lightchaindata"] {
+                let target = geth_dir.join(sub);
+                if target.exists() {
+                    std::fs::remove_dir_all(&target)
+                        .map_err(|e| format!("Failed to delete {} at {:?}: {}", sub, target, e))?;
+                }
             }
+        } else if geth_dir.exists() {
+            std::fs::remove_dir_all(&geth_dir)
+                .map_err(|e| format!("Failed to delete geth directory at {:?}: {}", geth_dir, e))?;
         }
-    } else if geth_dir.exists() {
-        std::fs::remove_dir_all(&geth_dir)
-            .map_err(|e| format!("Failed to delete geth directory at {:?}: {}", geth_dir, e))?;
-    }
 
-    let geth_bin = resolve_binary("core-rogue")
-        .or_else(|_| resolve_binary("geth"))?;
-    ensure_genesis_init(&geth_bin, &resolved)?;
+        let geth_bin = resolve_binary("core-rogue")
+            .or_else(|_| resolve_binary("geth"))?;
+        ensure_genesis_init(&geth_bin, &resolved)?;
 
-    Ok(format!(
-        "Chaindata reset and genesis reinitialized successfully at {:?}",
-        resolved
-    ))
+        Ok(format!(
+            "Chaindata reset and genesis reinitialized successfully at {:?}",
+            resolved
+        ))
+    })
+    .await
+    .map_err(|e| format!("Failed to join chaindata reset task: {}", e))?
 }
 
 #[tauri::command]
@@ -709,6 +789,12 @@ pub struct SystemSpecs {
 
 #[tauri::command]
 pub async fn get_system_specs() -> Result<SystemSpecs, String> {
+    tokio::task::spawn_blocking(get_system_specs_sync)
+        .await
+        .map_err(|e| format!("Failed to join system specs task: {}", e))?
+}
+
+fn get_system_specs_sync() -> Result<SystemSpecs, String> {
     let cpu_cores = std::thread::available_parallelism()
         .map(|n| n.get() as u32)
         .unwrap_or(4)
@@ -912,6 +998,34 @@ mod tests {
 
         cfg.bootnodes = Some("http://evil.com".to_string());
         assert!(validate_node_config(&cfg).is_err());
+
+        cfg.bootnodes = None;
+        cfg.authrpc_port = Some(0);
+        assert!(validate_node_config(&cfg).is_err());
+
+        cfg.authrpc_port = Some(38860);
+        cfg.nat = Some("invalid_nat_mode".to_string());
+        assert!(validate_node_config(&cfg).is_err());
+
+        cfg.nat = Some("extip:1.2.3.4".to_string());
+        assert!(validate_node_config(&cfg).is_ok());
+    }
+
+    #[test]
+    fn test_validate_chaindata_target() {
+        assert!(validate_chaindata_target(Path::new("/")).is_err());
+        assert!(validate_chaindata_target(Path::new("/home")).is_err());
+
+        let tmp = std::env::temp_dir().join(format!("rogue-chaindata-val-{}", std::process::id()));
+        let geth_dir = tmp.join("geth");
+        let _ = std::fs::create_dir_all(&geth_dir);
+        // Without geth markers inside an existing geth dir, refuse
+        assert!(validate_chaindata_target(&tmp).is_err());
+
+        // With chaindata marker, allow
+        let _ = std::fs::create_dir_all(geth_dir.join("chaindata"));
+        assert!(validate_chaindata_target(&tmp).is_ok());
+        let _ = std::fs::remove_dir_all(&tmp);
     }
 
     #[test]

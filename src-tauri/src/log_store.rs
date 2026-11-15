@@ -268,7 +268,7 @@ pub fn read_paginated_from_dir(
     })
 }
 
-/// Redact sensitive secrets (mnemonic, private key, password, passphrase) from log lines
+/// Redact sensitive secrets (mnemonic, private key, password, passphrase, xprv) from log lines
 /// before exporting a diagnostic bundle for user support.
 pub fn sanitize_log_line(line: &str) -> String {
     let sensitive_keys = [
@@ -280,6 +280,9 @@ pub fn sanitize_log_line(line: &str) -> String {
         "password",
         "seed_phrase",
         "seedphrase",
+        "secret_key",
+        "secretkey",
+        "xprv",
     ];
 
     let lower = line.to_lowercase();
@@ -295,6 +298,25 @@ pub fn sanitize_log_line(line: &str) -> String {
     }
 
     line.to_string()
+}
+
+pub fn validate_diagnostic_export_path(target_path: &Path) -> Result<(), String> {
+    let path_str = target_path.to_string_lossy();
+    if path_str.trim().is_empty() {
+        return Err("Diagnostic export path cannot be empty".to_string());
+    }
+    if target_path.components().any(|c| matches!(c, std::path::Component::ParentDir)) {
+        return Err("Diagnostic export path cannot contain parent directory traversal (..)".to_string());
+    }
+    let ext = target_path
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.to_ascii_lowercase())
+        .unwrap_or_default();
+    if ext != "log" && ext != "txt" {
+        return Err("Diagnostic export file must have a .log or .txt extension".to_string());
+    }
+    Ok(())
 }
 
 pub fn export_diagnostic_to_path(
@@ -335,23 +357,33 @@ pub fn append_app_log(level: String, message: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn read_node_logs(offset_from_end: usize, limit: usize) -> Result<LogPageResult, String> {
+pub async fn read_node_logs(offset_from_end: usize, limit: usize) -> Result<LogPageResult, String> {
     let dir = get_active_logs_dir();
-    let mut guard = lock_log_state();
-    if let Some(ref mut w) = guard.writer {
-        let _ = w.flush();
+    {
+        let mut guard = lock_log_state();
+        if let Some(ref mut w) = guard.writer {
+            let _ = w.flush();
+        }
     }
-    read_paginated_from_dir(&dir, offset_from_end, limit)
+    tokio::task::spawn_blocking(move || read_paginated_from_dir(&dir, offset_from_end, limit))
+        .await
+        .map_err(|e| format!("Failed to join log read task: {}", e))?
 }
 
 #[tauri::command]
-pub fn export_diagnostic_log(target_path: String, diagnostic_header: String) -> Result<usize, String> {
+pub async fn export_diagnostic_log(target_path: String, diagnostic_header: String) -> Result<usize, String> {
+    let target = PathBuf::from(&target_path);
+    validate_diagnostic_export_path(&target)?;
     let dir = get_active_logs_dir();
-    let mut guard = lock_log_state();
-    if let Some(ref mut w) = guard.writer {
-        let _ = w.flush();
+    {
+        let mut guard = lock_log_state();
+        if let Some(ref mut w) = guard.writer {
+            let _ = w.flush();
+        }
     }
-    export_diagnostic_to_path(&dir, Path::new(&target_path), &diagnostic_header)
+    tokio::task::spawn_blocking(move || export_diagnostic_to_path(&dir, &target, &diagnostic_header))
+        .await
+        .map_err(|e| format!("Failed to join diagnostic export task: {}", e))?
 }
 
 #[tauri::command]
@@ -429,6 +461,20 @@ mod tests {
         let sanitized = sanitize_log_line(leak);
         assert!(!sanitized.contains("0xdeadbeef"));
         assert!(sanitized.contains("[REDACTED_SENSITIVE_DATA]"));
+
+        let xprv_leak = "INFO key=xprv9s21ZrQH143K3QTDL4LXw2F7HEK3wJUD2nW2nRk4stbPy6cq3jPPqjiChkVvvNKmPGJxWUtg6LnF5kejMRNNU3TGtRBeJgk33yuGBxrMPHi";
+        let sanitized_xprv = sanitize_log_line(xprv_leak);
+        assert!(!sanitized_xprv.contains("xprv9s21"));
+        assert!(sanitized_xprv.contains("[REDACTED_SENSITIVE_DATA]"));
+    }
+
+    #[test]
+    fn test_validate_diagnostic_export_path() {
+        assert!(validate_diagnostic_export_path(Path::new("/tmp/diag.log")).is_ok());
+        assert!(validate_diagnostic_export_path(Path::new("/tmp/diag.TXT")).is_ok());
+        assert!(validate_diagnostic_export_path(Path::new("")).is_err());
+        assert!(validate_diagnostic_export_path(Path::new("/tmp/../etc/passwd.log")).is_err());
+        assert!(validate_diagnostic_export_path(Path::new("/home/user/.bashrc")).is_err());
     }
 
     #[test]
