@@ -449,8 +449,11 @@ export const App: React.FC = () => {
     };
   }, [autoLockMinutes, unlockedAddress]);
 
+  const lastFetchedBlockRef = useRef<number>(-1);
+  const pollStateRef = useRef({ isSyncing: false, peerCount: 0, rpcConnected: false });
+
   // Periodic polling for node metrics & sync status
-  const refreshMetrics = async () => {
+  const refreshMetrics = useCallback(async () => {
     if (isRefreshingMetricsRef.current) return;
     isRefreshingMetricsRef.current = true;
     try {
@@ -461,51 +464,45 @@ export const App: React.FC = () => {
       const blockNum = await api.getBlockNumber(rpcUrl);
       setCurrentBlock(blockNum);
       setRpcConnected(true);
+      pollStateRef.current.rpcConnected = true;
 
-      // Secondary metrics are queried safely to prevent transient timeouts from dropping the connection
-      try {
-        const peers = await api.getPeerCount(rpcUrl);
-        setPeerCount(peers);
-      } catch {
-        // Transient peer query failure
+      if (blockNum !== lastFetchedBlockRef.current) {
+        lastFetchedBlockRef.current = blockNum;
+        void refreshBlocks();
       }
 
-      try {
-        const sync = await api.getSyncStatus(rpcUrl, blockNum);
-        setSyncStatus(sync);
-      } catch {
-        // Transient sync query failure
+      // Secondary metrics are queried in parallel to minimize RPC round-trip overhead
+      const [peersRes, syncRes, hrRes, balRes, statsRes] = await Promise.allSettled([
+        api.getPeerCount(rpcUrl),
+        api.getSyncStatus(rpcUrl, blockNum),
+        api.getHashrate(rpcUrl),
+        unlockedAddress ? api.getBalanceWei(rpcUrl, unlockedAddress) : Promise.resolve(null),
+        unlockedAddress ? api.getMinerStats(rpcUrl, unlockedAddress, i18n.language) : Promise.resolve(null),
+      ]);
+
+      if (peersRes.status === "fulfilled") {
+        setPeerCount(peersRes.value);
+        pollStateRef.current.peerCount = peersRes.value;
       }
-
-      try {
-        const hr = await api.getHashrate(rpcUrl);
-        setHashrate(hr);
-      } catch {
-        // Transient hashrate query failure
+      if (syncRes.status === "fulfilled") {
+        setSyncStatus(syncRes.value);
+        pollStateRef.current.isSyncing = syncRes.value.isSyncing;
       }
-
-      if (unlockedAddress) {
-        try {
-          const balWei = await api.getBalanceWei(rpcUrl, unlockedAddress);
-          setBalance(formatWeiToRogue(balWei, 4));
-        } catch {
-          // Transient balance query failure
-        }
-
-        try {
-          const stats = await api.getMinerStats(rpcUrl, unlockedAddress, i18n.language);
-          if (stats) {
-            setMinerStats(stats);
-          }
-        } catch {
-          // Transient gamification query failure
-        }
+      if (hrRes.status === "fulfilled") {
+        setHashrate(hrRes.value);
+      }
+      if (balRes.status === "fulfilled" && balRes.value !== null) {
+        setBalance(formatWeiToRogue(balRes.value, 4));
+      }
+      if (statsRes.status === "fulfilled" && statsRes.value) {
+        setMinerStats(statsRes.value);
       }
     } catch {
       // Node is unreachable via RPC endpoint
       setRpcConnected(false);
       setHashrate(0);
       setPeerCount(0);
+      pollStateRef.current = { isSyncing: false, peerCount: 0, rpcConnected: false };
       setSyncStatus({
         isSyncing: false,
         startingBlock: 0,
@@ -516,9 +513,9 @@ export const App: React.FC = () => {
     } finally {
       isRefreshingMetricsRef.current = false;
     }
-  };
+  }, [rpcUrl, unlockedAddress, i18n.language]);
 
-  const refreshBlocks = async () => {
+  const refreshBlocks = useCallback(async () => {
     try {
       setLoadingBlocks(true);
       const blocks = await api.getRecentBlocks(rpcUrl, 8);
@@ -528,21 +525,44 @@ export const App: React.FC = () => {
     } finally {
       setLoadingBlocks(false);
     }
-  };
+  }, [rpcUrl]);
 
-  // Adaptive polling: 2s during active sync or waiting for peers, 4s once synced
+  // Adaptive visibility-aware polling: 2s during active sync/peer discovery, 4s once synced, 15s when hidden
   useEffect(() => {
-    refreshMetrics();
-    refreshBlocks();
+    let cancelled = false;
+    let timerId: ReturnType<typeof setTimeout> | null = null;
+    lastFetchedBlockRef.current = -1;
 
-    const pollIntervalMs = syncStatus.isSyncing || peerCount === 0 || !rpcConnected ? 2000 : 4000;
-    const interval = setInterval(() => {
-      refreshMetrics();
-      refreshBlocks();
-    }, pollIntervalMs);
+    const scheduleNext = () => {
+      if (cancelled) return;
+      const hidden = document.visibilityState === "hidden";
+      const { isSyncing, peerCount: peers, rpcConnected: connected } = pollStateRef.current;
+      const delayMs = hidden ? 15000 : isSyncing || peers === 0 || !connected ? 2000 : 4000;
+      timerId = setTimeout(runPoll, delayMs);
+    };
 
-    return () => clearInterval(interval);
-  }, [rpcUrl, unlockedAddress, syncStatus.isSyncing, peerCount, rpcConnected]);
+    const runPoll = async () => {
+      if (cancelled) return;
+      await refreshMetrics();
+      scheduleNext();
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible" && !cancelled) {
+        if (timerId) clearTimeout(timerId);
+        void runPoll();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    void runPoll();
+
+    return () => {
+      cancelled = true;
+      if (timerId) clearTimeout(timerId);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [refreshMetrics]);
 
   const pushAppLog = useCallback(
     (message: string, level: "INFO" | "WARN" | "ERROR" | "DEBUG" = "INFO") => {

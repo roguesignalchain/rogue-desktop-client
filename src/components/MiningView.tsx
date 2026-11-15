@@ -80,9 +80,11 @@ export const MiningView: React.FC<MiningViewProps> = ({
     };
   }, []);
 
-  // Synchronize mining status and coinbase with node
+  // Synchronize mining status and coinbase with node (visibility-aware)
   useEffect(() => {
     let mounted = true;
+    let timerId: ReturnType<typeof setTimeout> | null = null;
+
     const checkMining = async () => {
       try {
         const [mining, cb, nodeFast] = await Promise.all([
@@ -99,14 +101,28 @@ export const MiningView: React.FC<MiningViewProps> = ({
         }
       } catch {
         // Node unreachable
+      } finally {
+        if (mounted) {
+          const delayMs = document.visibilityState === "hidden" ? 15000 : 4000;
+          timerId = setTimeout(checkMining, delayMs);
+        }
       }
     };
 
-    checkMining();
-    const interval = setInterval(checkMining, 4000);
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible" && mounted) {
+        if (timerId) clearTimeout(timerId);
+        void checkMining();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    void checkMining();
+
     return () => {
       mounted = false;
-      clearInterval(interval);
+      if (timerId) clearTimeout(timerId);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [rpcUrl]);
 
