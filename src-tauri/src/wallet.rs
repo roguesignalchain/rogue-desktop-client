@@ -133,7 +133,7 @@ fn check_unlock_rate_limit() -> Result<(), String> {
     let cooldown_ms = 2_000u64.saturating_mul(1u64 << shift).min(30_000);
     let elapsed_ms = now_unix_millis().saturating_sub(LAST_FAILED_UNLOCK_MS.load(Ordering::SeqCst));
     if elapsed_ms < cooldown_ms {
-        let wait_secs = ((cooldown_ms - elapsed_ms) + 999) / 1000;
+        let wait_secs = (cooldown_ms - elapsed_ms).div_ceil(1000);
         return Err(format!(
             "Too many failed attempts. Please wait {}s before retrying.",
             wait_secs
