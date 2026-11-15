@@ -460,39 +460,33 @@ export const App: React.FC = () => {
       const status = await api.getNodeStatus();
       setNodeStatus(status);
 
-      // Primary connectivity check: if block number responds, RPC is connected
-      const blockNum = await api.getBlockNumber(rpcUrl);
+      // Single batched JSON-RPC call for core metrics (blockNumber, peerCount, hashrate, balance)
+      const core = await api.pollCoreMetrics(rpcUrl, unlockedAddress);
+      const blockNum = core.blockNumber;
       setCurrentBlock(blockNum);
+      setPeerCount(core.peerCount);
+      setHashrate(core.hashrate);
+      if (core.balanceWei !== null) {
+        setBalance(formatWeiToRogue(core.balanceWei, 4));
+      }
       setRpcConnected(true);
       pollStateRef.current.rpcConnected = true;
+      pollStateRef.current.peerCount = core.peerCount;
 
       if (blockNum !== lastFetchedBlockRef.current) {
+        const prevBlock = lastFetchedBlockRef.current;
         lastFetchedBlockRef.current = blockNum;
-        void refreshBlocks();
+        void refreshBlocks(prevBlock >= 0 && blockNum === prevBlock + 1 ? blockNum : undefined);
       }
 
-      // Secondary metrics are queried in parallel to minimize RPC round-trip overhead
-      const [peersRes, syncRes, hrRes, balRes, statsRes] = await Promise.allSettled([
-        api.getPeerCount(rpcUrl),
+      const [syncRes, statsRes] = await Promise.allSettled([
         api.getSyncStatus(rpcUrl, blockNum),
-        api.getHashrate(rpcUrl),
-        unlockedAddress ? api.getBalanceWei(rpcUrl, unlockedAddress) : Promise.resolve(null),
         unlockedAddress ? api.getMinerStats(rpcUrl, unlockedAddress, i18n.language) : Promise.resolve(null),
       ]);
 
-      if (peersRes.status === "fulfilled") {
-        setPeerCount(peersRes.value);
-        pollStateRef.current.peerCount = peersRes.value;
-      }
       if (syncRes.status === "fulfilled") {
         setSyncStatus(syncRes.value);
         pollStateRef.current.isSyncing = syncRes.value.isSyncing;
-      }
-      if (hrRes.status === "fulfilled") {
-        setHashrate(hrRes.value);
-      }
-      if (balRes.status === "fulfilled" && balRes.value !== null) {
-        setBalance(formatWeiToRogue(balRes.value, 4));
       }
       if (statsRes.status === "fulfilled" && statsRes.value) {
         setMinerStats(statsRes.value);
@@ -515,9 +509,20 @@ export const App: React.FC = () => {
     }
   }, [rpcUrl, unlockedAddress, i18n.language]);
 
-  const refreshBlocks = useCallback(async () => {
+  const refreshBlocks = useCallback(async (incrementalHeight?: number) => {
     try {
       setLoadingBlocks(true);
+      if (incrementalHeight !== undefined) {
+        const latest = (await api.getBlockByNumber(rpcUrl, incrementalHeight, false)) as Block | null;
+        if (latest && latest.hash) {
+          setRecentBlocks((prev) => {
+            if (prev.length === 0) return [latest];
+            const filtered = prev.filter((b) => b.hash !== latest.hash);
+            return [latest, ...filtered].slice(0, 8);
+          });
+          return;
+        }
+      }
       const blocks = await api.getRecentBlocks(rpcUrl, 8);
       setRecentBlocks(blocks);
     } catch {
@@ -870,7 +875,7 @@ export const App: React.FC = () => {
           {currentTab === "explorer" && (
             <ExplorerView
               blocks={recentBlocks}
-              onRefresh={refreshBlocks}
+              onRefresh={() => refreshBlocks()}
               loading={loadingBlocks}
               rpcUrl={rpcUrl}
               initialRoute={explorerTarget}

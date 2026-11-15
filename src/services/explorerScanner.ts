@@ -33,8 +33,12 @@ const ERC1155_READ_ABI = parseAbi([
   "function uri(uint256 id) view returns (string)",
 ]);
 
+const viemClientCache = new Map<string, ReturnType<typeof createPublicClient>>();
+
 function getViemClient(rpcUrl: string) {
-  return createPublicClient({
+  const existing = viemClientCache.get(rpcUrl);
+  if (existing) return existing;
+  const client = createPublicClient({
     chain: rogueSignalChain,
     transport: custom({
       async request({ method, params }) {
@@ -42,6 +46,8 @@ function getViemClient(rpcUrl: string) {
       },
     }),
   });
+  viemClientCache.set(rpcUrl, client);
+  return client;
 }
 
 export interface AddressTxItem {

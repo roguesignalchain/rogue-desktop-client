@@ -95,8 +95,12 @@ export function normalizeReputationLang(lang?: string): string {
   return base || "en";
 }
 
+const reputationClientCache = new Map<string, ReturnType<typeof createPublicClient>>();
+
 function getReputationClient(rpcUrl: string) {
-  return createPublicClient({
+  const existing = reputationClientCache.get(rpcUrl);
+  if (existing) return existing;
+  const client = createPublicClient({
     chain: rogueSignalChain,
     transport: custom({
       async request({ method, params }) {
@@ -104,6 +108,8 @@ function getReputationClient(rpcUrl: string) {
       },
     }),
   });
+  reputationClientCache.set(rpcUrl, client);
+  return client;
 }
 
 export async function readMinerStats(

@@ -230,6 +230,78 @@ export const api = {
     return data.result as T;
   },
 
+  callRpcBatch: async (
+    endpoint: string,
+    requests: { method: string; params: unknown[] }[]
+  ): Promise<Array<{ result: unknown; error: string | null }>> => {
+    if (requests.length === 0) return [];
+    const isTauri = typeof window !== "undefined" && ("__TAURI_INTERNALS__" in window || "__TAURI__" in window);
+    if (isTauri) {
+      return safeInvoke<Array<{ result: unknown; error: string | null }>>("call_rpc_batch", {
+        endpoint,
+        requests,
+      });
+    }
+    const payload = requests.map((req, idx) => ({
+      jsonrpc: "2.0",
+      id: idx,
+      method: req.method,
+      params: req.params,
+    }));
+    const res = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = (await res.json()) as Array<{ id: number; result?: unknown; error?: unknown }>;
+    const byId = new Map<number, { result: unknown; error: string | null }>();
+    for (const item of data) {
+      byId.set(item.id, {
+        result: item.error ? null : item.result ?? null,
+        error: item.error ? JSON.stringify(item.error) : null,
+      });
+    }
+    return requests.map((_, idx) => byId.get(idx) ?? { result: null, error: "Missing batch response item" });
+  },
+
+  pollCoreMetrics: async (
+    rpcUrl: string,
+    address: string | null
+  ): Promise<{
+    blockNumber: number;
+    peerCount: number;
+    hashrate: number;
+    balanceWei: bigint | null;
+  }> => {
+    const reqs: { method: string; params: unknown[] }[] = [
+      { method: "eth_blockNumber", params: [] },
+      { method: "net_peerCount", params: [] },
+      { method: "eth_hashrate", params: [] },
+    ];
+    if (address) {
+      reqs.push({ method: "eth_getBalance", params: [address, "latest"] });
+    }
+    const res = await api.callRpcBatch(rpcUrl, reqs);
+    const blockItem = res[0];
+    if (!blockItem || blockItem.error || typeof blockItem.result !== "string") {
+      throw new Error(blockItem?.error || "eth_blockNumber failed");
+    }
+    const blockNumber = parseInt(blockItem.result, 16);
+    const peerCount =
+      res[1] && !res[1].error && typeof res[1].result === "string"
+        ? parseInt(res[1].result, 16)
+        : 0;
+    const hashrate =
+      res[2] && !res[2].error && typeof res[2].result === "string"
+        ? parseInt(res[2].result, 16)
+        : 0;
+    const balanceWei =
+      address && res[3] && !res[3].error && typeof res[3].result === "string"
+        ? BigInt(res[3].result || "0x0")
+        : null;
+    return { blockNumber, peerCount, hashrate, balanceWei };
+  },
+
   // Mining control helpers
   isMining: async (rpcUrl: string): Promise<boolean> => {
     try {
@@ -324,6 +396,19 @@ export const api = {
     }
   },
 
+  estimateGas: async (
+    rpcUrl: string,
+    tx: { from?: string; to: string; value?: string; data?: string }
+  ): Promise<number> => {
+    try {
+      const hex = await api.callRpc<string>(rpcUrl, "eth_estimateGas", [tx]);
+      const parsed = parseInt(hex || "0x5208", 16);
+      return Number.isFinite(parsed) && parsed >= 21000 ? parsed : 21000;
+    } catch {
+      return 21000;
+    }
+  },
+
   getBalance: async (rpcUrl: string, address: string): Promise<string> => {
     const hex = await api.callRpc<string>(rpcUrl, "eth_getBalance", [address, "latest"]);
     const wei = BigInt(hex || "0x0");
@@ -336,20 +421,21 @@ export const api = {
     for (let i = 0; i < count && safeStart - i >= 0; i++) {
       heights.push(safeStart - i);
     }
-    const results = await Promise.all(
-      heights.map(async (h) => {
-        const bHex = "0x" + h.toString(16);
-        try {
-          return await api.callRpc<Block | null>(rpcUrl, "eth_getBlockByNumber", [bHex, false]);
-        } catch (e) {
-          console.error(e);
-          return null;
-        }
-      })
-    );
-    return results
-      .filter((b): b is Block => b !== null && Boolean(b.hash))
-      .sort((a, b) => parseInt(b.number, 16) - parseInt(a.number, 16));
+    if (heights.length === 0) return [];
+    const requests = heights.map((h) => ({
+      method: "eth_getBlockByNumber",
+      params: ["0x" + h.toString(16), false],
+    }));
+    try {
+      const responses = await api.callRpcBatch(rpcUrl, requests);
+      return responses
+        .map((r) => (r.error ? null : (r.result as Block | null)))
+        .filter((b): b is Block => b !== null && Boolean(b.hash))
+        .sort((a, b) => parseInt(b.number, 16) - parseInt(a.number, 16));
+    } catch (e) {
+      console.error(e);
+      return [];
+    }
   },
 
   getRecentBlocks: async (rpcUrl: string, count: number = 8): Promise<Block[]> => {

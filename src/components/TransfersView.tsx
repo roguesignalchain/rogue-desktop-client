@@ -177,12 +177,28 @@ export const TransfersView: React.FC<TransfersViewProps> = ({
       setSending(true);
       setStatusMsg({ type: "info", text: t("wallet.status.sending") });
 
-      const [nonce, networkGasPrice] = await Promise.all([
+      const [nonce, networkGasPrice, estimatedGas, balWei] = await Promise.all([
         api.getNonce(rpcUrl, unlockedAddress),
         api.getGasPrice(rpcUrl),
+        api.estimateGas(rpcUrl, {
+          from: unlockedAddress,
+          to: recipient,
+          value: "0x" + wei.toString(16),
+        }),
+        api.getBalanceWei(rpcUrl, unlockedAddress),
       ]);
       const tierGasPrice = getTierGasPriceWei(gasTier);
       const gasPriceWei = networkGasPrice > tierGasPrice ? networkGasPrice : tierGasPrice;
+      const maxFeeWei = BigInt(estimatedGas) * gasPriceWei;
+      if (balWei < wei + maxFeeWei) {
+        setStatusMsg({
+          type: "error",
+          text: t("wallet.errors.insufficientFunds", {
+            defaultValue: "Insufficient balance to cover amount plus gas fee.",
+          }),
+        });
+        return;
+      }
 
       const activeAcc = accounts.find(
         (a) => a.address.toLowerCase() === unlockedAddress.toLowerCase()
@@ -190,7 +206,7 @@ export const TransfersView: React.FC<TransfersViewProps> = ({
       const rawTx = await api.signRawTransaction({
         to: recipient,
         valueWeiHex: "0x" + wei.toString(16),
-        gasLimit: 21000,
+        gasLimit: estimatedGas,
         gasPriceHex: "0x" + gasPriceWei.toString(16),
         nonce,
         chainId: 800055,
