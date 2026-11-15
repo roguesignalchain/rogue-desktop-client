@@ -3,6 +3,7 @@ use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpStream};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use tauri::{AppHandle, Emitter};
 
@@ -13,6 +14,15 @@ struct ManagedNode {
 }
 
 static NODE_PROCESS: Mutex<Option<ManagedNode>> = Mutex::new(None);
+static STARTING_NODE: AtomicBool = AtomicBool::new(false);
+
+struct StartGuard;
+
+impl Drop for StartGuard {
+    fn drop(&mut self) {
+        STARTING_NODE.store(false, Ordering::SeqCst);
+    }
+}
 
 fn lock_node_process() -> std::sync::MutexGuard<'static, Option<ManagedNode>> {
     NODE_PROCESS.lock().unwrap_or_else(|e| e.into_inner())
@@ -37,7 +47,7 @@ pub struct NodeConfig {
 impl Default for NodeConfig {
     fn default() -> Self {
         Self {
-            datadir: Some("./nodes-local/node-desktop".to_string()),
+            datadir: None,
             http_port: 38845,
             ws_port: 0,
             p2p_port: 38888,
@@ -103,12 +113,12 @@ fn resolve_binary(bin_name: &str) -> Result<PathBuf, String> {
 }
 
 fn resolve_datadir(raw_path: Option<&str>) -> PathBuf {
-    if let Some(raw) = raw_path {
+    if let Some(raw) = raw_path.map(str::trim).filter(|s| !s.is_empty()) {
         let p = Path::new(raw);
         if p.is_absolute() {
             return p.to_path_buf();
         }
-        // 1. If cwd is src-tauri (tauri dev mode) -> workspace root is ../..
+        // Resolve relative custom paths against workspace or cwd
         if Path::new("../../rogue-core-chain").exists() {
             let target = Path::new("../..").join(p);
             if let Ok(abs) = target.canonicalize() {
@@ -116,7 +126,6 @@ fn resolve_datadir(raw_path: Option<&str>) -> PathBuf {
             }
             return target;
         }
-        // 2. If cwd is rogue-desktop-client -> workspace root is ..
         if Path::new("../rogue-core-chain").exists() {
             let target = Path::new("..").join(p);
             if let Ok(abs) = target.canonicalize() {
@@ -124,7 +133,6 @@ fn resolve_datadir(raw_path: Option<&str>) -> PathBuf {
             }
             return target;
         }
-        // 3. If cwd is workspace root
         if Path::new("rogue-core-chain").exists() {
             if let Ok(abs) = p.canonicalize() {
                 return abs;
@@ -134,22 +142,31 @@ fn resolve_datadir(raw_path: Option<&str>) -> PathBuf {
         return p.to_path_buf();
     }
 
-    #[cfg(debug_assertions)]
+    #[cfg(target_os = "windows")]
     {
-        resolve_datadir(Some("./nodes-local/node-desktop"))
-    }
-    #[cfg(not(debug_assertions))]
-    {
-        if let Some(data_home) = std::env::var_os("XDG_DATA_HOME") {
-            PathBuf::from(data_home).join("rogue-signal").join("chaindata")
-        } else if let Some(home) = std::env::var_os("HOME") {
-            PathBuf::from(home).join(".local").join("share").join("rogue-signal").join("chaindata")
-        } else if let Some(appdata) = std::env::var_os("APPDATA") {
-            PathBuf::from(appdata).join("rogue-signal").join("chaindata")
-        } else {
-            resolve_datadir(Some("./nodes-local/node-desktop"))
+        if let Some(appdata) = std::env::var_os("APPDATA") {
+            return PathBuf::from(appdata).join("rogue-signal").join("chaindata");
+        }
+        if let Some(profile) = std::env::var_os("USERPROFILE") {
+            return PathBuf::from(profile).join("rogue-signal").join("chaindata");
         }
     }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        if let Some(data_home) = std::env::var_os("XDG_DATA_HOME") {
+            return PathBuf::from(data_home).join("rogue-signal").join("chaindata");
+        }
+        if let Some(home) = std::env::var_os("HOME") {
+            return PathBuf::from(home)
+                .join(".local")
+                .join("share")
+                .join("rogue-signal")
+                .join("chaindata");
+        }
+    }
+
+    PathBuf::from("rogue-signal-chaindata")
 }
 
 pub fn default_logs_dir() -> PathBuf {
@@ -317,6 +334,14 @@ fn validate_node_config(config: &NodeConfig) -> Result<(), String> {
 
 #[tauri::command]
 pub async fn start_node(app: AppHandle, config: NodeConfig) -> Result<String, String> {
+    if STARTING_NODE
+        .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+        .is_err()
+    {
+        return Ok("Node startup is already in progress".to_string());
+    }
+    let _start_guard = StartGuard;
+
     validate_node_config(&config)?;
     {
         let mut proc_lock = lock_node_process();
@@ -493,8 +518,9 @@ pub fn stop_node_sync() -> Result<String, String> {
 
         #[cfg(unix)]
         {
+            // Send SIGINT first (standard Geth graceful shutdown signal for LevelDB flush)
             unsafe {
-                libc::kill(pid as i32, libc::SIGTERM);
+                libc::kill(pid as i32, libc::SIGINT);
             }
         }
         #[cfg(target_os = "windows")]
@@ -512,6 +538,8 @@ pub fn stop_node_sync() -> Result<String, String> {
         }
 
         let start = std::time::Instant::now();
+        #[cfg(unix)]
+        let mut sigterm_sent = false;
         loop {
             match managed.child.try_wait() {
                 Ok(Some(status)) => {
@@ -519,11 +547,19 @@ pub fn stop_node_sync() -> Result<String, String> {
                     return Ok(format!("Node stopped cleanly with status: {:?}", status));
                 }
                 Ok(None) => {
-                    if start.elapsed() >= std::time::Duration::from_secs(30) {
+                    let elapsed = start.elapsed();
+                    #[cfg(unix)]
+                    if !sigterm_sent && elapsed >= std::time::Duration::from_secs(45) {
+                        sigterm_sent = true;
+                        unsafe {
+                            libc::kill(pid as i32, libc::SIGTERM);
+                        }
+                    }
+                    if elapsed >= std::time::Duration::from_secs(50) {
                         let _ = managed.child.kill();
                         let _ = managed.child.wait();
                         remove_pid_file(&managed.pid_file);
-                        return Ok("Node forcefully killed after graceful shutdown timeout (30s)".to_string());
+                        return Ok("Node forcefully killed after graceful shutdown timeout (50s)".to_string());
                     }
                     std::thread::sleep(std::time::Duration::from_millis(100));
                 }

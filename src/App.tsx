@@ -17,7 +17,7 @@ import { Loader2, ShieldAlert, AlertTriangle } from "lucide-react";
 const DEFAULT_HTTP_PORT = 38845;
 const DEFAULT_WS_PORT = 0; // Disabled by default to avoid port collision with local nodes
 const DEFAULT_P2P_PORT = 38888;
-const DEFAULT_DATADIR = "./nodes-local/node-desktop";
+const DEFAULT_DATADIR = "";
 const DEFAULT_BOOTNODES = "";
 
 export const App: React.FC = () => {
@@ -51,7 +51,9 @@ export const App: React.FC = () => {
     return saved ? parseInt(saved, 10) : DEFAULT_P2P_PORT;
   });
   const [nodeDatadir, setNodeDatadir] = useState<string>(() => {
-    return localStorage.getItem("rogue_node_datadir") || DEFAULT_DATADIR;
+    const saved = localStorage.getItem("rogue_node_datadir");
+    if (!saved || saved === "./nodes-local/node-desktop") return DEFAULT_DATADIR;
+    return saved;
   });
   const [nodeBootnodes, setNodeBootnodes] = useState<string>(() => {
     return localStorage.getItem("rogue_node_bootnodes") ?? DEFAULT_BOOTNODES;
@@ -99,7 +101,6 @@ export const App: React.FC = () => {
   const [walletIdPendingDelete, setWalletIdPendingDelete] = useState<string | null>(null);
   const [loadingBlocks, setLoadingBlocks] = useState<boolean>(false);
   const [isShuttingDown, setIsShuttingDown] = useState<boolean>(false);
-  const [isRecoveringChain, setIsRecoveringChain] = useState<boolean>(false);
   const [minerStats, setMinerStats] = useState<MinerGamificationStats | null>(null);
   const [ranks, setRanks] = useState<RankInfo[]>([]);
 
@@ -107,8 +108,6 @@ export const App: React.FC = () => {
   const autoStartInitiated = useRef<boolean>(false);
   const isRefreshingMetricsRef = useRef<boolean>(false);
   const isShuttingDownRef = useRef<boolean>(false);
-  const isRecoveringRef = useRef<boolean>(false);
-  const recoverChainRef = useRef<() => Promise<void>>(async () => {});
 
   // Listen to Tauri log events (clean async unlisten to avoid duplicates)
   useEffect(() => {
@@ -123,14 +122,6 @@ export const App: React.FC = () => {
         const unlistenNode = await listen<string>("node-log", (event) => {
           const line = event.payload;
           setLogs((prev) => [...prev.slice(-1500), `[Geth] ${line}`]);
-          if (
-            !isShuttingDownRef.current &&
-            !isRecoveringRef.current &&
-            (line.includes("Switch sync mode from full sync to snap sync") ||
-              line.includes("snap sync incomplete"))
-          ) {
-            void recoverChainRef.current();
-          }
         });
         if (isCancelled) {
           unlistenNode();
@@ -548,7 +539,7 @@ export const App: React.FC = () => {
   ) => {
     try {
       const msg = await api.startNode({
-        datadir: nodeDatadir,
+        datadir: nodeDatadir.trim() ? nodeDatadir.trim() : undefined,
         http_port: nodeHttpPort,
         ws_port: nodeWsPort,
         p2p_port: nodeP2pPort,
@@ -570,29 +561,6 @@ export const App: React.FC = () => {
       const msg = err instanceof Error ? err.message : String(err);
       pushAppLog(`[Manager Error] ${msg}`, "ERROR");
       throw err;
-    }
-  };
-
-  recoverChainRef.current = async () => {
-    if (isRecoveringRef.current || isShuttingDownRef.current) return;
-    isRecoveringRef.current = true;
-    setIsRecoveringChain(true);
-    pushAppLog(
-      "[Manager] Incomplete snap-sync fallback detected. Resetting chaindata and restarting in Full Sync...",
-      "WARN"
-    );
-    try {
-      const res = await api.recoverChaindata(nodeDatadir);
-      pushAppLog(`[Manager] ${res}`, "INFO");
-      if (!isShuttingDownRef.current) {
-        await handleStartNode(false, 2, unlockedAddress || undefined);
-      }
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      pushAppLog(`[Manager Error] Chaindata recovery failed: ${msg}`, "ERROR");
-    } finally {
-      setIsRecoveringChain(false);
-      isRecoveringRef.current = false;
     }
   };
 
@@ -674,10 +642,10 @@ export const App: React.FC = () => {
   };
 
   const handleCleanChaindata = async (customDatadir?: string) => {
-    const targetDir = customDatadir || nodeDatadir;
-    setLogs((prev) => [...prev, `[Maintenance] Wiping chaindata at ${targetDir}...`]);
+    const targetDir = (customDatadir ?? nodeDatadir).trim() || undefined;
+    setLogs((prev) => [...prev.slice(-1500), `[Maintenance] Wiping chaindata at ${targetDir || "OS default"}...`]);
     const res = await api.cleanChaindata(targetDir);
-    setLogs((prev) => [...prev, `[Maintenance] ${res}`]);
+    setLogs((prev) => [...prev.slice(-1500), `[Maintenance] ${res}`]);
     await handleStartNode(false);
   };
 
@@ -967,29 +935,6 @@ export const App: React.FC = () => {
               >
                 {t("mining.switchConfirm.stopAndSwitch")}
               </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Automatic Chaindata Recovery Toast */}
-      {isRecoveringChain && !isShuttingDown && (
-        <div className="fixed bottom-5 right-5 z-[90] max-w-sm bg-zinc-950/95 border border-white/25 rounded-[2px] p-4 shadow-[0_0_25px_rgba(0,0,0,0.8)] backdrop-blur-sm select-none animate-fadeIn">
-          <div className="flex items-start space-x-3">
-            <div className="w-8 h-8 rounded-full bg-black border border-white/25 flex items-center justify-center shrink-0 mt-0.5">
-              <Loader2 className="w-4 h-4 text-white animate-spin" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center space-x-1.5 text-[10px] font-mono uppercase tracking-wider text-zinc-400 mb-1">
-                <ShieldAlert className="w-3 h-3 text-white shrink-0" />
-                <span>{t("recovery.badge")}</span>
-              </div>
-              <h3 className="text-sm font-bold text-white leading-snug">
-                {t("recovery.title")}
-              </h3>
-              <p className="text-xs text-zinc-400 mt-1 leading-relaxed">
-                {t("recovery.description")}
-              </p>
             </div>
           </div>
         </div>

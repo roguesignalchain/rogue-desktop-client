@@ -161,7 +161,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const handleResetDefaults = () => {
     setLocalRpc("http://127.0.0.1:38845");
     setLocalLock(15);
-    setDatadir("./nodes-local/node-desktop");
+    setDatadir("");
     setHttpPort(38845);
     setWsPort(0);
     setP2pPort(38888);
@@ -377,7 +377,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 type="text"
                 value={datadir}
                 onChange={(e) => setDatadir(e.target.value)}
-                placeholder="./nodes-local/node-desktop"
+                placeholder="OS Default (~/.local/share/rogue-signal/chaindata)"
                 className={inputBaseClass}
               />
               <span className="text-[10px] text-zinc-500 mt-1.5 block">

@@ -197,39 +197,23 @@ fn public_key_to_address(pubkey: &PublicKey) -> String {
 }
 
 fn get_vault_path() -> PathBuf {
-    #[cfg(debug_assertions)]
-    {
-        #[cfg(target_os = "windows")]
-        let base = std::env::var_os("USERPROFILE")
-            .or_else(|| std::env::var_os("APPDATA"))
-            .map(PathBuf::from)
-            .unwrap_or_else(|| PathBuf::from("."));
-        #[cfg(not(target_os = "windows"))]
-        let base = std::env::var_os("HOME")
-            .map(PathBuf::from)
-            .unwrap_or_else(|| PathBuf::from("."));
-        base.join(".rogue-wallet.vault")
-    }
-    #[cfg(not(debug_assertions))]
-    {
-        #[cfg(target_os = "windows")]
-        let vault_dir = std::env::var_os("APPDATA")
-            .or_else(|| std::env::var_os("USERPROFILE"))
-            .map(|p| PathBuf::from(p).join("rogue-signal"))
-            .unwrap_or_else(|| PathBuf::from(".rogue-signal"));
+    #[cfg(target_os = "windows")]
+    let vault_dir = std::env::var_os("APPDATA")
+        .or_else(|| std::env::var_os("USERPROFILE"))
+        .map(|p| PathBuf::from(p).join("rogue-signal"))
+        .unwrap_or_else(|| PathBuf::from(".rogue-signal"));
 
-        #[cfg(not(target_os = "windows"))]
-        let vault_dir = if let Some(data_home) = std::env::var_os("XDG_DATA_HOME") {
-            PathBuf::from(data_home).join("rogue-signal")
-        } else if let Some(home) = std::env::var_os("HOME") {
-            PathBuf::from(home).join(".local").join("share").join("rogue-signal")
-        } else {
-            PathBuf::from(".rogue-signal")
-        };
+    #[cfg(not(target_os = "windows"))]
+    let vault_dir = if let Some(data_home) = std::env::var_os("XDG_DATA_HOME") {
+        PathBuf::from(data_home).join("rogue-signal")
+    } else if let Some(home) = std::env::var_os("HOME") {
+        PathBuf::from(home).join(".local").join("share").join("rogue-signal")
+    } else {
+        PathBuf::from(".rogue-signal")
+    };
 
-        let _ = std::fs::create_dir_all(&vault_dir);
-        vault_dir.join("wallet.vault")
-    }
+    let _ = std::fs::create_dir_all(&vault_dir);
+    vault_dir.join("wallet.vault")
 }
 
 fn save_vault_locked(wallets: &[WalletItem], active_id: &Option<String>) -> Result<(), String> {
