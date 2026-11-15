@@ -34,7 +34,7 @@ export default defineConfig(async () => ({
       output: {
         manualChunks: {
           "vendor-react": ["react", "react-dom"],
-          "vendor-viem": ["viem", "@noble/curves", "@scure/bip39"],
+          "vendor-viem": ["viem"],
           "vendor-i18n": ["i18next", "react-i18next"],
           "vendor-dicebear": ["@dicebear/core", "@dicebear/styles/voxel-art.json"],
         },

@@ -25,13 +25,14 @@ import {
   X,
 } from "lucide-react";
 import { api } from "../services/api";
+import { useLogs } from "../context/LogsContext";
 import { NodeStatus, SyncStatus } from "../types";
 import { RPC_PRESETS, RpcPreset, getRpcDocsUrl, buildCurlCommand } from "./console/rpcPresets";
 import { FullLogModal } from "./console/FullLogModal";
 
 interface NodeConsoleViewProps {
-  logs: string[];
-  onClearLogs: () => void;
+  logs?: string[];
+  onClearLogs?: () => void;
   rpcUrl: string;
   nodeStatus?: NodeStatus;
   peerCount?: number;
@@ -120,8 +121,8 @@ function getLineClassName(level: "error" | "warn" | "info" | "debug" | "mileston
 }
 
 export const NodeConsoleView: React.FC<NodeConsoleViewProps> = ({
-  logs,
-  onClearLogs,
+  logs: propLogs,
+  onClearLogs: propOnClearLogs,
   rpcUrl,
   nodeStatus,
   peerCount = 0,
@@ -131,6 +132,9 @@ export const NodeConsoleView: React.FC<NodeConsoleViewProps> = ({
   onRestartNode,
 }) => {
   const { t, i18n } = useTranslation();
+  const { logs: ctxLogs, clearLogs: ctxClearLogs } = useLogs();
+  const logs = propLogs ?? ctxLogs;
+  const onClearLogs = propOnClearLogs ?? ctxClearLogs;
 
   // Collapsible RPC panel state (expanded by default, persisted)
   const [rpcOpen, setRpcOpen] = useState<boolean>(() => {

@@ -5,6 +5,7 @@ import { Sidebar, TabType } from "./components/Sidebar";
 import { WalletModal } from "./components/WalletModal";
 import { Block, ExplorerRoute, NodeStatus, SyncStatus, WalletSummary, AccountInfo, MinerGamificationStats, RankInfo } from "./types";
 import { api, formatWeiToRogue } from "./services/api";
+import { useLogs } from "./context/LogsContext";
 import { Loader2, ShieldAlert, AlertTriangle } from "lucide-react";
 
 const Dashboard = lazy(() => import("./components/Dashboard").then((m) => ({ default: m.Dashboard })));
@@ -23,6 +24,7 @@ const DEFAULT_BOOTNODES = "";
 
 export const App: React.FC = () => {
   const { t, i18n } = useTranslation();
+  const { appendLog, pushAppLog } = useLogs();
   const [currentTab, setCurrentTab] = useState<TabType>("dashboard");
   const [explorerTarget, setExplorerTarget] = useState<ExplorerRoute | null>(null);
 
@@ -91,7 +93,6 @@ export const App: React.FC = () => {
   const [hashrate, setHashrate] = useState<number>(0);
   const [peerCount, setPeerCount] = useState<number>(0);
   const [recentBlocks, setRecentBlocks] = useState<Block[]>([]);
-  const [logs, setLogs] = useState<string[]>([]);
   const [unlockedAddress, setUnlockedAddress] = useState<string | null>(null);
   const [allWallets, setAllWallets] = useState<WalletSummary[]>([]);
   const [activeWallet, setActiveWallet] = useState<WalletSummary | null>(null);
@@ -119,40 +120,40 @@ export const App: React.FC = () => {
     void api.updateTrayLabels(t("tray.showWindow"), t("tray.quitAndStop"));
   }, [i18n.language, t]);
 
-  // Listen to Tauri log events (clean async unlisten to avoid duplicates)
+  // Listen to unexpected sidecar exit events so UI updates immediately
   useEffect(() => {
     let isCancelled = false;
-    const cleanups: (() => void)[] = [];
+    let unlistenExit: (() => void) | undefined;
 
-    async function setupListeners() {
+    async function setupExitListener() {
       try {
         const { listen } = await import("@tauri-apps/api/event");
         if (isCancelled) return;
-
-        const unlistenBatch = await listen<string[]>("node-log-batch", (event) => {
-          const lines = event.payload;
-          if (!Array.isArray(lines) || lines.length === 0) return;
-          setLogs((prev) => [
-            ...prev,
-            ...lines.map((line) => `[Geth] ${line}`),
-          ].slice(-1500));
+        unlistenExit = await listen<number | null>("node-process-exited", (event) => {
+          setNodeStatus({ running: false, pid: null });
+          setRpcConnected(false);
+          setHashrate(0);
+          setPeerCount(0);
+          const code = event.payload;
+          pushAppLog(
+            `[Manager Error] Node process exited unexpectedly (code: ${code ?? "unknown"})`,
+            "ERROR"
+          );
         });
-        if (isCancelled) {
-          unlistenBatch();
-        } else {
-          cleanups.push(unlistenBatch);
+        if (isCancelled && unlistenExit) {
+          unlistenExit();
         }
-      } catch (err) {
-        // Outside of Tauri context or mocking
+      } catch {
+        // Outside of Tauri context
       }
     }
 
-    setupListeners();
+    setupExitListener();
     return () => {
       isCancelled = true;
-      cleanups.forEach((c) => c());
+      if (unlistenExit) unlistenExit();
     };
-  }, []);
+  }, [pushAppLog]);
 
   // Intercept window close to gracefully stop node
   useEffect(() => {
@@ -229,7 +230,7 @@ export const App: React.FC = () => {
     setActiveWallet(null);
     setAllWallets([]);
     setDerivedAccounts([]);
-    setLogs((prev) => [...prev.slice(-1500), t("logs.vaultLocked")]);
+    appendLog(t("logs.vaultLocked"));
   };
 
   const handleWalletUnlocked = async (
@@ -269,7 +270,7 @@ export const App: React.FC = () => {
     } catch {
       // Node might not be ready yet
     }
-    setLogs((prev) => [...prev.slice(-1500), t("logs.vaultUnlocked", { name: found.name, address: targetAddr })]);
+    appendLog(t("logs.vaultUnlocked", { name: found.name, address: targetAddr }));
   };
 
   const handleSwitchWalletRequest = async (walletId: string) => {
@@ -290,7 +291,7 @@ export const App: React.FC = () => {
       if (stopMining) {
         await api.stopMining(rpcUrl);
         setHashrate(0);
-        setLogs((prev) => [...prev, t("logs.miningStoppedAuto")]);
+        appendLog(t("logs.miningStoppedAuto"));
       }
 
       const summary = await api.setActiveWallet(walletId);
@@ -310,7 +311,7 @@ export const App: React.FC = () => {
       } catch {
         // Node might not be ready yet
       }
-      setLogs((prev) => [...prev, t("logs.walletSwitched", { name: summary.name, address: targetAddr })]);
+      appendLog(t("logs.walletSwitched", { name: summary.name, address: targetAddr }));
     } catch (err) {
       console.error("Error switching wallet:", err);
     } finally {
@@ -336,7 +337,7 @@ export const App: React.FC = () => {
       if (activeWallet?.id === walletId && updated.length > 0) {
         await executeWalletSwitch(updated[0].id);
       }
-      setLogs((prev) => [...prev, t("logs.walletRemoved")]);
+      appendLog(t("logs.walletRemoved"));
     } catch (err) {
       console.error("Error removing wallet:", err);
     }
@@ -365,13 +366,13 @@ export const App: React.FC = () => {
       if (stopMining) {
         await api.stopMining(rpcUrl);
         setHashrate(0);
-        setLogs((prev) => [...prev, t("logs.miningStoppedAuto")]);
+        appendLog(t("logs.miningStoppedAuto"));
       }
       setUnlockedAddress(addr);
       if (activeWallet?.id) {
         localStorage.setItem(`rogue_active_account_${activeWallet.id}`, addr);
       }
-      setLogs((prev) => [...prev, t("logs.addressSelected", { address: addr })]);
+      appendLog(t("logs.addressSelected", { address: addr }));
       try {
         await api.setEtherbase(rpcUrl, addr);
       } catch {
@@ -436,7 +437,7 @@ export const App: React.FC = () => {
         const elapsed = (Date.now() - lastActivityRef.current) / 1000 / 60;
         if (elapsed >= autoLockMinutes) {
           handleLockWallet();
-          setLogs((prev) => [...prev.slice(-1500), t("logs.autoLockedInactivity")]);
+          appendLog(t("logs.autoLockedInactivity"));
         }
       }
     }, 15000);
@@ -563,14 +564,28 @@ export const App: React.FC = () => {
     };
   }, [refreshMetrics]);
 
-  const pushAppLog = useCallback(
-    (message: string, level: "INFO" | "WARN" | "ERROR" | "DEBUG" = "INFO") => {
-      const formatted = message.startsWith("[") ? message : `[App] ${message}`;
-      setLogs((prev) => [...prev.slice(-1500), formatted]);
-      void api.appendAppLog(level, message);
-    },
-    []
-  );
+  const nodeConfigRef = useRef({
+    datadir: nodeDatadir,
+    httpPort: nodeHttpPort,
+    wsPort: nodeWsPort,
+    p2pPort: nodeP2pPort,
+    bootnodes: nodeBootnodes,
+    cache: nodeCache,
+    syncmode: nodeSyncmode,
+    verbosity: nodeVerbosity,
+    fastMode: nodeFastMode,
+  });
+  nodeConfigRef.current = {
+    datadir: nodeDatadir,
+    httpPort: nodeHttpPort,
+    wsPort: nodeWsPort,
+    p2pPort: nodeP2pPort,
+    bootnodes: nodeBootnodes,
+    cache: nodeCache,
+    syncmode: nodeSyncmode,
+    verbosity: nodeVerbosity,
+    fastMode: nodeFastMode,
+  };
 
   const handleStartNode = async (
     mine: boolean = false,
@@ -578,23 +593,24 @@ export const App: React.FC = () => {
     coinbase?: string,
     fastModeOverride?: boolean
   ) => {
+    const cfg = nodeConfigRef.current;
     try {
       const msg = await api.startNode({
-        datadir: nodeDatadir.trim() ? nodeDatadir.trim() : undefined,
-        http_port: nodeHttpPort,
-        ws_port: nodeWsPort,
-        p2p_port: nodeP2pPort,
-        bootnodes: nodeBootnodes,
+        datadir: cfg.datadir.trim() ? cfg.datadir.trim() : undefined,
+        http_port: cfg.httpPort,
+        ws_port: cfg.wsPort,
+        p2p_port: cfg.p2pPort,
+        bootnodes: cfg.bootnodes,
         mine,
         miner_threads: threads,
-        fast_mode: fastModeOverride ?? nodeFastMode,
+        fast_mode: fastModeOverride ?? cfg.fastMode,
         coinbase: coinbase || unlockedAddress || undefined,
-        cache: nodeCache,
-        syncmode: nodeSyncmode,
-        verbosity: nodeVerbosity,
+        cache: cfg.cache,
+        syncmode: "full",
+        verbosity: cfg.verbosity,
       });
       pushAppLog(`[Manager] ${msg}`, "INFO");
-      const activeRpc = `http://127.0.0.1:${nodeHttpPort}`;
+      const activeRpc = `http://127.0.0.1:${cfg.httpPort}`;
       setRpcUrl(activeRpc);
       localStorage.setItem("rogue_rpc_url", activeRpc);
       refreshMetrics();
@@ -652,10 +668,7 @@ export const App: React.FC = () => {
         if (!isCancelled && attempts < 3) {
           attempts++;
           const delay = Math.pow(2, attempts) * 1000;
-          setLogs((prev) => [
-            ...prev.slice(-1500),
-            `[Auto-Start] Retry attempt ${attempts}/3 in ${delay / 1000}s...`,
-          ]);
+          appendLog(`[Auto-Start] Retry attempt ${attempts}/3 in ${delay / 1000}s...`);
           retryTimer = setTimeout(tryAutoStart, delay);
         }
       }
@@ -674,7 +687,7 @@ export const App: React.FC = () => {
     for (const enode of enodes) {
       try {
         await api.addPeer(rpcUrl, enode);
-        setLogs((prev) => [...prev.slice(-1500), `[P2P] Added peer/bootnode: ${enode}`]);
+        appendLog(`[P2P] Added peer/bootnode: ${enode}`);
       } catch {
         // Peer unreachable or invalid enode
       }
@@ -684,9 +697,9 @@ export const App: React.FC = () => {
 
   const handleCleanChaindata = async (customDatadir?: string) => {
     const targetDir = (customDatadir ?? nodeDatadir).trim() || undefined;
-    setLogs((prev) => [...prev.slice(-1500), `[Maintenance] Wiping chaindata at ${targetDir || "OS default"}...`]);
+    appendLog(`[Maintenance] Wiping chaindata at ${targetDir || "OS default"}...`);
     const res = await api.cleanChaindata(targetDir);
-    setLogs((prev) => [...prev.slice(-1500), `[Maintenance] ${res}`]);
+    appendLog(`[Maintenance] ${res}`);
     await handleStartNode(false);
   };
 
@@ -700,13 +713,24 @@ export const App: React.FC = () => {
     syncmode: "full" | "snap";
     verbosity: number;
   }) => {
+    nodeConfigRef.current = {
+      ...nodeConfigRef.current,
+      datadir: config.datadir,
+      httpPort: config.httpPort,
+      wsPort: config.wsPort,
+      p2pPort: config.p2pPort,
+      bootnodes: config.bootnodes,
+      cache: config.cache,
+      syncmode: "full",
+      verbosity: config.verbosity,
+    };
     setNodeDatadir(config.datadir);
     setNodeHttpPort(config.httpPort);
     setNodeWsPort(config.wsPort);
     setNodeP2pPort(config.p2pPort);
     setNodeBootnodes(config.bootnodes);
     setNodeCache(config.cache);
-    setNodeSyncmode(config.syncmode);
+    setNodeSyncmode("full");
     setNodeVerbosity(config.verbosity);
 
     localStorage.setItem("rogue_node_datadir", config.datadir);
@@ -715,7 +739,7 @@ export const App: React.FC = () => {
     localStorage.setItem("rogue_node_p2p_port", config.p2pPort.toString());
     localStorage.setItem("rogue_node_bootnodes", config.bootnodes);
     localStorage.setItem("rogue_node_cache", config.cache.toString());
-    localStorage.setItem("rogue_node_syncmode", config.syncmode);
+    localStorage.setItem("rogue_node_syncmode", "full");
     localStorage.setItem("rogue_node_verbosity", config.verbosity.toString());
   };
 
@@ -856,8 +880,6 @@ export const App: React.FC = () => {
 
           {currentTab === "console" && (
             <NodeConsoleView
-              logs={logs}
-              onClearLogs={() => setLogs([])}
               rpcUrl={rpcUrl}
               nodeStatus={nodeStatus}
               peerCount={peerCount}
