@@ -9,16 +9,26 @@ use serde::{Deserialize, Serialize};
 use sha2::Sha512;
 use std::fs;
 use std::path::PathBuf;
-use std::sync::Mutex;
+use std::sync::{Mutex, OnceLock};
 use tiny_keccak::{Hasher, Keccak};
+use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
 type HmacSha512 = Hmac<Sha512>;
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+static SECP: OnceLock<Secp256k1<secp256k1::All>> = OnceLock::new();
+
+fn get_secp() -> &'static Secp256k1<secp256k1::All> {
+    SECP.get_or_init(Secp256k1::new)
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, Zeroize, ZeroizeOnDrop)]
 pub struct WalletItem {
+    #[zeroize(skip)]
     pub id: String,
+    #[zeroize(skip)]
     pub name: String,
     pub mnemonic: String,
+    #[zeroize(skip)]
     pub derived_count: u32,
 }
 
@@ -50,19 +60,11 @@ static UNLOCKED_WALLETS: Mutex<Vec<WalletItem>> = Mutex::new(Vec::new());
 static ACTIVE_WALLET_ID: Mutex<Option<String>> = Mutex::new(None);
 
 fn secure_zero_bytes(buf: &mut [u8]) {
-    for b in buf.iter_mut() {
-        unsafe {
-            std::ptr::write_volatile(b, 0);
-        }
-    }
-    std::sync::atomic::compiler_fence(std::sync::atomic::Ordering::SeqCst);
+    buf.zeroize();
 }
 
 fn secure_zero_string(s: &mut String) {
-    unsafe {
-        secure_zero_bytes(s.as_bytes_mut());
-    }
-    s.clear();
+    s.zeroize();
 }
 
 fn lock_master_key() -> std::sync::MutexGuard<'static, Option<[u8; 32]>> {
@@ -137,37 +139,37 @@ fn derive_bip32_child(
     }
 
     let result = mac.finalize().into_bytes();
-    let mut il = [0u8; 32];
+    let mut il = Zeroizing::new([0u8; 32]);
     il.copy_from_slice(&result[0..32]);
-    let mut child_chain_code = [0u8; 32];
+    let mut child_chain_code = Zeroizing::new([0u8; 32]);
     child_chain_code.copy_from_slice(&result[32..64]);
 
-    let scalar = secp256k1::Scalar::from_be_bytes(il)
+    let scalar = secp256k1::Scalar::from_be_bytes(*il)
         .map_err(|_| "IL is greater than or equal to curve order".to_string())?;
     let child_key = parent_key
         .add_tweak(&scalar)
         .map_err(|e| format!("Tweaking secret key failed: {:?}", e))?;
 
-    Ok((child_key, child_chain_code))
+    Ok((child_key, *child_chain_code))
 }
 
-fn derive_private_key_bip44(mnemonic_str: &str, account_index: u32) -> Result<[u8; 32], String> {
+fn derive_private_key_bip44(mnemonic_str: &str, account_index: u32) -> Result<Zeroizing<[u8; 32]>, String> {
     let mnemonic = Mnemonic::parse_in_normalized(Language::English, mnemonic_str)
         .map_err(|e| format!("Invalid mnemonic: {:?}", e))?;
-    let seed = mnemonic.to_seed("");
+    let seed = Zeroizing::new(mnemonic.to_seed(""));
 
     // BIP-32 Master key derivation: HMAC-SHA512("Bitcoin seed", seed)
     let mut mac = <HmacSha512 as hmac::Mac>::new_from_slice(b"Bitcoin seed").map_err(|e| e.to_string())?;
-    mac.update(&seed);
+    mac.update(&*seed);
     let result = mac.finalize().into_bytes();
 
-    let mut master_key_bytes = [0u8; 32];
+    let mut master_key_bytes = Zeroizing::new([0u8; 32]);
     master_key_bytes.copy_from_slice(&result[0..32]);
-    let mut chain_code = [0u8; 32];
+    let mut chain_code = Zeroizing::new([0u8; 32]);
     chain_code.copy_from_slice(&result[32..64]);
 
-    let secp = Secp256k1::new();
-    let mut current_key = SecretKey::from_slice(&master_key_bytes).map_err(|e| e.to_string())?;
+    let secp = get_secp();
+    let mut current_key = SecretKey::from_slice(&*master_key_bytes).map_err(|e| e.to_string())?;
 
     // Standard BIP-44 EVM path: m / 44' / 60' / 0' / 0 / account_index
     let path = [
@@ -179,12 +181,12 @@ fn derive_private_key_bip44(mnemonic_str: &str, account_index: u32) -> Result<[u
     ];
 
     for &index in &path {
-        let (next_key, next_chain_code) = derive_bip32_child(&secp, &current_key, &chain_code, index)?;
+        let (next_key, next_chain_code) = derive_bip32_child(secp, &current_key, &chain_code, index)?;
         current_key = next_key;
-        chain_code = next_chain_code;
+        *chain_code = next_chain_code;
     }
 
-    Ok(current_key.secret_bytes())
+    Ok(Zeroizing::new(current_key.secret_bytes()))
 }
 
 fn public_key_to_address(pubkey: &PublicKey) -> String {
@@ -216,27 +218,29 @@ fn get_vault_path() -> PathBuf {
     vault_dir.join("wallet.vault")
 }
 
-fn save_vault_locked(wallets: &[WalletItem], active_id: &Option<String>) -> Result<(), String> {
-    let master_key_opt = *lock_master_key();
-    let master_key = master_key_opt.ok_or_else(|| "Vault is locked".to_string())?;
-
-    let salt_opt = *lock_salt();
-    let salt = salt_opt.unwrap_or([0u8; 16]);
-
+fn save_vault_with_key(
+    master_key: &[u8; 32],
+    salt: &[u8; 16],
+    wallets: &[WalletItem],
+    active_id: &Option<String>,
+) -> Result<(), String> {
     let mut nonce_bytes = [0u8; 12];
     let mut rng = rand::thread_rng();
     rng.fill_bytes(&mut nonce_bytes);
 
-    let cipher = Aes256Gcm::new_from_slice(&master_key).map_err(|e| e.to_string())?;
+    let cipher = Aes256Gcm::new_from_slice(master_key).map_err(|e| e.to_string())?;
     let nonce = Nonce::from_slice(&nonce_bytes);
 
-    let payload = serde_json::json!({
-        "wallets": wallets,
-        "active_wallet_id": active_id,
-    });
+    let payload = Zeroizing::new(
+        serde_json::json!({
+            "wallets": wallets,
+            "active_wallet_id": active_id,
+        })
+        .to_string(),
+    );
 
     let ciphertext = cipher
-        .encrypt(nonce, payload.to_string().as_bytes())
+        .encrypt(nonce, payload.as_bytes())
         .map_err(|e| format!("Encryption failed: {}", e))?;
 
     let vault = EncryptedVault {
@@ -274,6 +278,16 @@ fn save_vault_locked(wallets: &[WalletItem], active_id: &Option<String>) -> Resu
         .map_err(|e| format!("Failed to atomically replace vault file: {}", e))?;
 
     Ok(())
+}
+
+fn save_vault_locked(wallets: &[WalletItem], active_id: &Option<String>) -> Result<(), String> {
+    let master_key_opt = *lock_master_key();
+    let master_key = master_key_opt.ok_or_else(|| "Vault is locked".to_string())?;
+
+    let salt_opt = *lock_salt();
+    let salt = salt_opt.unwrap_or([0u8; 16]);
+
+    save_vault_with_key(&master_key, &salt, wallets, active_id)
 }
 
 #[tauri::command]
@@ -370,18 +384,18 @@ pub fn create_wallet(mnemonic: String, password: String, name: Option<String>) -
     let wallets = vec![item];
     let active_id = Some(wallet_id.clone());
 
-    *UNLOCKED_MASTER_KEY.lock().unwrap() = Some(enc_key);
-    *UNLOCKED_SALT.lock().unwrap() = Some(salt);
-    *UNLOCKED_WALLETS.lock().unwrap() = wallets.clone();
-    *ACTIVE_WALLET_ID.lock().unwrap() = active_id.clone();
+    save_vault_with_key(&enc_key, &salt, &wallets, &active_id)?;
 
-    save_vault_locked(&wallets, &active_id)?;
-
-    let privkey = derive_private_key_bip44(&mnemonic, 0)?;
-    let secp = Secp256k1::new();
-    let secret = SecretKey::from_slice(&privkey).map_err(|e| e.to_string())?;
-    let pubkey = PublicKey::from_secret_key(&secp, &secret);
+    let privkey = derive_private_key_bip44(&normalized, 0)?;
+    let secp = get_secp();
+    let secret = SecretKey::from_slice(&*privkey).map_err(|e| e.to_string())?;
+    let pubkey = PublicKey::from_secret_key(secp, &secret);
     let address = public_key_to_address(&pubkey);
+
+    *lock_master_key() = Some(enc_key);
+    *lock_salt() = Some(salt);
+    *lock_wallets() = wallets;
+    *lock_active_wallet_id() = active_id;
 
     Ok(WalletSummary {
         id: wallet_id,
@@ -422,12 +436,14 @@ pub fn unlock_wallet(password: String) -> Result<Vec<WalletSummary>, String> {
     let cipher = Aes256Gcm::new_from_slice(&enc_key).map_err(|e| e.to_string())?;
     let nonce = Nonce::from_slice(&nonce_bytes);
 
-    let decrypted = cipher
-        .decrypt(nonce, ciphertext.as_ref())
-        .map_err(|_| {
-            secure_zero_bytes(&mut enc_key);
-            "Invalid master password".to_string()
-        })?;
+    let decrypted = Zeroizing::new(
+        cipher
+            .decrypt(nonce, ciphertext.as_ref())
+            .map_err(|_| {
+                secure_zero_bytes(&mut enc_key);
+                "Invalid master password".to_string()
+            })?,
+    );
 
     let payload: serde_json::Value = serde_json::from_slice(&decrypted).map_err(|e| e.to_string())?;
 
@@ -461,17 +477,17 @@ pub fn unlock_wallet(password: String) -> Result<Vec<WalletSummary>, String> {
         active_wallet_id = Some(wallets[0].id.clone());
     }
 
-    *UNLOCKED_MASTER_KEY.lock().unwrap() = Some(enc_key);
-    *UNLOCKED_SALT.lock().unwrap() = Some(salt);
-    *UNLOCKED_WALLETS.lock().unwrap() = wallets.clone();
-    *ACTIVE_WALLET_ID.lock().unwrap() = active_wallet_id;
+    *lock_master_key() = Some(enc_key);
+    *lock_salt() = Some(salt);
+    *lock_wallets() = wallets.clone();
+    *lock_active_wallet_id() = active_wallet_id;
 
-    let secp = Secp256k1::new();
+    let secp = get_secp();
     let mut summaries = Vec::new();
     for w in &wallets {
         let privkey = derive_private_key_bip44(&w.mnemonic, 0)?;
-        let secret = SecretKey::from_slice(&privkey).map_err(|e| e.to_string())?;
-        let pubkey = PublicKey::from_secret_key(&secp, &secret);
+        let secret = SecretKey::from_slice(&*privkey).map_err(|e| e.to_string())?;
+        let pubkey = PublicKey::from_secret_key(secp, &secret);
         let address = public_key_to_address(&pubkey);
         summaries.push(WalletSummary {
             id: w.id.clone(),
@@ -490,10 +506,10 @@ pub fn add_wallet(mnemonic: String, name: Option<String>) -> Result<WalletSummar
         .map_err(|e| format!("Invalid mnemonic: {:?}", e))?
         .to_string();
 
-    let mut wallets = UNLOCKED_WALLETS.lock().unwrap();
-    if wallets.is_empty() && UNLOCKED_MASTER_KEY.lock().unwrap().is_none() {
+    if lock_master_key().is_none() {
         return Err("Vault is locked".to_string());
     }
+    let mut wallets = lock_wallets();
 
     let duplicate = wallets.iter().any(|w| {
         Mnemonic::parse_in_normalized(Language::English, &w.mnemonic)
@@ -527,13 +543,13 @@ pub fn add_wallet(mnemonic: String, name: Option<String>) -> Result<WalletSummar
 
     wallets.push(item);
     let active_id = Some(wallet_id.clone());
-    *ACTIVE_WALLET_ID.lock().unwrap() = active_id.clone();
+    *lock_active_wallet_id() = active_id.clone();
     save_vault_locked(&wallets, &active_id)?;
 
     let privkey = derive_private_key_bip44(&normalized, 0)?;
-    let secp = Secp256k1::new();
-    let secret = SecretKey::from_slice(&privkey).map_err(|e| e.to_string())?;
-    let pubkey = PublicKey::from_secret_key(&secp, &secret);
+    let secp = get_secp();
+    let secret = SecretKey::from_slice(&*privkey).map_err(|e| e.to_string())?;
+    let pubkey = PublicKey::from_secret_key(secp, &secret);
     let address = public_key_to_address(&pubkey);
 
     Ok(WalletSummary {
@@ -546,7 +562,7 @@ pub fn add_wallet(mnemonic: String, name: Option<String>) -> Result<WalletSummar
 
 #[tauri::command]
 pub fn remove_wallet(wallet_id: String) -> Result<Vec<WalletSummary>, String> {
-    let mut wallets = UNLOCKED_WALLETS.lock().unwrap();
+    let mut wallets = lock_wallets();
     if wallets.len() <= 1 {
         return Err("No se puede eliminar la única billetera de la bóveda".to_string());
     }
@@ -557,7 +573,7 @@ pub fn remove_wallet(wallet_id: String) -> Result<Vec<WalletSummary>, String> {
         .ok_or_else(|| "Billetera no encontrada".to_string())?;
     wallets.remove(pos);
 
-    let mut active_lock = ACTIVE_WALLET_ID.lock().unwrap();
+    let mut active_lock = lock_active_wallet_id();
     if active_lock.as_deref() == Some(&wallet_id) {
         *active_lock = Some(wallets[0].id.clone());
     }
@@ -565,12 +581,12 @@ pub fn remove_wallet(wallet_id: String) -> Result<Vec<WalletSummary>, String> {
 
     save_vault_locked(&wallets, &active_id)?;
 
-    let secp = Secp256k1::new();
+    let secp = get_secp();
     let mut summaries = Vec::new();
     for w in wallets.iter() {
         let privkey = derive_private_key_bip44(&w.mnemonic, 0)?;
-        let secret = SecretKey::from_slice(&privkey).map_err(|e| e.to_string())?;
-        let pubkey = PublicKey::from_secret_key(&secp, &secret);
+        let secret = SecretKey::from_slice(&*privkey).map_err(|e| e.to_string())?;
+        let pubkey = PublicKey::from_secret_key(secp, &secret);
         let address = public_key_to_address(&pubkey);
         summaries.push(WalletSummary {
             id: w.id.clone(),
@@ -585,32 +601,32 @@ pub fn remove_wallet(wallet_id: String) -> Result<Vec<WalletSummary>, String> {
 
 #[tauri::command]
 pub fn rename_wallet(wallet_id: String, new_name: String) -> Result<(), String> {
-    let mut wallets = UNLOCKED_WALLETS.lock().unwrap();
+    let mut wallets = lock_wallets();
     let item = wallets
         .iter_mut()
         .find(|w| w.id == wallet_id)
         .ok_or_else(|| "Billetera no encontrada".to_string())?;
     item.name = new_name;
-    let active_id = ACTIVE_WALLET_ID.lock().unwrap().clone();
+    let active_id = lock_active_wallet_id().clone();
     save_vault_locked(&wallets, &active_id)?;
     Ok(())
 }
 
 #[tauri::command]
 pub fn set_active_wallet(wallet_id: String) -> Result<WalletSummary, String> {
-    let wallets = UNLOCKED_WALLETS.lock().unwrap();
+    let wallets = lock_wallets();
     let item = wallets
         .iter()
         .find(|w| w.id == wallet_id)
         .ok_or_else(|| "Billetera no encontrada".to_string())?;
 
-    *ACTIVE_WALLET_ID.lock().unwrap() = Some(wallet_id.clone());
+    *lock_active_wallet_id() = Some(wallet_id.clone());
     save_vault_locked(&wallets, &Some(wallet_id.clone()))?;
 
     let privkey = derive_private_key_bip44(&item.mnemonic, 0)?;
-    let secp = Secp256k1::new();
-    let secret = SecretKey::from_slice(&privkey).map_err(|e| e.to_string())?;
-    let pubkey = PublicKey::from_secret_key(&secp, &secret);
+    let secp = get_secp();
+    let secret = SecretKey::from_slice(&*privkey).map_err(|e| e.to_string())?;
+    let pubkey = PublicKey::from_secret_key(secp, &secret);
     let address = public_key_to_address(&pubkey);
 
     Ok(WalletSummary {
@@ -623,17 +639,17 @@ pub fn set_active_wallet(wallet_id: String) -> Result<WalletSummary, String> {
 
 #[tauri::command]
 pub fn get_wallets() -> Result<Vec<WalletSummary>, String> {
-    let wallets = UNLOCKED_WALLETS.lock().unwrap();
+    let wallets = lock_wallets();
     if wallets.is_empty() {
         return Err("Wallet is locked".to_string());
     }
 
-    let secp = Secp256k1::new();
+    let secp = get_secp();
     let mut summaries = Vec::new();
     for w in wallets.iter() {
         let privkey = derive_private_key_bip44(&w.mnemonic, 0)?;
-        let secret = SecretKey::from_slice(&privkey).map_err(|e| e.to_string())?;
-        let pubkey = PublicKey::from_secret_key(&secp, &secret);
+        let secret = SecretKey::from_slice(&*privkey).map_err(|e| e.to_string())?;
+        let pubkey = PublicKey::from_secret_key(secp, &secret);
         let address = public_key_to_address(&pubkey);
         summaries.push(WalletSummary {
             id: w.id.clone(),
@@ -665,12 +681,12 @@ pub fn get_mnemonic(password: String, wallet_id: Option<String>) -> Result<Strin
 
 #[tauri::command]
 pub fn get_derived_accounts(wallet_id: Option<String>, count: Option<u32>) -> Result<Vec<AccountInfo>, String> {
-    let mut wallets = UNLOCKED_WALLETS.lock().unwrap();
+    let mut wallets = lock_wallets();
     if wallets.is_empty() {
         return Err("Wallet is locked".to_string());
     }
 
-    let target_id = wallet_id.or_else(|| ACTIVE_WALLET_ID.lock().unwrap().clone());
+    let target_id = wallet_id.or_else(|| lock_active_wallet_id().clone());
     let (mnemonic, req_count) = {
         let item = wallets
             .iter_mut()
@@ -681,19 +697,19 @@ pub fn get_derived_accounts(wallet_id: Option<String>, count: Option<u32>) -> Re
         if req_count > item.derived_count {
             item.derived_count = req_count;
         }
-        (item.mnemonic.clone(), req_count)
+        (Zeroizing::new(item.mnemonic.clone()), req_count)
     };
 
-    let active_id = ACTIVE_WALLET_ID.lock().unwrap().clone();
+    let active_id = lock_active_wallet_id().clone();
     let _ = save_vault_locked(&wallets, &active_id);
 
     let mut accounts = Vec::new();
-    let secp = Secp256k1::new();
+    let secp = get_secp();
 
     for i in 0..req_count {
         let privkey = derive_private_key_bip44(&mnemonic, i)?;
-        let secret = SecretKey::from_slice(&privkey).map_err(|e| e.to_string())?;
-        let pubkey = PublicKey::from_secret_key(&secp, &secret);
+        let secret = SecretKey::from_slice(&*privkey).map_err(|e| e.to_string())?;
+        let pubkey = PublicKey::from_secret_key(secp, &secret);
         let address = public_key_to_address(&pubkey);
         let path = format!("m/44'/60'/0'/0/{}", i);
         accounts.push(AccountInfo {
@@ -725,9 +741,8 @@ pub fn get_private_key(password: String, wallet_id: Option<String>, account_inde
         .find(|w| Some(&w.id) == target_id.as_ref())
         .ok_or_else(|| "Billetera no encontrada".to_string())?;
 
-    let mut privkey = derive_private_key_bip44(&item.mnemonic, account_index)?;
-    let hex_key = format!("0x{}", hex::encode(privkey));
-    secure_zero_bytes(&mut privkey);
+    let privkey = derive_private_key_bip44(&item.mnemonic, account_index)?;
+    let hex_key = format!("0x{}", hex::encode(*privkey));
     Ok(hex_key)
 }
 
@@ -864,7 +879,7 @@ pub fn build_and_sign_legacy_tx(
 
     let sighash = keccak256(&unsigned_rlp);
 
-    let secp = Secp256k1::new();
+    let secp = get_secp();
     let secret = SecretKey::from_slice(privkey).map_err(|e| e.to_string())?;
     let message = Message::from_digest_slice(&sighash).map_err(|e| e.to_string())?;
     let sig = secp.sign_ecdsa_recoverable(&message, &secret);
@@ -901,12 +916,12 @@ pub fn sign_raw_transaction(
     wallet_id: Option<String>,
     account_index: Option<u32>,
 ) -> Result<String, String> {
-    let wallets = UNLOCKED_WALLETS.lock().unwrap();
+    let wallets = lock_wallets();
     if wallets.is_empty() {
         return Err("Wallet is locked".to_string());
     }
 
-    let target_id = wallet_id.or_else(|| ACTIVE_WALLET_ID.lock().unwrap().clone());
+    let target_id = wallet_id.or_else(|| lock_active_wallet_id().clone());
     let item = wallets
         .iter()
         .find(|w| Some(&w.id) == target_id.as_ref())
@@ -916,7 +931,7 @@ pub fn sign_raw_transaction(
     let privkey = derive_private_key_bip44(&item.mnemonic, index)?;
 
     build_and_sign_legacy_tx(
-        &privkey,
+        &*privkey,
         nonce,
         &gas_price_hex,
         gas_limit,
@@ -933,12 +948,12 @@ pub fn sign_transaction(
     wallet_id: Option<String>,
     account_index: Option<u32>,
 ) -> Result<String, String> {
-    let wallets = UNLOCKED_WALLETS.lock().unwrap();
+    let wallets = lock_wallets();
     if wallets.is_empty() {
         return Err("Wallet is locked".to_string());
     }
 
-    let target_id = wallet_id.or_else(|| ACTIVE_WALLET_ID.lock().unwrap().clone());
+    let target_id = wallet_id.or_else(|| lock_active_wallet_id().clone());
     let item = wallets
         .iter()
         .find(|w| Some(&w.id) == target_id.as_ref())
@@ -953,8 +968,8 @@ pub fn sign_transaction(
         return Err("Tx hash must be 32 bytes".to_string());
     }
 
-    let secp = Secp256k1::new();
-    let secret = SecretKey::from_slice(&privkey).map_err(|e| e.to_string())?;
+    let secp = get_secp();
+    let secret = SecretKey::from_slice(&*privkey).map_err(|e| e.to_string())?;
     let message = Message::from_digest_slice(&hash_bytes).map_err(|e| e.to_string())?;
 
     let sig = secp.sign_ecdsa_recoverable(&message, &secret);
@@ -976,9 +991,9 @@ mod tests {
         // Known BIP-39 / BIP-44 test vector for derivation verification - DO NOT USE FOR REAL FUNDS
         let mnemonic = "draft horse index reduce awkward black final airport velvet boy obvious during";
         let privkey = derive_private_key_bip44(mnemonic, 0).expect("derivation failed");
-        let secp = Secp256k1::new();
-        let secret = SecretKey::from_slice(&privkey).expect("invalid secret key");
-        let pubkey = PublicKey::from_secret_key(&secp, &secret);
+        let secp = get_secp();
+        let secret = SecretKey::from_slice(&*privkey).expect("invalid secret key");
+        let pubkey = PublicKey::from_secret_key(secp, &secret);
         let address = public_key_to_address(&pubkey);
 
         assert_eq!(address.to_lowercase(), "0x0544802665bc7c22124348e745a7abaa8420e197".to_lowercase());
@@ -990,9 +1005,9 @@ mod tests {
 
         let mnemonic = "draft horse index reduce awkward black final airport velvet boy obvious during";
         let privkey = derive_private_key_bip44(mnemonic, 0).expect("derivation failed");
-        let secp = Secp256k1::new();
-        let secret = SecretKey::from_slice(&privkey).unwrap();
-        let expected_addr = public_key_to_address(&PublicKey::from_secret_key(&secp, &secret));
+        let secp = get_secp();
+        let secret = SecretKey::from_slice(&*privkey).unwrap();
+        let expected_addr = public_key_to_address(&PublicKey::from_secret_key(secp, &secret));
 
         let chain_id: u64 = 800055;
         let raw_tx = build_and_sign_legacy_tx(
