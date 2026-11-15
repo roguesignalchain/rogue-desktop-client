@@ -172,7 +172,7 @@ export const WalletView: React.FC<WalletViewProps> = ({
 
       const enriched: AccountWithMeta[] = await Promise.all(
         rawAccounts.map(async (acc) => {
-          let bal = "0.0000";
+          let bal: string;
           try {
             bal = await api.getBalance(rpcUrl, acc.address);
           } catch {
@@ -309,7 +309,7 @@ export const WalletView: React.FC<WalletViewProps> = ({
           const existing = accounts.find((a) => a.address.toLowerCase() === acc.address.toLowerCase());
           if (existing) return existing;
 
-          let bal = "0.0000";
+          let bal: string;
           try {
             bal = await api.getBalance(rpcUrl, acc.address);
           } catch {

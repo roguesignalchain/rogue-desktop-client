@@ -140,9 +140,23 @@ npm run tauri dev    # Launch full Tauri v2 desktop application with live reload
 ```
 
 ### Production Release
-To compile native release binaries and installers (`.deb`, `.AppImage`):
+To compile native release binaries and installers (`.deb`, `.AppImage`, `.msi`, `.dmg`):
 ```bash
+npm run lint
+npm test
 npm run tauri build
 ```
 Binaries will be output to `src-tauri/target/release/bundle/`.
+
+#### External Release Prerequisites
+Before publishing signed multi-platform releases:
+1. **Target Sidecars (`src-tauri/binaries/`)**: Bundle the compiled `core-rogue` binary with the exact Tauri target-triple suffix for every supported platform:
+   - Linux x86_64: `core-rogue-x86_64-unknown-linux-gnu`
+   - Windows x86_64: `core-rogue-x86_64-pc-windows-msvc.exe`
+   - macOS Apple Silicon / Intel: `core-rogue-aarch64-apple-darwin`, `core-rogue-x86_64-apple-darwin`
+2. **Code Signing & Notarization**:
+   - **Windows**: Sign installers (`.msi` / `.exe`) and sidecar with an Authenticode / EV certificate (`signtool`).
+   - **macOS**: Sign with a Developer ID Application certificate and notarize via Apple `notarytool`.
+   - **Linux / All**: Generate and publish `SHA256SUMS` alongside all GitHub Release assets.
+
 

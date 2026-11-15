@@ -122,7 +122,7 @@ export const App: React.FC = () => {
   // Listen to Tauri log events (clean async unlisten to avoid duplicates)
   useEffect(() => {
     let isCancelled = false;
-    let cleanups: (() => void)[] = [];
+    const cleanups: (() => void)[] = [];
 
     async function setupListeners() {
       try {

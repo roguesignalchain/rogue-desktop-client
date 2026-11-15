@@ -193,7 +193,7 @@ export const MiningView: React.FC<MiningViewProps> = ({
           return;
         }
 
-        let payoutAddr = unlockedAddress || coinbaseAddr;
+        const payoutAddr = unlockedAddress || coinbaseAddr;
         if (!payoutAddr) {
           setFeedback(t("mining.feedback.unlockWalletFirst"));
           return;

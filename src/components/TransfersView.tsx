@@ -75,7 +75,7 @@ export const TransfersView: React.FC<TransfersViewProps> = ({
 
       const enriched = await Promise.all(
         rawAccounts.map(async (acc) => {
-          let bal = "0.0000";
+          let bal: string;
           try {
             bal = await api.getBalance(rpcUrl, acc.address);
           } catch {
