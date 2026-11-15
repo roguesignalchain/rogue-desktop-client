@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { api } from "../services/api";
 import { AccountInfo, ExplorerRoute, WalletSummary, WalletCategory } from "../types";
+import { VoxelAvatar } from "./VoxelAvatar";
 
 export interface AccountWithMeta extends AccountInfo {
   balance: string;
@@ -912,6 +913,7 @@ export const WalletView: React.FC<WalletViewProps> = ({
                                 <div className="cursor-move pt-1 text-zinc-600 hover:text-zinc-300">
                                   <GripVertical className="w-4 h-4" />
                                 </div>
+                                <VoxelAvatar seed={acc.address} size={32} className="border border-zinc-800 bg-zinc-950 p-0.5 mt-0.5" />
 
                                 <div className="min-w-0 space-y-1">
                                   <div className="flex items-center space-x-2 flex-wrap gap-y-1">

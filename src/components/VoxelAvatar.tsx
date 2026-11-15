@@ -1,6 +1,8 @@
 import React, { useMemo } from "react";
-import { createAvatar } from "@dicebear/core";
-import { bottts } from "@dicebear/collection";
+import { Avatar, Style, type StyleDefinition } from "@dicebear/core";
+import voxelArt from "@dicebear/styles/voxel-art.json";
+
+const voxelArtStyle = new Style(voxelArt as unknown as StyleDefinition);
 
 interface VoxelAvatarProps {
   seed: string;
@@ -11,25 +13,29 @@ interface VoxelAvatarProps {
 export const VoxelAvatar: React.FC<VoxelAvatarProps> = ({ seed, size = 32, className = "" }) => {
   const svgDataUri = useMemo(() => {
     try {
-      const avatar = createAvatar(bottts, {
+      const avatar = new Avatar(voxelArtStyle, {
         seed: seed.toLowerCase(),
         size,
       });
-      return `data:image/svg+xml;utf8,${encodeURIComponent(avatar.toString())}`;
-    } catch (e) {
-      console.warn("Error rendering voxel bot avatar:", e);
+      return avatar.toDataUri();
+    } catch {
       return "";
     }
   }, [seed, size]);
 
   if (!svgDataUri) {
-    return <div className={`w-[${size}px] h-[${size}px] bg-zinc-800 rounded-[2px] ${className}`} />;
+    return (
+      <div
+        style={{ width: size, height: size }}
+        className={`bg-zinc-800 rounded-[2px] shrink-0 ${className}`}
+      />
+    );
   }
 
   return (
     <img
       src={svgDataUri}
-      alt="Miner Avatar"
+      alt="EOA Voxel Avatar"
       style={{ width: size, height: size }}
       className={`rounded-[2px] object-contain shrink-0 ${className}`}
     />

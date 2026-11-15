@@ -16,6 +16,7 @@ import {
 import { api } from "../services/api";
 import { AccountInfo, ExplorerRoute, WalletSummary } from "../types";
 import { parseEther, formatEther, isAddress } from "viem";
+import { VoxelAvatar } from "./VoxelAvatar";
 
 interface DerivedAccountItem extends AccountInfo {
   balance: string;
@@ -283,7 +284,9 @@ export const TransfersView: React.FC<TransfersViewProps> = ({
             </div>
 
             <div className="flex items-center justify-between gap-3">
-              <div className="min-w-0">
+              <div className="flex items-center space-x-2.5 min-w-0">
+                <VoxelAvatar seed={unlockedAddress} size={32} className="border border-zinc-800 bg-zinc-950 p-0.5" />
+                <div className="min-w-0">
                 <div className="flex items-center space-x-2">
                   <span className="text-xs font-bold text-white truncate">
                     {activeAccount?.name || activeWallet.name}
@@ -296,6 +299,7 @@ export const TransfersView: React.FC<TransfersViewProps> = ({
                 </div>
                 <div className="text-xs font-mono text-zinc-400 truncate mt-0.5">
                   {unlockedAddress}
+                </div>
                 </div>
               </div>
               <div className="text-right shrink-0">
@@ -325,6 +329,7 @@ export const TransfersView: React.FC<TransfersViewProps> = ({
                       }`}
                     >
                       <div className="flex items-center space-x-2 min-w-0">
+                        <VoxelAvatar seed={acc.address} size={20} className="border border-zinc-800 bg-zinc-950" />
                         <span className="font-semibold truncate">{acc.name}</span>
                         <span className="text-[10px] font-mono text-zinc-500">
                           {acc.address.slice(0, 6)}...{acc.address.slice(-4)}
