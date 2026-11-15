@@ -175,7 +175,7 @@ fn derive_private_key_bip44(mnemonic_str: &str, account_index: u32) -> Result<Ze
     let path = [
         0x8000_0000 + 44, // 44'
         0x8000_0000 + 60, // 60'
-        0x8000_0000 + 0,  // 0'
+        0x8000_0000,      // 0'
         0,                 // 0 (external change)
         account_index,     // account index
     ];
@@ -841,6 +841,7 @@ fn keccak256(data: &[u8]) -> [u8; 32] {
 
 /// Sign a Legacy (Type 0) EIP-155 transaction and return the RLP-encoded raw tx hex (`0x...`)
 /// ready for `eth_sendRawTransaction`.
+#[allow(clippy::too_many_arguments)]
 pub fn build_and_sign_legacy_tx(
     privkey: &[u8; 32],
     nonce: u64,
@@ -905,6 +906,7 @@ pub fn build_and_sign_legacy_tx(
 }
 
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub fn sign_raw_transaction(
     to: String,
     value_wei_hex: String,
@@ -931,7 +933,7 @@ pub fn sign_raw_transaction(
     let privkey = derive_private_key_bip44(&item.mnemonic, index)?;
 
     build_and_sign_legacy_tx(
-        &*privkey,
+        &privkey,
         nonce,
         &gas_price_hex,
         gas_limit,

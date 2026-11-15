@@ -131,8 +131,7 @@ export async function readMinerStats(
       nextLevelXP: Number(stats.nextLevelXP),
       progressPercent: Number(stats.progressBps) / 100,
     };
-  } catch (e) {
-    console.warn("Could not retrieve on-chain miner stats:", e);
+  } catch {
     return null;
   }
 }
@@ -178,8 +177,7 @@ export async function readAllRanks(rpcUrl: string, lang?: string): Promise<RankI
 
     ranksCache.set(cacheKey, parsed);
     return parsed;
-  } catch (e) {
-    console.warn("Could not retrieve on-chain rank definitions:", e);
+  } catch {
     return [];
   }
 }

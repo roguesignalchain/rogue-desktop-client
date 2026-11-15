@@ -17,13 +17,8 @@ import { readAllRanks, readMinerLevel, readMinerStats } from "../contracts/rogue
 
 // Safe invoke wrapper for Tauri v2
 async function safeInvoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
-  try {
-    const tauri = await import("@tauri-apps/api/core");
-    return await tauri.invoke<T>(cmd, args);
-  } catch (err) {
-    console.warn(`[Tauri Invoke Error: ${cmd}]`, err);
-    throw err;
-  }
+  const tauri = await import("@tauri-apps/api/core");
+  return tauri.invoke<T>(cmd, args);
 }
 
 export function parseDifficultyBigInt(diff: unknown): bigint | null {
@@ -255,8 +250,7 @@ export const api = {
   setEtherbase: async (rpcUrl: string, address: string): Promise<boolean> => {
     try {
       return await api.callRpc<boolean>(rpcUrl, "miner_setEtherbase", [address]);
-    } catch (e) {
-      console.warn("miner_setEtherbase error:", e);
+    } catch {
       return false;
     }
   },
@@ -281,8 +275,8 @@ export const api = {
     if (coinbase) {
       try {
         await api.callRpc(rpcUrl, "miner_setEtherbase", [coinbase]);
-      } catch (e) {
-        console.warn("Could not set miner etherbase:", e);
+      } catch {
+        // Ignore transient etherbase RPC error
       }
     }
     await api.callRpc(rpcUrl, "miner_start", [threads]);

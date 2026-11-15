@@ -196,8 +196,8 @@ export const WalletView: React.FC<WalletViewProps> = ({
       );
 
       setAccounts(enriched);
-    } catch (err) {
-      console.warn("Error loading derived accounts:", err);
+    } catch {
+      // Derived accounts unavailable while locked
     } finally {
       setLoadingAccounts(false);
     }

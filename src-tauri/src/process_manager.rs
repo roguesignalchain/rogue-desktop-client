@@ -505,7 +505,7 @@ pub async fn start_node(app: AppHandle, config: NodeConfig) -> Result<String, St
         std::thread::spawn(move || {
             use std::io::{BufRead, BufReader};
             let reader = BufReader::new(stdout);
-            for line in reader.lines().flatten() {
+            for line in reader.lines().map_while(Result::ok) {
                 crate::log_store::append_line("Geth", &line);
                 let _ = tx.send(line);
             }
@@ -517,7 +517,7 @@ pub async fn start_node(app: AppHandle, config: NodeConfig) -> Result<String, St
         std::thread::spawn(move || {
             use std::io::{BufRead, BufReader};
             let reader = BufReader::new(stderr);
-            for line in reader.lines().flatten() {
+            for line in reader.lines().map_while(Result::ok) {
                 crate::log_store::append_line("Geth", &line);
                 let _ = tx.send(line);
             }

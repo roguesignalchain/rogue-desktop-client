@@ -199,8 +199,7 @@ export const App: React.FC = () => {
       const accs = await api.getDerivedAccounts(walletId);
       setDerivedAccounts(accs);
       return accs;
-    } catch (e) {
-      console.warn("Could not load derived accounts:", e);
+    } catch {
       return [];
     }
   };
@@ -223,8 +222,8 @@ export const App: React.FC = () => {
   const handleLockWallet = async () => {
     try {
       await api.lockWallet();
-    } catch (e) {
-      console.warn("Failed to lock wallet backend:", e);
+    } catch {
+      // Backend lock best-effort
     }
     setUnlockedAddress(null);
     setActiveWallet(null);
@@ -676,8 +675,8 @@ export const App: React.FC = () => {
       try {
         await api.addPeer(rpcUrl, enode);
         setLogs((prev) => [...prev.slice(-1500), `[P2P] Added peer/bootnode: ${enode}`]);
-      } catch (err) {
-        console.warn("Failed to add peer:", err);
+      } catch {
+        // Peer unreachable or invalid enode
       }
     }
     refreshMetrics();

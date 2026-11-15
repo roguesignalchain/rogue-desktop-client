@@ -94,8 +94,8 @@ export const TransfersView: React.FC<TransfersViewProps> = ({
         })
       );
       setAccounts(enriched);
-    } catch (err) {
-      console.warn("Error loading accounts for transfers:", err);
+    } catch {
+      // Derived accounts unavailable while locked
     }
   }, [activeWallet?.id, rpcUrl, t]);
 
