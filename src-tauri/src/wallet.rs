@@ -1,6 +1,6 @@
 use aes_gcm::aead::Aead;
 use aes_gcm::{Aes256Gcm, KeyInit, Nonce};
-use argon2::Argon2;
+use argon2::{Algorithm, Argon2, Params, Version};
 use bip39::{Language, Mnemonic};
 use hmac::{Hmac, Mac};
 use rand::RngCore;
@@ -9,7 +9,9 @@ use serde::{Deserialize, Serialize};
 use sha2::Sha512;
 use std::fs;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 use std::sync::{Mutex, OnceLock};
+use std::time::{SystemTime, UNIX_EPOCH};
 use tiny_keccak::{Hasher, Keccak};
 use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
@@ -47,8 +49,18 @@ pub struct AccountInfo {
     pub path: String,
 }
 
+const CURRENT_VAULT_VERSION: u32 = 2;
+const MIN_PASSWORD_LEN: usize = 8;
+const DEFAULT_AUTO_LOCK_SECS: u64 = 15 * 60;
+
+fn default_vault_version() -> u32 {
+    1
+}
+
 #[derive(Serialize, Deserialize)]
 pub struct EncryptedVault {
+    #[serde(default = "default_vault_version")]
+    pub version: u32,
     pub salt: String,
     pub nonce: String,
     pub ciphertext: String,
@@ -56,8 +68,110 @@ pub struct EncryptedVault {
 
 static UNLOCKED_MASTER_KEY: Mutex<Option<[u8; 32]>> = Mutex::new(None);
 static UNLOCKED_SALT: Mutex<Option<[u8; 16]>> = Mutex::new(None);
+static UNLOCKED_VAULT_VERSION: AtomicU32 = AtomicU32::new(CURRENT_VAULT_VERSION);
 static UNLOCKED_WALLETS: Mutex<Vec<WalletItem>> = Mutex::new(Vec::new());
 static ACTIVE_WALLET_ID: Mutex<Option<String>> = Mutex::new(None);
+
+static WALLET_ID_SEQ: AtomicU64 = AtomicU64::new(1);
+static FAILED_UNLOCK_ATTEMPTS: AtomicU32 = AtomicU32::new(0);
+static LAST_FAILED_UNLOCK_MS: AtomicU64 = AtomicU64::new(0);
+static LAST_ACTIVITY_SECS: AtomicU64 = AtomicU64::new(0);
+static AUTO_LOCK_TIMEOUT_SECS: AtomicU64 = AtomicU64::new(DEFAULT_AUTO_LOCK_SECS);
+
+fn now_unix_secs() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs()
+}
+
+fn now_unix_millis() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64
+}
+
+fn next_wallet_id(prefix: &str) -> String {
+    let seq = WALLET_ID_SEQ.fetch_add(1, Ordering::Relaxed);
+    format!("{}_{}_{}", prefix, now_unix_millis(), seq)
+}
+
+fn validate_password_policy(password: &str) -> Result<(), String> {
+    if password.chars().count() < MIN_PASSWORD_LEN {
+        return Err(format!(
+            "Password must be at least {} characters long",
+            MIN_PASSWORD_LEN
+        ));
+    }
+    Ok(())
+}
+
+fn derive_kdf_key(password: &str, salt: &[u8; 16], version: u32) -> Result<[u8; 32], String> {
+    let mut out = [0u8; 32];
+    if version >= 2 {
+        let params = Params::new(65_536, 3, 1, Some(32))
+            .map_err(|e| format!("Argon2 params error: {}", e))?;
+        let argon2 = Argon2::new(Algorithm::Argon2id, Version::V0x13, params);
+        argon2
+            .hash_password_into(password.as_bytes(), salt, &mut out)
+            .map_err(|e| format!("Argon2 error: {}", e))?;
+    } else {
+        Argon2::default()
+            .hash_password_into(password.as_bytes(), salt, &mut out)
+            .map_err(|e| format!("Argon2 error: {}", e))?;
+    }
+    Ok(out)
+}
+
+fn check_unlock_rate_limit() -> Result<(), String> {
+    let attempts = FAILED_UNLOCK_ATTEMPTS.load(Ordering::SeqCst);
+    if attempts < 3 {
+        return Ok(());
+    }
+    let shift = (attempts - 3).min(4);
+    let cooldown_ms = 2_000u64.saturating_mul(1u64 << shift).min(30_000);
+    let elapsed_ms = now_unix_millis().saturating_sub(LAST_FAILED_UNLOCK_MS.load(Ordering::SeqCst));
+    if elapsed_ms < cooldown_ms {
+        let wait_secs = ((cooldown_ms - elapsed_ms) + 999) / 1000;
+        return Err(format!(
+            "Too many failed attempts. Please wait {}s before retrying.",
+            wait_secs
+        ));
+    }
+    Ok(())
+}
+
+fn record_unlock_failure() {
+    FAILED_UNLOCK_ATTEMPTS.fetch_add(1, Ordering::SeqCst);
+    LAST_FAILED_UNLOCK_MS.store(now_unix_millis(), Ordering::SeqCst);
+}
+
+fn reset_unlock_failures() {
+    FAILED_UNLOCK_ATTEMPTS.store(0, Ordering::SeqCst);
+    LAST_FAILED_UNLOCK_MS.store(0, Ordering::SeqCst);
+}
+
+fn touch_session() {
+    LAST_ACTIVITY_SECS.store(now_unix_secs(), Ordering::SeqCst);
+}
+
+fn check_and_touch_session() -> Result<(), String> {
+    if lock_master_key().is_none() {
+        return Err("Wallet is locked".to_string());
+    }
+    let timeout = AUTO_LOCK_TIMEOUT_SECS.load(Ordering::SeqCst);
+    if timeout > 0 {
+        let last = LAST_ACTIVITY_SECS.load(Ordering::SeqCst);
+        let now = now_unix_secs();
+        if last > 0 && now.saturating_sub(last) >= timeout {
+            let _ = lock_wallet();
+            return Err("Wallet session expired due to inactivity".to_string());
+        }
+    }
+    touch_session();
+    Ok(())
+}
 
 fn secure_zero_bytes(buf: &mut [u8]) {
     buf.zeroize();
@@ -84,15 +198,16 @@ fn lock_active_wallet_id() -> std::sync::MutexGuard<'static, Option<String>> {
 }
 
 fn verify_master_password(password: &str) -> Result<(), String> {
+    check_and_touch_session()?;
+    check_unlock_rate_limit()?;
+
     let master_key = lock_master_key()
         .ok_or_else(|| "Wallet is locked".to_string())?;
     let salt = lock_salt()
         .ok_or_else(|| "Wallet is locked".to_string())?;
+    let version = UNLOCKED_VAULT_VERSION.load(Ordering::SeqCst);
 
-    let mut derived = [0u8; 32];
-    Argon2::default()
-        .hash_password_into(password.as_bytes(), &salt, &mut derived)
-        .map_err(|e| format!("Argon2 error: {}", e))?;
+    let mut derived = derive_kdf_key(password, &salt, version)?;
 
     let mut diff: u8 = 0;
     for (a, b) in derived.iter().zip(master_key.iter()) {
@@ -101,8 +216,10 @@ fn verify_master_password(password: &str) -> Result<(), String> {
     secure_zero_bytes(&mut derived);
 
     if diff != 0 {
+        record_unlock_failure();
         return Err("Invalid master password".to_string());
     }
+    reset_unlock_failures();
     Ok(())
 }
 
@@ -153,13 +270,13 @@ fn derive_bip32_child(
     Ok((child_key, *child_chain_code))
 }
 
-fn derive_private_key_bip44(mnemonic_str: &str, account_index: u32) -> Result<Zeroizing<[u8; 32]>, String> {
+fn derive_bip44_account_parent(mnemonic_str: &str) -> Result<(SecretKey, Zeroizing<[u8; 32]>), String> {
     let mnemonic = Mnemonic::parse_in_normalized(Language::English, mnemonic_str)
         .map_err(|e| format!("Invalid mnemonic: {:?}", e))?;
     let seed = Zeroizing::new(mnemonic.to_seed(""));
 
     // BIP-32 Master key derivation: HMAC-SHA512("Bitcoin seed", seed)
-    let mut mac = <HmacSha512 as hmac::Mac>::new_from_slice(b"Bitcoin seed").map_err(|e| e.to_string())?;
+    let mut mac = <HmacSha512 as Mac>::new_from_slice(b"Bitcoin seed").map_err(|e| e.to_string())?;
     mac.update(&*seed);
     let result = mac.finalize().into_bytes();
 
@@ -171,22 +288,28 @@ fn derive_private_key_bip44(mnemonic_str: &str, account_index: u32) -> Result<Ze
     let secp = get_secp();
     let mut current_key = SecretKey::from_slice(&*master_key_bytes).map_err(|e| e.to_string())?;
 
-    // Standard BIP-44 EVM path: m / 44' / 60' / 0' / 0 / account_index
-    let path = [
+    // Standard BIP-44 EVM account parent path: m / 44' / 60' / 0' / 0
+    let parent_path = [
         0x8000_0000 + 44, // 44'
         0x8000_0000 + 60, // 60'
         0x8000_0000,      // 0'
-        0,                 // 0 (external change)
-        account_index,     // account index
+        0,                // 0 (external change)
     ];
 
-    for &index in &path {
+    for &index in &parent_path {
         let (next_key, next_chain_code) = derive_bip32_child(secp, &current_key, &chain_code, index)?;
         current_key = next_key;
         *chain_code = next_chain_code;
     }
 
-    Ok(Zeroizing::new(current_key.secret_bytes()))
+    Ok((current_key, chain_code))
+}
+
+fn derive_private_key_bip44(mnemonic_str: &str, account_index: u32) -> Result<Zeroizing<[u8; 32]>, String> {
+    let (parent_key, parent_chain_code) = derive_bip44_account_parent(mnemonic_str)?;
+    let secp = get_secp();
+    let (child_key, _) = derive_bip32_child(secp, &parent_key, &parent_chain_code, account_index)?;
+    Ok(Zeroizing::new(child_key.secret_bytes()))
 }
 
 fn public_key_to_address(pubkey: &PublicKey) -> String {
@@ -244,6 +367,7 @@ fn save_vault_with_key(
         .map_err(|e| format!("Encryption failed: {}", e))?;
 
     let vault = EncryptedVault {
+        version: UNLOCKED_VAULT_VERSION.load(Ordering::SeqCst),
         salt: hex::encode(salt),
         nonce: hex::encode(nonce_bytes),
         ciphertext: hex::encode(ciphertext),
@@ -307,21 +431,14 @@ pub fn reset_vault() -> Result<(), String> {
 
 #[tauri::command]
 pub fn change_master_password(new_password: String) -> Result<(), String> {
-    if new_password.is_empty() {
-        return Err("Password cannot be empty".to_string());
-    }
-    if lock_master_key().is_none() {
-        return Err("Vault is locked".to_string());
-    }
+    check_and_touch_session()?;
+    validate_password_policy(&new_password)?;
 
     let mut new_salt = [0u8; 16];
     let mut rng = rand::thread_rng();
     rng.fill_bytes(&mut new_salt);
 
-    let mut new_key = [0u8; 32];
-    Argon2::default()
-        .hash_password_into(new_password.as_bytes(), &new_salt, &mut new_key)
-        .map_err(|e| format!("Argon2 derivation error: {}", e))?;
+    let mut new_key = derive_kdf_key(&new_password, &new_salt, CURRENT_VAULT_VERSION)?;
 
     {
         let mut key_guard = lock_master_key();
@@ -337,9 +454,10 @@ pub fn change_master_password(new_password: String) -> Result<(), String> {
         }
         *salt_guard = Some(new_salt);
     }
+    UNLOCKED_VAULT_VERSION.store(CURRENT_VAULT_VERSION, Ordering::SeqCst);
     secure_zero_bytes(&mut new_key);
 
-    let wallets = lock_wallets().clone();
+    let wallets = lock_wallets();
     let active_id = lock_active_wallet_id().clone();
     save_vault_locked(&wallets, &active_id)
 }
@@ -349,26 +467,21 @@ pub fn create_wallet(mnemonic: String, password: String, name: Option<String>) -
     if get_vault_path().exists() {
         return Err("VAULT_ALREADY_EXISTS".to_string());
     }
-    let normalized = Mnemonic::parse_in_normalized(Language::English, &mnemonic)
-        .map_err(|e| format!("Invalid mnemonic: {:?}", e))?
-        .to_string();
+    validate_password_policy(&password)?;
+
+    let normalized = Zeroizing::new(
+        Mnemonic::parse_in_normalized(Language::English, &mnemonic)
+            .map_err(|e| format!("Invalid mnemonic: {:?}", e))?
+            .to_string(),
+    );
 
     let mut salt = [0u8; 16];
     let mut rng = rand::thread_rng();
     rng.fill_bytes(&mut salt);
 
-    let mut enc_key = [0u8; 32];
-    Argon2::default()
-        .hash_password_into(password.as_bytes(), &salt, &mut enc_key)
-        .map_err(|e| format!("Argon2 derivation error: {}", e))?;
+    let mut enc_key = derive_kdf_key(&password, &salt, CURRENT_VAULT_VERSION)?;
 
-    let wallet_id = format!(
-        "wallet_{}",
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_millis()
-    );
+    let wallet_id = next_wallet_id("wallet");
     let wallet_name = name
         .map(|n| n.trim().to_string())
         .filter(|n| !n.is_empty())
@@ -377,14 +490,18 @@ pub fn create_wallet(mnemonic: String, password: String, name: Option<String>) -
     let item = WalletItem {
         id: wallet_id.clone(),
         name: wallet_name.clone(),
-        mnemonic: normalized.clone(),
+        mnemonic: (*normalized).clone(),
         derived_count: 1,
     };
 
     let wallets = vec![item];
     let active_id = Some(wallet_id.clone());
 
-    save_vault_with_key(&enc_key, &salt, &wallets, &active_id)?;
+    UNLOCKED_VAULT_VERSION.store(CURRENT_VAULT_VERSION, Ordering::SeqCst);
+    if let Err(e) = save_vault_with_key(&enc_key, &salt, &wallets, &active_id) {
+        secure_zero_bytes(&mut enc_key);
+        return Err(e);
+    }
 
     let privkey = derive_private_key_bip44(&normalized, 0)?;
     let secp = get_secp();
@@ -393,9 +510,12 @@ pub fn create_wallet(mnemonic: String, password: String, name: Option<String>) -
     let address = public_key_to_address(&pubkey);
 
     *lock_master_key() = Some(enc_key);
+    secure_zero_bytes(&mut enc_key);
     *lock_salt() = Some(salt);
     *lock_wallets() = wallets;
     *lock_active_wallet_id() = active_id;
+    reset_unlock_failures();
+    touch_session();
 
     Ok(WalletSummary {
         id: wallet_id,
@@ -407,6 +527,8 @@ pub fn create_wallet(mnemonic: String, password: String, name: Option<String>) -
 
 #[tauri::command]
 pub fn unlock_wallet(password: String) -> Result<Vec<WalletSummary>, String> {
+    check_unlock_rate_limit()?;
+
     let path = get_vault_path();
     if !path.exists() {
         return Err("No wallet vault found. Please create one first.".to_string());
@@ -428,10 +550,7 @@ pub fn unlock_wallet(password: String) -> Result<Vec<WalletSummary>, String> {
     }
     let ciphertext = hex::decode(&vault.ciphertext).map_err(|e| e.to_string())?;
 
-    let mut enc_key = [0u8; 32];
-    Argon2::default()
-        .hash_password_into(password.as_bytes(), &salt, &mut enc_key)
-        .map_err(|e| format!("Argon2 error: {}", e))?;
+    let mut enc_key = derive_kdf_key(&password, &salt, vault.version)?;
 
     let cipher = Aes256Gcm::new_from_slice(&enc_key).map_err(|e| e.to_string())?;
     let nonce = Nonce::from_slice(&nonce_bytes);
@@ -441,11 +560,15 @@ pub fn unlock_wallet(password: String) -> Result<Vec<WalletSummary>, String> {
             .decrypt(nonce, ciphertext.as_ref())
             .map_err(|_| {
                 secure_zero_bytes(&mut enc_key);
+                record_unlock_failure();
                 "Invalid master password".to_string()
             })?,
     );
 
-    let payload: serde_json::Value = serde_json::from_slice(&decrypted).map_err(|e| e.to_string())?;
+    let payload: serde_json::Value = serde_json::from_slice(&decrypted).map_err(|e| {
+        secure_zero_bytes(&mut enc_key);
+        e.to_string()
+    })?;
 
     let mut wallets: Vec<WalletItem> = Vec::new();
     let mut active_wallet_id: Option<String> = None;
@@ -470,17 +593,13 @@ pub fn unlock_wallet(password: String) -> Result<Vec<WalletSummary>, String> {
     }
 
     if wallets.is_empty() {
+        secure_zero_bytes(&mut enc_key);
         return Err("No wallets found in vault".to_string());
     }
 
     if active_wallet_id.is_none() || !wallets.iter().any(|w| Some(&w.id) == active_wallet_id.as_ref()) {
         active_wallet_id = Some(wallets[0].id.clone());
     }
-
-    *lock_master_key() = Some(enc_key);
-    *lock_salt() = Some(salt);
-    *lock_wallets() = wallets.clone();
-    *lock_active_wallet_id() = active_wallet_id;
 
     let secp = get_secp();
     let mut summaries = Vec::new();
@@ -497,23 +616,32 @@ pub fn unlock_wallet(password: String) -> Result<Vec<WalletSummary>, String> {
         });
     }
 
+    *lock_master_key() = Some(enc_key);
+    secure_zero_bytes(&mut enc_key);
+    *lock_salt() = Some(salt);
+    UNLOCKED_VAULT_VERSION.store(vault.version, Ordering::SeqCst);
+    *lock_wallets() = wallets;
+    *lock_active_wallet_id() = active_wallet_id;
+    reset_unlock_failures();
+    touch_session();
+
     Ok(summaries)
 }
 
 #[tauri::command]
 pub fn add_wallet(mnemonic: String, name: Option<String>) -> Result<WalletSummary, String> {
-    let normalized = Mnemonic::parse_in_normalized(Language::English, &mnemonic)
-        .map_err(|e| format!("Invalid mnemonic: {:?}", e))?
-        .to_string();
+    check_and_touch_session()?;
+    let normalized = Zeroizing::new(
+        Mnemonic::parse_in_normalized(Language::English, &mnemonic)
+            .map_err(|e| format!("Invalid mnemonic: {:?}", e))?
+            .to_string(),
+    );
 
-    if lock_master_key().is_none() {
-        return Err("Vault is locked".to_string());
-    }
     let mut wallets = lock_wallets();
 
     let duplicate = wallets.iter().any(|w| {
         Mnemonic::parse_in_normalized(Language::English, &w.mnemonic)
-            .map(|m| m.to_string() == normalized)
+            .map(|m| m.to_string() == *normalized)
             .unwrap_or(false)
     });
     if duplicate {
@@ -521,14 +649,7 @@ pub fn add_wallet(mnemonic: String, name: Option<String>) -> Result<WalletSummar
     }
 
     let count = wallets.len() + 1;
-    let wallet_id = format!(
-        "wallet_{}_{}",
-        count,
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_millis()
-    );
+    let wallet_id = next_wallet_id(&format!("wallet_{}", count));
     let wallet_name = name
         .map(|n| n.trim().to_string())
         .filter(|n| !n.is_empty())
@@ -537,7 +658,7 @@ pub fn add_wallet(mnemonic: String, name: Option<String>) -> Result<WalletSummar
     let item = WalletItem {
         id: wallet_id.clone(),
         name: wallet_name.clone(),
-        mnemonic: normalized.clone(),
+        mnemonic: (*normalized).clone(),
         derived_count: 1,
     };
 
@@ -562,6 +683,7 @@ pub fn add_wallet(mnemonic: String, name: Option<String>) -> Result<WalletSummar
 
 #[tauri::command]
 pub fn remove_wallet(wallet_id: String) -> Result<Vec<WalletSummary>, String> {
+    check_and_touch_session()?;
     let mut wallets = lock_wallets();
     if wallets.len() <= 1 {
         return Err("No se puede eliminar la única billetera de la bóveda".to_string());
@@ -601,6 +723,7 @@ pub fn remove_wallet(wallet_id: String) -> Result<Vec<WalletSummary>, String> {
 
 #[tauri::command]
 pub fn rename_wallet(wallet_id: String, new_name: String) -> Result<(), String> {
+    check_and_touch_session()?;
     let mut wallets = lock_wallets();
     let item = wallets
         .iter_mut()
@@ -614,6 +737,7 @@ pub fn rename_wallet(wallet_id: String, new_name: String) -> Result<(), String> 
 
 #[tauri::command]
 pub fn set_active_wallet(wallet_id: String) -> Result<WalletSummary, String> {
+    check_and_touch_session()?;
     let wallets = lock_wallets();
     let item = wallets
         .iter()
@@ -639,6 +763,7 @@ pub fn set_active_wallet(wallet_id: String) -> Result<WalletSummary, String> {
 
 #[tauri::command]
 pub fn get_wallets() -> Result<Vec<WalletSummary>, String> {
+    check_and_touch_session()?;
     let wallets = lock_wallets();
     if wallets.is_empty() {
         return Err("Wallet is locked".to_string());
@@ -681,35 +806,39 @@ pub fn get_mnemonic(password: String, wallet_id: Option<String>) -> Result<Strin
 
 #[tauri::command]
 pub fn get_derived_accounts(wallet_id: Option<String>, count: Option<u32>) -> Result<Vec<AccountInfo>, String> {
+    check_and_touch_session()?;
     let mut wallets = lock_wallets();
     if wallets.is_empty() {
         return Err("Wallet is locked".to_string());
     }
 
     let target_id = wallet_id.or_else(|| lock_active_wallet_id().clone());
-    let (mnemonic, req_count) = {
+    let (mnemonic, req_count, grew) = {
         let item = wallets
             .iter_mut()
             .find(|w| Some(&w.id) == target_id.as_ref())
             .ok_or_else(|| "Billetera no encontrada".to_string())?;
 
         let req_count = count.unwrap_or(item.derived_count).max(1);
-        if req_count > item.derived_count {
+        let grew = req_count > item.derived_count;
+        if grew {
             item.derived_count = req_count;
         }
-        (Zeroizing::new(item.mnemonic.clone()), req_count)
+        (Zeroizing::new(item.mnemonic.clone()), req_count, grew)
     };
 
-    let active_id = lock_active_wallet_id().clone();
-    let _ = save_vault_locked(&wallets, &active_id);
+    if grew {
+        let active_id = lock_active_wallet_id().clone();
+        let _ = save_vault_locked(&wallets, &active_id);
+    }
 
-    let mut accounts = Vec::new();
+    let (parent_key, parent_chain_code) = derive_bip44_account_parent(&mnemonic)?;
+    let mut accounts = Vec::with_capacity(req_count as usize);
     let secp = get_secp();
 
     for i in 0..req_count {
-        let privkey = derive_private_key_bip44(&mnemonic, i)?;
-        let secret = SecretKey::from_slice(&*privkey).map_err(|e| e.to_string())?;
-        let pubkey = PublicKey::from_secret_key(secp, &secret);
+        let (child_key, _) = derive_bip32_child(secp, &parent_key, &parent_chain_code, i)?;
+        let pubkey = PublicKey::from_secret_key(secp, &child_key);
         let address = public_key_to_address(&pubkey);
         let path = format!("m/44'/60'/0'/0/{}", i);
         accounts.push(AccountInfo {
@@ -766,6 +895,7 @@ pub fn lock_wallet() -> Result<(), String> {
         wallets.clear();
     }
     *lock_active_wallet_id() = None;
+    LAST_ACTIVITY_SECS.store(0, Ordering::SeqCst);
     Ok(())
 }
 
@@ -918,6 +1048,7 @@ pub fn sign_raw_transaction(
     wallet_id: Option<String>,
     account_index: Option<u32>,
 ) -> Result<String, String> {
+    check_and_touch_session()?;
     let wallets = lock_wallets();
     if wallets.is_empty() {
         return Err("Wallet is locked".to_string());
@@ -950,6 +1081,7 @@ pub fn sign_transaction(
     wallet_id: Option<String>,
     account_index: Option<u32>,
 ) -> Result<String, String> {
+    check_and_touch_session()?;
     let wallets = lock_wallets();
     if wallets.is_empty() {
         return Err("Wallet is locked".to_string());
@@ -1064,14 +1196,14 @@ mod tests {
         secure_zero_string(&mut secret_str);
         assert!(secret_str.is_empty());
 
-        // Populate in-memory unlocked state and test verify_master_password & lock_wallet
+        // Populate in-memory unlocked state (v2) and test verify_master_password & lock_wallet
         let salt = [0x11u8; 16];
-        let mut key = [0u8; 32];
-        Argon2::default()
-            .hash_password_into(b"CorrectHorseBattery", &salt, &mut key)
-            .unwrap();
+        let key = derive_kdf_key("CorrectHorseBattery", &salt, CURRENT_VAULT_VERSION).unwrap();
         *lock_master_key() = Some(key);
         *lock_salt() = Some(salt);
+        UNLOCKED_VAULT_VERSION.store(CURRENT_VAULT_VERSION, Ordering::SeqCst);
+        reset_unlock_failures();
+        touch_session();
         *lock_wallets() = vec![WalletItem {
             id: "w1".to_string(),
             name: "Test".to_string(),
@@ -1088,5 +1220,29 @@ mod tests {
         assert!(lock_salt().is_none());
         assert!(lock_wallets().is_empty());
         assert!(lock_active_wallet_id().is_none());
+    }
+
+    #[test]
+    fn test_password_policy_and_kdf_versions() {
+        assert!(validate_password_policy("").is_err());
+        assert!(validate_password_policy("1234567").is_err());
+        assert!(validate_password_policy("12345678").is_ok());
+
+        let salt = [0x22u8; 16];
+        let k1 = derive_kdf_key("CorrectHorseBattery", &salt, 1).unwrap();
+        let k2 = derive_kdf_key("CorrectHorseBattery", &salt, 2).unwrap();
+        assert_ne!(k1, k2);
+    }
+
+    #[test]
+    fn test_batch_bip44_parent_matches_single_derivation() {
+        let mnemonic = "draft horse index reduce awkward black final airport velvet boy obvious during";
+        let (parent_key, parent_chain) = derive_bip44_account_parent(mnemonic).unwrap();
+        let secp = get_secp();
+        for idx in 0..3 {
+            let single = derive_private_key_bip44(mnemonic, idx).unwrap();
+            let (child, _) = derive_bip32_child(secp, &parent_key, &parent_chain, idx).unwrap();
+            assert_eq!(*single, child.secret_bytes());
+        }
     }
 }
