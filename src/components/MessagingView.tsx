@@ -149,17 +149,19 @@ export const MessagingView: React.FC<MessagingViewProps> = ({
   };
 
   const refreshSidebarData = async () => {
-    try {
-      const [roomList, onlineList, dmList] = await Promise.all([
-        invoke<RoomSummary[]>("messaging_list_rooms"),
-        invoke<PresenceRecord[]>("messaging_list_online", { room: activeRoomRef.current }),
-        invoke<DecryptedDM[]>("messaging_list_dms"),
-      ]);
-      setRooms(roomList);
-      setOnlineUsers(onlineList);
-      setDms(dmList);
-    } catch {
-      // Errors surfaced via status or banner.
+    const [roomsRes, onlineRes, dmsRes] = await Promise.allSettled([
+      invoke<RoomSummary[]>("messaging_list_rooms"),
+      invoke<PresenceRecord[]>("messaging_list_online", { room: activeRoomRef.current }),
+      invoke<DecryptedDM[]>("messaging_list_dms"),
+    ]);
+    if (roomsRes.status === "fulfilled") {
+      setRooms(roomsRes.value);
+    }
+    if (onlineRes.status === "fulfilled") {
+      setOnlineUsers(onlineRes.value);
+    }
+    if (dmsRes.status === "fulfilled") {
+      setDms(dmsRes.value);
     }
   };
 

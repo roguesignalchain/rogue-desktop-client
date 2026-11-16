@@ -411,6 +411,20 @@ pub async fn messaging_status() -> Result<MessagingStatus, String> {
     })
 }
 
+async fn publish_presence(js: &async_nats::jetstream::Context, address: &str, active_room: &str, level: u32) {
+    let rec = PresenceRecord {
+        address: address.to_string(),
+        active_room: active_room.to_string(),
+        level,
+        updated_at: now_millis(),
+    };
+    if let Ok(bytes) = serde_json::to_vec(&rec) {
+        if let Ok(kv) = js.get_key_value("ROGUE_PRESENCE").await {
+            let _ = kv.put(address, bytes.into()).await;
+        }
+    }
+}
+
 #[tauri::command]
 pub async fn messaging_connect(app: AppHandle, server_url: String) -> Result<MessagingStatus, String> {
     messaging_disconnect(app.clone()).await?;
@@ -453,7 +467,7 @@ pub async fn messaging_connect(app: AppHandle, server_url: String) -> Result<Mes
 
     let (shutdown_tx, mut shutdown_rx) = watch::channel(false);
 
-    {
+    let initial_room = {
         let mut guard = state().lock().await;
         guard.client = Some(client.clone());
         guard.js = Some(js.clone());
@@ -462,7 +476,11 @@ pub async fn messaging_connect(app: AppHandle, server_url: String) -> Result<Mes
         guard.error = None;
         guard.shutdown_tx = Some(shutdown_tx);
         emit_status(&app, &guard);
-    }
+        guard.active_room.clone()
+    };
+
+    // Publish initial presence before returning so immediate sidebar refresh sees this user online.
+    publish_presence(&js, &addr, &initial_room, miner_level.unwrap_or(0)).await;
 
     // Spawn live subscriptions (chat, gated, delete, dm, errors) & presence heartbeat.
     let app_bg = app.clone();
@@ -476,6 +494,7 @@ pub async fn messaging_connect(app: AppHandle, server_url: String) -> Result<Mes
         let mut err_sub = client.subscribe(format!("rogue.err.{}", addr_bg)).await.ok();
 
         let mut hb_interval = tokio::time::interval(Duration::from_secs(15));
+        hb_interval.tick().await; // consume immediate tick (initial presence already published)
         let mut reauth_interval = tokio::time::interval(Duration::from_secs(12 * 60));
         reauth_interval.tick().await; // consume immediate tick
 
@@ -488,17 +507,7 @@ pub async fn messaging_connect(app: AppHandle, server_url: String) -> Result<Mes
                 }
                 _ = hb_interval.tick() => {
                     let active_room = { state().lock().await.active_room.clone() };
-                    let rec = PresenceRecord {
-                        address: addr_bg.clone(),
-                        active_room,
-                        level: miner_level.unwrap_or(0),
-                        updated_at: now_millis(),
-                    };
-                    if let Ok(bytes) = serde_json::to_vec(&rec) {
-                        if let Ok(kv) = js.get_key_value("ROGUE_PRESENCE").await {
-                            let _ = kv.put(&addr_bg, bytes.into()).await;
-                        }
-                    }
+                    publish_presence(&js, &addr_bg, &active_room, miner_level.unwrap_or(0)).await;
                 }
                 _ = reauth_interval.tick() => {
                     // Transparently refresh session before 15m JWT expiry.
