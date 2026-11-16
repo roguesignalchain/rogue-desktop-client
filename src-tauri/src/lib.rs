@@ -80,6 +80,33 @@ pub fn run() {
                 })
                 .build(app)?;
 
+            let sig_app_handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                #[cfg(unix)]
+                {
+                    let mut sigterm = tokio::signal::unix::signal(
+                        tokio::signal::unix::SignalKind::terminate(),
+                    );
+                    tokio::select! {
+                        _ = tokio::signal::ctrl_c() => {},
+                        _ = async {
+                            if let Ok(ref mut s) = sigterm {
+                                s.recv().await;
+                            } else {
+                                std::future::pending::<()>().await;
+                            }
+                        } => {},
+                    }
+                }
+                #[cfg(not(unix))]
+                {
+                    let _ = tokio::signal::ctrl_c().await;
+                }
+                let _ = process_manager::stop_node().await;
+                let _ = wallet::lock_wallet();
+                sig_app_handle.exit(0);
+            });
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

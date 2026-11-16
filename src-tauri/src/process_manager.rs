@@ -15,12 +15,21 @@ struct ManagedNode {
 
 static NODE_PROCESS: Mutex<Option<ManagedNode>> = Mutex::new(None);
 static STARTING_NODE: AtomicBool = AtomicBool::new(false);
+static STOPPING_NODE: AtomicBool = AtomicBool::new(false);
 
 struct StartGuard;
 
 impl Drop for StartGuard {
     fn drop(&mut self) {
         STARTING_NODE.store(false, Ordering::SeqCst);
+    }
+}
+
+struct StopGuard;
+
+impl Drop for StopGuard {
+    fn drop(&mut self) {
+        STOPPING_NODE.store(false, Ordering::SeqCst);
     }
 }
 
@@ -582,6 +591,9 @@ pub async fn start_node(app: AppHandle, config: NodeConfig) -> Result<String, St
 }
 
 fn start_node_sync(app: AppHandle, config: NodeConfig) -> Result<String, String> {
+    if STOPPING_NODE.load(Ordering::SeqCst) {
+        return Err("Node shutdown is currently in progress".to_string());
+    }
     if STARTING_NODE
         .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
         .is_err()
@@ -834,6 +846,14 @@ fn start_node_sync(app: AppHandle, config: NodeConfig) -> Result<String, String>
 }
 
 pub fn stop_node_sync() -> Result<String, String> {
+    if STOPPING_NODE
+        .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+        .is_err()
+    {
+        return Ok("Node shutdown is already in progress".to_string());
+    }
+    let _stop_guard = StopGuard;
+
     let taken = {
         let mut proc_lock = lock_node_process();
         proc_lock.take()
@@ -841,13 +861,14 @@ pub fn stop_node_sync() -> Result<String, String> {
 
     if let Some(mut managed) = taken {
         let pid = managed.child.id();
+        let datadir_opt = managed.pid_file.parent().map(|p| p.to_path_buf());
 
         // First ask the node to stop mining immediately before terminating
         send_miner_stop_sync(managed.http_port);
 
         #[cfg(unix)]
         {
-            // Send SIGINT first (standard Geth graceful shutdown signal for LevelDB flush)
+            // Send SIGINT first (standard Geth graceful shutdown signal for Pebble/LevelDB flush)
             unsafe {
                 libc::kill(pid as i32, libc::SIGINT);
             }
@@ -873,28 +894,37 @@ pub fn stop_node_sync() -> Result<String, String> {
             match managed.child.try_wait() {
                 Ok(Some(status)) => {
                     remove_pid_file(&managed.pid_file);
+                    if let Some(ref dir) = datadir_opt {
+                        remove_stale_ipc(dir);
+                    }
                     return Ok(format!("Node stopped cleanly with status: {:?}", status));
                 }
                 Ok(None) => {
                     let elapsed = start.elapsed();
                     #[cfg(unix)]
-                    if !sigterm_sent && elapsed >= std::time::Duration::from_secs(45) {
+                    if !sigterm_sent && elapsed >= std::time::Duration::from_secs(12) {
                         sigterm_sent = true;
                         unsafe {
                             libc::kill(pid as i32, libc::SIGTERM);
                         }
                     }
-                    if elapsed >= std::time::Duration::from_secs(50) {
+                    if elapsed >= std::time::Duration::from_secs(15) {
                         let _ = managed.child.kill();
                         let _ = managed.child.wait();
                         remove_pid_file(&managed.pid_file);
-                        return Ok("Node forcefully killed after graceful shutdown timeout (50s)".to_string());
+                        if let Some(ref dir) = datadir_opt {
+                            remove_stale_ipc(dir);
+                        }
+                        return Ok("Node forcefully killed after graceful shutdown timeout (15s)".to_string());
                     }
                     std::thread::sleep(std::time::Duration::from_millis(100));
                 }
                 Err(e) => {
                     let _ = managed.child.kill();
                     remove_pid_file(&managed.pid_file);
+                    if let Some(ref dir) = datadir_opt {
+                        remove_stale_ipc(dir);
+                    }
                     return Err(format!("Error while waiting for node shutdown: {}", e));
                 }
             }
@@ -1369,5 +1399,12 @@ mod tests {
         assert!(!cmdline_matches_datadir(&args, &other_dir));
 
         let _ = std::fs::remove_dir_all(&tmp_dir);
+    }
+
+    #[test]
+    fn test_stop_node_sync_when_idle_and_stop_guard() {
+        let res = stop_node_sync().expect("stop_node_sync should succeed when idle");
+        assert_eq!(res, "Node is not running");
+        assert!(!STOPPING_NODE.load(Ordering::SeqCst));
     }
 }
