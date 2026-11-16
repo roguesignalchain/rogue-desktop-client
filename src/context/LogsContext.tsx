@@ -1,5 +1,6 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
 import { api } from "../services/api";
+import { detectLogDiagnosticWarning } from "../utils/nodeDiagnostics";
 
 const MAX_LOG_LINES = 1500;
 
@@ -14,6 +15,7 @@ const LogsContext = createContext<LogsContextValue | null>(null);
 
 export const LogsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [logs, setLogs] = useState<string[]>([]);
+  const emittedWarningsRef = useRef<Set<string>>(new Set());
 
   const appendLog = useCallback((line: string) => {
     setLogs((prev) => [...prev, line].slice(-MAX_LOG_LINES));
@@ -44,9 +46,17 @@ export const LogsProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const unlistenBatch = await listen<string[]>("node-log-batch", (event) => {
           const lines = event.payload;
           if (!Array.isArray(lines) || lines.length === 0) return;
-          setLogs((prev) =>
-            [...prev, ...lines.map((line) => `[Geth] ${line}`)].slice(-MAX_LOG_LINES)
-          );
+          const mapped: string[] = [];
+          for (const line of lines) {
+            mapped.push(`[Geth] ${line}`);
+            const diag = detectLogDiagnosticWarning(line);
+            if (diag && !emittedWarningsRef.current.has(diag)) {
+              emittedWarningsRef.current.add(diag);
+              mapped.push(diag);
+              void api.appendAppLog("WARN", diag);
+            }
+          }
+          setLogs((prev) => [...prev, ...mapped].slice(-MAX_LOG_LINES));
         });
         if (isCancelled) {
           unlistenBatch();

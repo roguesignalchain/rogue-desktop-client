@@ -8,6 +8,7 @@ import {
   parseOnChainTokenUri,
 } from "../explorerDecode";
 import { ROGUE_REPUTATION_ADDRESS, rogueSignalChain } from "../../contracts/rogueReputation";
+import { detectLogDiagnosticWarning, isDeterministicStartupError } from "../nodeDiagnostics";
 
 describe("format utilities", () => {
   it("formats hashrate across H/s, kH/s, and MH/s", () => {
@@ -80,6 +81,25 @@ describe("Rogue reputation contract constants", () => {
   it("matches Rogue Signal chain ID and system contract address", () => {
     expect(rogueSignalChain.id).toBe(800055);
     expect(ROGUE_REPUTATION_ADDRESS).toBe("0x0000000000000000000000000000000000000020");
+  });
+});
+
+describe("nodeDiagnostics utilities", () => {
+  it("identifies deterministic startup errors that should not auto-retry", () => {
+    expect(isDeterministicStartupError("HTTP RPC port 38848 is already in use")).toBe(true);
+    expect(isDeterministicStartupError("Configured node ports must not collide")).toBe(true);
+    expect(isDeterministicStartupError("Invalid coinbase address")).toBe(true);
+    expect(isDeterministicStartupError("Transient IPC timeout")).toBe(false);
+  });
+
+  it("extracts actionable warnings from Geth log lines", () => {
+    expect(
+      detectLogDiagnosticWarning("INFO [11-15|23:17:20.771] Loaded last snap-sync pivot marker number=35")
+    ).toContain("Interrupted snap-sync pivot detected");
+    expect(
+      detectLogDiagnosticWarning("ERROR Failed to open RPC endpoints error=\"listen tcp 127.0.0.1:38848: bind: address already in use\"")
+    ).toContain("Port conflict detected");
+    expect(detectLogDiagnosticWarning("INFO Starting peer-to-peer node")).toBeNull();
   });
 });
 

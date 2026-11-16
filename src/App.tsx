@@ -6,6 +6,7 @@ import { WalletModal } from "./components/WalletModal";
 import { Block, ExplorerRoute, NodeStatus, SyncStatus, WalletSummary, AccountInfo, MinerGamificationStats, RankInfo } from "./types";
 import { api, formatWeiToRogue } from "./services/api";
 import { useLogs } from "./context/LogsContext";
+import { isDeterministicStartupError } from "./utils/nodeDiagnostics";
 import { Loader2, ShieldAlert, AlertTriangle } from "lucide-react";
 
 const Dashboard = lazy(() => import("./components/Dashboard").then((m) => ({ default: m.Dashboard })));
@@ -599,6 +600,7 @@ export const App: React.FC = () => {
     coinbase?: string,
     fastModeOverride?: boolean
   ) => {
+    if (isShuttingDownRef.current) return;
     const cfg = nodeConfigRef.current;
     try {
       const msg = await api.startNode({
@@ -628,6 +630,7 @@ export const App: React.FC = () => {
   };
 
   const handleRestartNodeWithFastMode = async (useFast: boolean) => {
+    if (isShuttingDownRef.current) return;
     setNodeFastMode(useFast);
     localStorage.setItem("rogue_node_fast_mode", String(useFast));
     try {
@@ -650,6 +653,7 @@ export const App: React.FC = () => {
   };
 
   const handleRestartNode = async () => {
+    if (isShuttingDownRef.current) return;
     try {
       await api.stopNode();
     } catch {
@@ -668,10 +672,16 @@ export const App: React.FC = () => {
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
 
     const tryAutoStart = async () => {
+      if (isCancelled || isShuttingDownRef.current) return;
       try {
         await handleStartNode(false);
       } catch (err) {
-        if (!isCancelled && attempts < 3) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (isDeterministicStartupError(msg)) {
+          appendLog("[Auto-Start] Aborted automatic retry due to port or configuration error.");
+          return;
+        }
+        if (!isCancelled && !isShuttingDownRef.current && attempts < 3) {
           attempts++;
           const delay = Math.pow(2, attempts) * 1000;
           appendLog(`[Auto-Start] Retry attempt ${attempts}/3 in ${delay / 1000}s...`);
