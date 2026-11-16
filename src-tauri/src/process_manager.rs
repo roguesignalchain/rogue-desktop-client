@@ -204,9 +204,69 @@ fn ensure_genesis_init(geth_bin: &Path, datadir: &Path) -> Result<(), String> {
     Ok(())
 }
 
+fn resolve_auth_port(config: &NodeConfig) -> u16 {
+    config.authrpc_port.unwrap_or_else(|| {
+        if config.http_port == 38845 {
+            38851
+        } else {
+            config.http_port.saturating_add(6).max(1024)
+        }
+    })
+}
+
 fn is_rpc_active(port: u16) -> bool {
     let addr = SocketAddr::from(([127, 0, 0, 1], port));
     TcpStream::connect_timeout(&addr, std::time::Duration::from_millis(300)).is_ok()
+}
+
+fn is_tcp_port_available(ip: [u8; 4], port: u16) -> bool {
+    std::net::TcpListener::bind(SocketAddr::from((ip, port))).is_ok()
+}
+
+fn is_udp_port_available(ip: [u8; 4], port: u16) -> bool {
+    std::net::UdpSocket::bind(SocketAddr::from((ip, port))).is_ok()
+}
+
+fn find_busy_port(config: &NodeConfig) -> Option<String> {
+    if !is_tcp_port_available([127, 0, 0, 1], config.http_port) {
+        let hint = if is_rpc_active(config.http_port) {
+            "active RPC service"
+        } else {
+            "socket in use or TIME_WAIT"
+        };
+        return Some(format!("HTTP RPC port {} (127.0.0.1 TCP: {})", config.http_port, hint));
+    }
+    if !is_tcp_port_available([0, 0, 0, 0], config.p2p_port)
+        || !is_udp_port_available([0, 0, 0, 0], config.p2p_port)
+    {
+        return Some(format!("P2P port {} (TCP/UDP)", config.p2p_port));
+    }
+    let auth_port = resolve_auth_port(config);
+    if !is_tcp_port_available([127, 0, 0, 1], auth_port) {
+        return Some(format!("AuthRPC port {} (127.0.0.1 TCP)", auth_port));
+    }
+    if config.ws_port > 0 && !is_tcp_port_available([127, 0, 0, 1], config.ws_port) {
+        return Some(format!("WebSocket port {} (127.0.0.1 TCP)", config.ws_port));
+    }
+    None
+}
+
+fn wait_for_ports_available(config: &NodeConfig, timeout: std::time::Duration) -> Result<(), String> {
+    let deadline = std::time::Instant::now() + timeout;
+    loop {
+        match find_busy_port(config) {
+            None => return Ok(()),
+            Some(busy_desc) => {
+                if std::time::Instant::now() >= deadline {
+                    return Err(format!(
+                        "{} is already in use by another process or pending socket close",
+                        busy_desc
+                    ));
+                }
+                std::thread::sleep(std::time::Duration::from_millis(250));
+            }
+        }
+    }
 }
 
 fn pid_file_path(datadir: &Path) -> PathBuf {
@@ -323,6 +383,17 @@ fn validate_node_config(config: &NodeConfig) -> Result<(), String> {
             return Err("AuthRPC port must be non-zero".to_string());
         }
     }
+    let auth_port = resolve_auth_port(config);
+    if config.http_port == config.p2p_port
+        || config.http_port == auth_port
+        || config.p2p_port == auth_port
+        || (config.ws_port > 0
+            && (config.ws_port == config.http_port
+                || config.ws_port == config.p2p_port
+                || config.ws_port == auth_port))
+    {
+        return Err("Configured node ports (HTTP, WS, P2P, AuthRPC) must not collide".to_string());
+    }
     if let Some(ref nat) = config.nat {
         let trimmed = nat.trim();
         if !trimmed.is_empty() {
@@ -391,12 +462,9 @@ fn start_node_sync(app: AppHandle, config: NodeConfig) -> Result<String, String>
     // Clean up any orphaned core-rogue process or stale IPC socket left behind by a prior crash
     cleanup_stale_pid(&pid_file, &datadir);
 
-    if is_rpc_active(config.http_port) {
-        return Err(format!(
-            "HTTP RPC port {} is already in use by an external process",
-            config.http_port
-        ));
-    }
+    // Ensure all required node ports (HTTP, P2P, AuthRPC, WS) can actually bind,
+    // allowing a brief window for transient TIME_WAIT sockets after a recent restart.
+    wait_for_ports_available(&config, std::time::Duration::from_secs(3))?;
 
     // Ensure genesis block is initialized if chaindata does not exist
     ensure_genesis_init(&geth_bin, &datadir)?;
@@ -437,13 +505,7 @@ fn start_node_sync(app: AppHandle, config: NodeConfig) -> Result<String, String>
             .arg("tauri://localhost,http://tauri.localhost,https://tauri.localhost");
     }
 
-    let auth_port = config.authrpc_port.unwrap_or_else(|| {
-        if config.http_port == 38845 {
-            38851
-        } else {
-            config.http_port.saturating_add(6).max(1024)
-        }
-    });
+    let auth_port = resolve_auth_port(&config);
     let nat_flag = config
         .nat
         .as_deref()
@@ -1063,5 +1125,56 @@ mod tests {
         assert!(!ipc_path.exists());
 
         let _ = std::fs::remove_dir_all(&tmp_dir);
+    }
+
+    #[test]
+    fn test_validate_node_config_rejects_port_collisions() {
+        let mut cfg = NodeConfig::default();
+        cfg.ws_port = cfg.http_port;
+        assert!(validate_node_config(&cfg).is_err());
+
+        cfg.ws_port = 0;
+        cfg.authrpc_port = Some(cfg.p2p_port);
+        assert!(validate_node_config(&cfg).is_err());
+    }
+
+    #[test]
+    fn test_find_busy_port_detects_bound_tcp_and_udp_sockets() {
+        let tcp_http = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let http_port = tcp_http.local_addr().unwrap().port();
+
+        let tcp_p2p = std::net::TcpListener::bind("0.0.0.0:0").unwrap();
+        let p2p_port = tcp_p2p.local_addr().unwrap().port();
+
+        let tcp_auth = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let auth_port = tcp_auth.local_addr().unwrap().port();
+
+        let mut cfg = NodeConfig {
+            http_port,
+            p2p_port,
+            authrpc_port: Some(auth_port),
+            ..NodeConfig::default()
+        };
+
+        let err = wait_for_ports_available(&cfg, std::time::Duration::from_millis(50)).unwrap_err();
+        assert!(err.contains("HTTP RPC port"));
+
+        drop(tcp_http);
+        let err = wait_for_ports_available(&cfg, std::time::Duration::from_millis(50)).unwrap_err();
+        assert!(err.contains("P2P port"));
+
+        drop(tcp_p2p);
+        let err = wait_for_ports_available(&cfg, std::time::Duration::from_millis(50)).unwrap_err();
+        assert!(err.contains("AuthRPC port"));
+
+        drop(tcp_auth);
+        // Pick fresh ephemeral ports to avoid race, and verify free ports pass
+        let free_http = std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
+        let free_p2p = std::net::TcpListener::bind("0.0.0.0:0").unwrap().local_addr().unwrap().port();
+        let free_auth = std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
+        cfg.http_port = free_http;
+        cfg.p2p_port = free_p2p;
+        cfg.authrpc_port = Some(free_auth);
+        assert!(wait_for_ports_available(&cfg, std::time::Duration::from_millis(50)).is_ok());
     }
 }

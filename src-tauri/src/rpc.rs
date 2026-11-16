@@ -10,8 +10,8 @@ fn get_client() -> &'static reqwest::Client {
     HTTP_CLIENT.get_or_init(|| {
         reqwest::Client::builder()
             .timeout(Duration::from_secs(5))
-            .pool_idle_timeout(Duration::from_secs(30))
-            .tcp_keepalive(Duration::from_secs(15))
+            // Avoid holding idle keep-alive sockets against localhost across node restarts
+            .pool_max_idle_per_host(0)
             .build()
             .unwrap_or_else(|_| reqwest::Client::new())
     })
