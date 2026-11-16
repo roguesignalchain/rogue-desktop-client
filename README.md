@@ -39,6 +39,10 @@ Built with **Tauri v2**, **Rust**, **React 19**, **TypeScript**, and **Tailwind 
 * **Security, RPC Lockdown & Inactivity Auto-Lock**:
   * Restricts local node HTTP/WS CORS exclusively to `tauri://localhost` and `127.0.0.1:1420` (with `personal` RPC disabled).
   * Configurable auto-lock timers (5, 15, or 30 minutes) clearing decrypted secrets from RAM upon user inactivity.
+* **Decoupled Messaging & E2EE Direct Messages (`rogue-nats-server`)**:
+  * Integrated **Messaging** tab (located directly below **Dashboard**) powered by `async-nats` in Rust, connecting to the centralized `rogue-nats-server` independently of local node status.
+  * Authenticates via EIP-191 `personal_sign` (`secp256k1`) directly in Rust—private keys never leave the Rust backend or touch the WebView.
+  * Supports public rooms, reputation-gated miner channels (`#hash-wardens` for `Lv.3+`), quote-replies, and client-to-client **ECIES (`secp256k1` + HKDF-SHA256 + AES-256-GCM)** E2EE direct messages with encrypted-at-rest local cache.
 
 ---
 
