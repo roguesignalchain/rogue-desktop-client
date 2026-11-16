@@ -9,6 +9,7 @@ import { useLogs } from "./context/LogsContext";
 import { Loader2, ShieldAlert, AlertTriangle } from "lucide-react";
 
 const Dashboard = lazy(() => import("./components/Dashboard").then((m) => ({ default: m.Dashboard })));
+const MessagingView = lazy(() => import("./components/MessagingView").then((m) => ({ default: m.MessagingView })));
 const WalletView = lazy(() => import("./components/WalletView").then((m) => ({ default: m.WalletView })));
 const TransfersView = lazy(() => import("./components/TransfersView").then((m) => ({ default: m.TransfersView })));
 const MiningView = lazy(() => import("./components/MiningView").then((m) => ({ default: m.MiningView })));
@@ -813,6 +814,18 @@ export const App: React.FC = () => {
               peerCount={peerCount}
               recentBlocks={recentBlocks}
               onNavigate={(tab) => setCurrentTab(tab)}
+            />
+          )}
+
+          {currentTab === "messaging" && (
+            <MessagingView
+              unlockedAddress={unlockedAddress}
+              balance={balance}
+              minerLevel={minerStats?.level ?? 0}
+              onOpenWalletModal={(mode) => {
+                setWalletModalMode(mode || "unlock");
+                setIsWalletModalOpen(true);
+              }}
             />
           )}
 

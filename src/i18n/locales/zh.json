@@ -2,6 +2,7 @@
   "common": {
     "appName": "ROGUE SIGNAL",
     "dashboard": "仪表板",
+    "messaging": "消息通信",
     "wallet": "钱包",
     "transfers": "转账",
     "mining": "CPU 挖矿",

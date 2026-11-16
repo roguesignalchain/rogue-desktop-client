@@ -2,6 +2,7 @@
   "common": {
     "appName": "ROGUE SIGNAL",
     "dashboard": "Dashboard",
+    "messaging": "Messaging",
     "wallet": "Wallet",
     "transfers": "Transfers",
     "mining": "CPU Mining",

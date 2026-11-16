@@ -1,4 +1,5 @@
 pub mod log_store;
+pub mod messaging;
 pub mod process_manager;
 pub mod wallet;
 pub mod rpc;
@@ -113,6 +114,20 @@ pub fn run() {
             wallet::sign_raw_transaction,
             rpc::call_rpc,
             rpc::call_rpc_batch,
+            messaging::messaging_connect,
+            messaging::messaging_disconnect,
+            messaging::messaging_status,
+            messaging::messaging_list_rooms,
+            messaging::messaging_set_active_room,
+            messaging::messaging_send_message,
+            messaging::messaging_read_history,
+            messaging::messaging_create_room,
+            messaging::messaging_delete_room,
+            messaging::messaging_update_topic,
+            messaging::messaging_delete_message,
+            messaging::messaging_send_dm,
+            messaging::messaging_list_dms,
+            messaging::messaging_list_online,
             update_tray_labels
         ])
         .build(tauri::generate_context!())

@@ -787,6 +787,28 @@ pub fn get_wallets() -> Result<Vec<WalletSummary>, String> {
     Ok(summaries)
 }
 
+/// Internal helper for backend modules (e.g., messaging auth & E2EE) to access
+/// the active unlocked wallet's secp256k1 secret without exposing it to JS.
+pub(crate) fn active_secret_bytes(account_index: u32) -> Result<(String, Zeroizing<[u8; 32]>), String> {
+    check_and_touch_session()?;
+    let wallets = lock_wallets();
+    if wallets.is_empty() {
+        return Err("Wallet is locked".to_string());
+    }
+    let active_id = ACTIVE_WALLET_ID.lock().map_err(|e| e.to_string())?;
+    let target = match active_id.as_deref() {
+        Some(id) => wallets.iter().find(|w| w.id == id).or_else(|| wallets.first()),
+        None => wallets.first(),
+    }
+    .ok_or_else(|| "No active wallet found".to_string())?;
+
+    let privkey = derive_private_key_bip44(&target.mnemonic, account_index)?;
+    let secret = SecretKey::from_slice(&*privkey).map_err(|e| e.to_string())?;
+    let pubkey = PublicKey::from_secret_key(get_secp(), &secret);
+    let addr = public_key_to_address(&pubkey);
+    Ok((addr.to_lowercase(), privkey))
+}
+
 #[tauri::command]
 pub fn get_mnemonic(password: String, wallet_id: Option<String>) -> Result<String, String> {
     verify_master_password(&password)?;

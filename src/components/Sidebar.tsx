@@ -2,9 +2,10 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 import {
   LayoutDashboard,
+  MessageSquare,
 } from "lucide-react";
 
-export type TabType = "dashboard" | "wallet" | "transfers" | "mining" | "explorer" | "console" | "settings";
+export type TabType = "dashboard" | "messaging" | "wallet" | "transfers" | "mining" | "explorer" | "console" | "settings";
 
 interface SidebarProps {
   currentTab: TabType;
@@ -19,6 +20,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const navItems = [
     { id: "dashboard", label: t("common.dashboard"), icon: LayoutDashboard },
+    { id: "messaging", label: t("common.messaging", { defaultValue: "Messaging" }), icon: MessageSquare },
   ];
 
   return (
