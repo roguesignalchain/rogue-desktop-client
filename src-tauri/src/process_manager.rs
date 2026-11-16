@@ -295,40 +295,190 @@ fn remove_stale_ipc(datadir: &Path) {
     }
 }
 
-fn cleanup_stale_pid(pid_file: &Path, datadir: &Path) {
-    if let Some(old_pid) = read_pid_file(pid_file) {
-        #[cfg(unix)]
+fn is_rogue_binary_name(exe: &str) -> bool {
+    let trimmed = exe.trim().trim_matches('"');
+    let basename = trimmed
+        .rsplit(['/', '\\'])
+        .next()
+        .unwrap_or(trimmed)
+        .to_ascii_lowercase();
+    basename == "core-rogue"
+        || basename == "core-rogue.exe"
+        || basename.starts_with("core-rogue-")
+        || basename == "geth"
+        || basename == "geth.exe"
+}
+
+fn cmdline_matches_datadir(args: &[String], datadir: &Path) -> bool {
+    let target = datadir.canonicalize().unwrap_or_else(|_| datadir.to_path_buf());
+    let mut iter = args.iter();
+    while let Some(arg) = iter.next() {
+        let candidate = if let Some(val) = arg.strip_prefix("--datadir=") {
+            Some(val)
+        } else if arg == "--datadir" {
+            iter.next().map(String::as_str)
+        } else {
+            None
+        };
+        if let Some(raw) = candidate {
+            let p = Path::new(raw);
+            let resolved = p.canonicalize().unwrap_or_else(|_| p.to_path_buf());
+            if resolved == target {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+#[cfg(target_os = "linux")]
+fn read_proc_cmdline(pid: u32) -> Option<Vec<String>> {
+    let raw = std::fs::read(format!("/proc/{}/cmdline", pid)).ok()?;
+    if raw.is_empty() {
+        return None;
+    }
+    let args: Vec<String> = raw
+        .split(|&b| b == 0)
+        .filter(|s| !s.is_empty())
+        .map(|s| String::from_utf8_lossy(s).to_string())
+        .collect();
+    if args.is_empty() {
+        None
+    } else {
+        Some(args)
+    }
+}
+
+fn is_rogue_node_process(pid: u32) -> bool {
+    if pid == 0 || pid == std::process::id() {
+        return false;
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        if let Some(args) = read_proc_cmdline(pid) {
+            return is_rogue_binary_name(&args[0]);
+        }
+        if let Ok(comm) = std::fs::read_to_string(format!("/proc/{}/comm", pid)) {
+            return is_rogue_binary_name(&comm);
+        }
+        return false;
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        if let Ok(out) = Command::new("ps")
+            .args(["-p", &pid.to_string(), "-o", "comm="])
+            .output()
         {
-            let alive = unsafe { libc::kill(old_pid as i32, 0) == 0 };
-            if alive {
-                unsafe {
-                    libc::kill(old_pid as i32, libc::SIGTERM);
-                }
-                for _ in 0..50 {
-                    std::thread::sleep(std::time::Duration::from_millis(100));
-                    let still_alive = unsafe { libc::kill(old_pid as i32, 0) == 0 };
-                    if !still_alive {
-                        break;
-                    }
-                }
-                if unsafe { libc::kill(old_pid as i32, 0) == 0 } {
-                    unsafe {
-                        libc::kill(old_pid as i32, libc::SIGKILL);
-                    }
+            let comm = String::from_utf8_lossy(&out.stdout);
+            return is_rogue_binary_name(&comm);
+        }
+        return false;
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        if let Ok(out) = Command::new("tasklist")
+            .args(["/FI", &format!("PID eq {}", pid), "/FO", "CSV", "/NH"])
+            .creation_flags(CREATE_NO_WINDOW)
+            .output()
+        {
+            let line = String::from_utf8_lossy(&out.stdout);
+            if let Some(first_col) = line.split(',').next() {
+                return is_rogue_binary_name(first_col);
+            }
+        }
+        return false;
+    }
+
+    #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
+    {
+        let _ = pid;
+        false
+    }
+}
+
+fn terminate_pid_gracefully(pid: u32) {
+    #[cfg(unix)]
+    {
+        let alive = unsafe { libc::kill(pid as i32, 0) == 0 };
+        if !alive {
+            return;
+        }
+        unsafe {
+            libc::kill(pid as i32, libc::SIGTERM);
+        }
+        for _ in 0..50 {
+            std::thread::sleep(std::time::Duration::from_millis(100));
+            if unsafe { libc::kill(pid as i32, 0) != 0 } {
+                return;
+            }
+        }
+        if unsafe { libc::kill(pid as i32, 0) == 0 } {
+            unsafe {
+                libc::kill(pid as i32, libc::SIGKILL);
+            }
+            for _ in 0..10 {
+                std::thread::sleep(std::time::Duration::from_millis(100));
+                if unsafe { libc::kill(pid as i32, 0) != 0 } {
+                    break;
                 }
             }
         }
-        #[cfg(target_os = "windows")]
-        {
-            use std::os::windows::process::CommandExt;
-            const CREATE_NO_WINDOW: u32 = 0x08000000;
-            let _ = Command::new("taskkill")
-                .args(["/PID", &old_pid.to_string(), "/T", "/F"])
-                .creation_flags(CREATE_NO_WINDOW)
-                .output();
+    }
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        let _ = Command::new("taskkill")
+            .args(["/PID", &pid.to_string(), "/T", "/F"])
+            .creation_flags(CREATE_NO_WINDOW)
+            .output();
+    }
+}
+
+fn cleanup_orphan_nodes_by_datadir(datadir: &Path) {
+    #[cfg(target_os = "linux")]
+    {
+        let self_pid = std::process::id();
+        let Ok(entries) = std::fs::read_dir("/proc") else {
+            return;
+        };
+        for entry in entries.flatten() {
+            let Some(pid) = entry
+                .file_name()
+                .to_str()
+                .and_then(|s| s.parse::<u32>().ok())
+            else {
+                continue;
+            };
+            if pid == 0 || pid == self_pid {
+                continue;
+            }
+            if let Some(args) = read_proc_cmdline(pid) {
+                if is_rogue_binary_name(&args[0]) && cmdline_matches_datadir(&args, datadir) {
+                    terminate_pid_gracefully(pid);
+                }
+            }
+        }
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = datadir;
+    }
+}
+
+fn cleanup_stale_pid(pid_file: &Path, datadir: &Path) {
+    if let Some(old_pid) = read_pid_file(pid_file) {
+        if is_rogue_node_process(old_pid) {
+            terminate_pid_gracefully(old_pid);
         }
         remove_pid_file(pid_file);
     }
+    cleanup_orphan_nodes_by_datadir(datadir);
     remove_stale_ipc(datadir);
 }
 
@@ -617,12 +767,20 @@ fn start_node_sync(app: AppHandle, config: NodeConfig) -> Result<String, String>
                         let mut proc_lock = lock_node_process();
                         if let Some(ref mut managed) = *proc_lock {
                             if managed.child.id() == pid {
-                                let exit_code = managed
-                                    .child
-                                    .try_wait()
-                                    .ok()
-                                    .flatten()
-                                    .and_then(|s| s.code());
+                                let mut exit_status = None;
+                                for _ in 0..20 {
+                                    match managed.child.try_wait() {
+                                        Ok(Some(status)) => {
+                                            exit_status = Some(status);
+                                            break;
+                                        }
+                                        Ok(None) => {
+                                            std::thread::sleep(std::time::Duration::from_millis(50));
+                                        }
+                                        Err(_) => break,
+                                    }
+                                }
+                                let exit_code = exit_status.and_then(|s| s.code());
                                 remove_pid_file(&managed.pid_file);
                                 *proc_lock = None;
                                 let _ = app_handle.emit("node-process-exited", exit_code);
@@ -1176,5 +1334,40 @@ mod tests {
         cfg.p2p_port = free_p2p;
         cfg.authrpc_port = Some(free_auth);
         assert!(wait_for_ports_available(&cfg, std::time::Duration::from_millis(50)).is_ok());
+    }
+
+    #[test]
+    fn test_rogue_binary_and_datadir_matching() {
+        assert!(is_rogue_binary_name("core-rogue"));
+        assert!(is_rogue_binary_name("/usr/bin/core-rogue-x86_64-unknown-linux-gnu"));
+        assert!(is_rogue_binary_name("C:\\Program Files\\Rogue\\core-rogue.exe"));
+        assert!(is_rogue_binary_name("geth"));
+        assert!(!is_rogue_binary_name("/usr/bin/python3"));
+        assert!(!is_rogue_binary_name("rogue-desktop"));
+
+        // Current test runner PID must never be identified as a rogue node process
+        assert!(!is_rogue_node_process(std::process::id()));
+        assert!(!is_rogue_node_process(0));
+
+        let tmp_dir = std::env::temp_dir().join(format!("rogue-datadir-match-{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&tmp_dir);
+        let args = vec![
+            "/opt/rogue/core-rogue".to_string(),
+            "--rogue".to_string(),
+            "--datadir".to_string(),
+            tmp_dir.to_string_lossy().to_string(),
+        ];
+        assert!(cmdline_matches_datadir(&args, &tmp_dir));
+
+        let args_eq = vec![
+            "core-rogue".to_string(),
+            format!("--datadir={}", tmp_dir.to_string_lossy()),
+        ];
+        assert!(cmdline_matches_datadir(&args_eq, &tmp_dir));
+
+        let other_dir = std::env::temp_dir().join("other-chaindata-dir");
+        assert!(!cmdline_matches_datadir(&args, &other_dir));
+
+        let _ = std::fs::remove_dir_all(&tmp_dir);
     }
 }
